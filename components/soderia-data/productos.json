@@ -1,0 +1,25 @@
+[
+    {
+        "id": 1,
+        "Producto": "Bidón Agua x 20L",
+        "PrecioPublico": 2900,
+        "PrecioRevendedor": 1500
+    }, 
+    {
+        "id": 2,
+        "Producto": "Bidón Agua x 12L",
+        "PrecioPublico": 2450,
+        "PrecioRevendedor": 1350
+    },
+    {
+        "id": 3,
+        "Producto": "Sifon Soda x 1250",
+        "PrecioPublico": 800,
+        "PrecioRevendedor": 500
+    }, {
+        "id": 4,
+        "Producto": "Sifon Soda x 1250",
+        "PrecioPublico": 800,
+        "PrecioRevendedor": 500
+    }
+]
