@@ -64,6 +64,7 @@ export default function NuevaVenta() {
     title: '',
     message: ''
   });
+  const [showPDF, setShowPDF] = useState(false);
 
   const handleAddProduct = (productId: string) => {
     const selectedProduct = productosData.find(p => p.id === parseInt(productId));
@@ -171,6 +172,7 @@ export default function NuevaVenta() {
         message: 'Hubo un error generando el PDF. Por favor intente nuevamente.'
       });
     }
+    setShowPDF(true);
   };
 
   const selectedRevendedorName = revendedoresData.revendedores.find(
@@ -197,90 +199,82 @@ export default function NuevaVenta() {
           </Button>
         </Link>
         <div className="flex flex-grow justify-center items-center">
-          <h1 className="text-2xl font-bold text-center">Nueva Venta</h1>
+          <h1 className="text-2xl font-bold text-center">Detalles de la Venta</h1>
         </div>
       </div>
 
       <div className="mx-auto max-w-full">
         <Card className="p-6">
           <CardHeader>
-            <h2 className="text-xl font-bold">Detalles de la Venta</h2>
+    
           </CardHeader>
           <CardBody>
             <div className="space-y-4">
               {/* Date Picker */}
-              <div className="relative">
-                <Popover isOpen={open} onOpenChange={setOpen}>
-                  <PopoverTrigger>
-                    <div className="relative">
-                      <div className="absolute left-2 top-1/2 z-10 transform -translate-y-1/2">
-                        <CalendarIcon className="w-5 h-5 text-gray-500" />
+              <div className="flex justify-between">
+                <div className="flex items-center">
+                  <label htmlFor="fecha" className="mr-2 text-xl font-bold">Fecha:</label>
+                  <Popover isOpen={open} onOpenChange={setOpen}>
+                    <PopoverTrigger>
+                      <div className="relative flex-grow">
+                        <div className="absolute left-2 top-1/2 z-10 transform -translate-y-1/2">
+                          <CalendarIcon className="w-5 h-5 text-secondary" />
+                        </div>
+                        <Input
+                          id="fecha"
+                          variant="bordered"
+                          color="secondary"
+                          type="text"
+                          value={selectedDate.toString()}
+                          readOnly
+                          placeholder="Selecciona una fecha"
+                          className="pl-10 w-[200px]"
+                        />
                       </div>
-                      <Input
-                        type="text"
-                        value={selectedDate.toString()}
-                        readOnly
-                        placeholder="Selecciona una fecha"
-                        className="pl-10 w-full"
+                    </PopoverTrigger>
+                    <PopoverContent className="transform" >
+                      <Calendar
+                        defaultValue={defaultDate}
+                        value={selectedDate}
+                        onChange={(date) => {
+                          if (date) {
+                            setSelectedDate(date);
+                            setOpen(false);
+                          }
+                        }}
                       />
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent>
-                    <Calendar
-                      defaultValue={defaultDate}
-                      value={selectedDate}
-                      onChange={(date) => {
-                        if (date) {
-                          setSelectedDate(date);
-                          setOpen(false);
-                        }
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              {/* Revendedor */}
-              <div>
-               <label htmlFor="revendedor" className="block mb-2 text-gray-700">Nombre del revendedor</label>
-               <Select
-                 id="revendedor"
-                 placeholder="Selecciona un revendedor"
-                 value={selectedRevendedor}
-                 onChange={(e) => {
-                   setSelectedRevendedor(e.target.value);
-                   console.log('Revendedor seleccionado:', e.target.value);
-                 }}
-                 className="mb-4 w-full"
-               >
-                 {revendedoresData.revendedores.map((revendedor, index) => (
-                   <SelectItem key={index} value={revendedor}>
-                     {revendedor}
-                   </SelectItem>
-                 ))}
-               </Select>
-             </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-              {/* Selector de Productos */}
-                <label htmlFor="producto" className="block mb-2 text-gray-700">Agregar Productos</label>
-              <div className="flex items-center">
-                <Select
-                  label="Agregar Producto"
-                  placeholder="Selecciona un producto"
-                  onChange={(e) => handleAddProduct(e.target.value)}
-                  className="mb-4 w-full"
-                >
-                  {productosData.map((producto) => (
-                    <SelectItem key={producto.id} value={producto.id.toString()}>
-                      {producto.Producto}
-                    </SelectItem>
-                  ))}
-                </Select>
-        
+                {/* Revendedor */}
+                <div className="flex items-center">
+                  <label htmlFor="revendedor" className="mr-2 text-xl font-bold">Revendedor:</label>
+                  <Select
+                    id="revendedor"
+                    color="secondary"
+                    placeholder="Selecciona un revendedor"
+                    value={selectedRevendedor}
+                    onChange={(e) => {
+                      setSelectedRevendedor(e.target.value);
+                      console.log('Revendedor seleccionado:', e.target.value);
+                    }}
+                    className="w-[200px]"
+                  >
+                    {revendedoresData.revendedores.map((revendedor, index) => (
+                      <SelectItem key={index} value={revendedor}>
+                        {revendedor}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </div>
               </div>
+
+           
 
               {/* Lista de Productos */}
               <div className="flex items-center"> 
-                <h2 className="text-xl font-bold">Lista de Productos</h2>
+                <h2 className="mt-8 text-xl font-bold">Productos:</h2>
               </div>
 
               {products.map((product) => (
@@ -369,6 +363,26 @@ export default function NuevaVenta() {
                 </div>
               ))}
 
+
+
+                 {/* Selector de Productos */}
+                 <label htmlFor="producto" className="block mb-2 text-gray-700">Agregar Productos</label>
+              <div className="flex items-center">
+                <Select
+                  label="Agregar Producto"
+                  placeholder="Selecciona un producto"
+                  onChange={(e) => handleAddProduct(e.target.value)}
+                  className="mb-4 w-full"
+                >
+                  {productosData.map((producto) => (
+                    <SelectItem key={producto.id} value={producto.id.toString()}>
+                      {producto.Producto}
+                    </SelectItem>
+                  ))}
+                </Select>
+        
+              </div>
+
               {/* Totales - Agregar después del mapping de productos */}
               <div className="p-4 mt-4 bg-gray-200 rounded-lg">
                 <h2 className="mb-4 text-xl font-bold">Resumen de la Venta</h2>
@@ -425,7 +439,7 @@ export default function NuevaVenta() {
       </div>
 
       {/* Contenido a convertir en PDF */}
-      <div ref={invoiceRef} className="p-6 bg-white">
+      <div ref={invoiceRef} className={`p-6 bg-white ${showPDF ? '':'hidden'}`}>
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="mb-4 text-2xl font-bold text-gray-900">
@@ -435,9 +449,9 @@ export default function NuevaVenta() {
           </div>
           <div className="text-right">
             <div className="text-gray-600">
-              <p>Av. Sabattini 2793</p>
+              <p>Gerónimo del Barco 2560</p>
               <p>Río Cuarto, Córdoba</p>
-              <p>Tel: 358-4704865</p>
+              <p>Tel: 3585602938</p>
             </div>
             <p className="text-gray-600">Fecha: {selectedDate.toString()}</p>
           </div>
@@ -483,7 +497,7 @@ export default function NuevaVenta() {
 
         <div className="pt-4 mt-8 border-t border-gray-200">
           <p className="text-sm text-gray-600">
-            Gracias por su compra. Para consultas comunicarse al 358-4704865.
+            Gracias por su compra. Para consultas comunicarse al 3585602938.
           </p>
         </div>
       </div>

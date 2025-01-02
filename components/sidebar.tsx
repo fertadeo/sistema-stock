@@ -1,10 +1,32 @@
 "use client"
+import { useState, useEffect, useRef } from 'react';
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Divider } from "@nextui-org/react"
 
 export const SideBar = () => {
+  const [isOpen, setIsOpen] = useState(true);
   const router = useRouter();
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        sidebarRef.current && 
+        !sidebarRef.current.contains(event.target as Node) && 
+        window.innerWidth < 640 && // Solo en móvil (sm)
+        isOpen
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const toggleSidebar = () => {
+    setIsOpen(!isOpen);
+  };
 
   const handleLogout = () => {
     // Borra el token de localStorage
@@ -19,32 +41,62 @@ export const SideBar = () => {
 
 
   return (
-    <section className="fixed font-sans antialiased">
+    <section className="fixed z-50 font-sans antialiased">
       <section
         className="flex flex-row w-screen h-full"
         id="view"
       >
+        {/* Overlay para cuando el sidebar está abierto en móvil */}
+        {isOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity sm:hidden"
+            aria-hidden="true"
+          />
+        )}
+
         <button
-          className="absolute top-0 left-0 p-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white sm:hidden"
+          onClick={toggleSidebar}
+          className="absolute top-0 left-0 z-50 p-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white sm:hidden"
         >
-          <svg
-            className="w-5 h-5 fill-current"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fillRule="evenodd"
-              d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-              clipRule="evenodd"
-            ></path>
-          </svg>
+          {isOpen ? (
+            // Ícono X para cerrar
+            <svg
+              className="w-5 h-5 fill-current"
+              viewBox="0 0 20 20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          ) : (
+            // Ícono de menú hamburguesa
+            <svg
+              className="w-5 h-5 fill-current"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fillRule="evenodd"
+                d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
         </button>
         <div
-          className="overflow-x-hidden px-3 h-screen bg-white shadow-xl transition-transform duration-300 ease-in-out md:block w-30 md:w-60 lg:w-60"
+          ref={sidebarRef}
+          className={`
+            overflow-x-hidden px-3 h-screen bg-white shadow-xl transition-transform duration-300 ease-in-out z-40
+            ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
+            md:translate-x-0 md:block w-30 md:w-60 lg:w-60
+          `}
           id="sidebar"
         >
-          <div className="mt-[50px] space-y-6 md:space-y-10">
+          <div className="mt-[50px] mb-5 space-y-6 md:space-y-10">
             <h1 className="text-sm font-bold text-center md:block md:text-xl">
               Soderia Don Javier<span className="text-red-700">.</span>
             </h1>
