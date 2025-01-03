@@ -1,47 +1,28 @@
 "use client"
+
 import { useState, useEffect, useRef } from 'react';
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 export const SideBar = () => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
+  // Cerrar sidebar cuando cambia la ruta
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        sidebarRef.current && 
-        !sidebarRef.current.contains(event.target as Node) && 
-        window.innerWidth < 640 && // Solo en móvil (sm)
-        isOpen
-      ) {
-        setIsOpen(false);
-      }
-    };
+    if (window.innerWidth < 640) { // Solo en mobile
+      setIsOpen(false);
+    }
+  }, [pathname]); // Se ejecuta cuando cambia la ruta
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen);
+  const handleNavigation = (path: string) => {
+    router.push(path);
   };
-
-  const handleLogout = () => {
-    // Borra el token de localStorage
-    localStorage.removeItem("token");
-
-    // Borra el token de las cookies
-    document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-
-    // Redirige al usuario al login u otra página
-    router.push("/");
-  };
-
 
   return (
-    <section className="fixed z-50 font-sans antialiased">
+    <section className="fixed z-40 font-sans antialiased">
       <section
         className="flex flex-row w-screen h-full"
         id="view"
@@ -49,14 +30,15 @@ export const SideBar = () => {
         {/* Overlay para cuando el sidebar está abierto en móvil */}
         {isOpen && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity sm:hidden"
+            className="fixed inset-0 z-30 bg-black bg-opacity-50 transition-opacity sm:hidden"
             aria-hidden="true"
+            onClick={() => setIsOpen(false)}
           />
         )}
 
         <button
-          onClick={toggleSidebar}
-          className="absolute top-0 left-0 z-50 p-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white sm:hidden"
+          onClick={() => setIsOpen(!isOpen)}
+          className="fixed top-0 left-0 z-50 p-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white sm:hidden"
         >
           {isOpen ? (
             // Ícono X para cerrar
@@ -90,9 +72,10 @@ export const SideBar = () => {
         <div
           ref={sidebarRef}
           className={`
-            overflow-x-hidden px-3 h-screen bg-white shadow-xl transition-transform duration-300 ease-in-out z-40
+            fixed left-0 overflow-x-hidden px-3 h-screen bg-white shadow-xl 
+            transition-transform duration-300 ease-in-out z-40
             ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-            md:translate-x-0 md:block w-30 md:w-60 lg:w-60
+            md:translate-x-0 md:relative md:w-60 lg:w-60
           `}
           id="sidebar"
         >
@@ -195,7 +178,7 @@ export const SideBar = () => {
 
               <div className="mt-auto">
                 <button
-                  onClick={handleLogout}
+                  onClick={() => handleNavigation('/logout')}
                   className="flex gap-2 items-center px-4 py-2 text-sm font-medium text-red-700 rounded-md transition duration-150 ease-in-out hover:bg-red-500 hover:text-white hover:scale-105"
                 >
                   <svg
@@ -215,7 +198,14 @@ export const SideBar = () => {
             </div>
           </div>
         </div>
+
+        {/* Contenido principal - asegúrate de que esté accesible */}
+        <div className="flex-1 md:ml-60">
+          {/* Contenido principal aquí */}
+        </div>
       </section>
     </section>
   )
 }
+
+export default SideBar;
