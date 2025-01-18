@@ -2,9 +2,24 @@ import ConditionalLayout from '../components/conditionalLayout';
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
+  title: 'Sistema Stock',
+  description: 'Sistema de control de stock',
   manifest: '/manifest.json',
   themeColor: '#000000',
-  viewport: 'minimum-scale=1, initial-scale=1, width=device-width, shrink-to-fit=no, viewport-fit=cover'
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Sistema Stock',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export default function RootLayout({
