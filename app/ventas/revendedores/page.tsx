@@ -1,8 +1,9 @@
 'use client';
 import '../../../styles/globals.css'; 
 import React from 'react';
-import { Button, Input, Card, CardBody, CardHeader, Divider, Calendar, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@nextui-org/react";
+import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@nextui-org/react";
 import { CalendarIcon } from "@heroicons/react/24/outline";
+import { Calendar } from "@nextui-org/calendar";
 import { useState } from "react";
 import Link from "next/link";
 import { today, getLocalTimeZone } from "@internationalized/date";
@@ -11,8 +12,8 @@ import productosData from '../../../components/soderia-data/productos.json';
 import revendedoresData from '../../../components/soderia-data/revendedores.json';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import Alert from '../../../components/shared/alert';
 import BudgetResume from '@/components/budgetResume';
+import Alert from '@/components/shared/alert';
 
 interface Product {
   id: number;
@@ -42,7 +43,7 @@ export default function NuevaVenta() {
       .map(producto => ({
         id: producto.id,
         name: producto.Producto,
-        price: producto.PrecioRevendedor,
+        price: producto.PrecioRevendedor ?? 0, // Add null check with ?? 0
         quantity: 0
       }))
   );
@@ -72,7 +73,7 @@ export default function NuevaVenta() {
       setProducts([...products, {
         id: selectedProduct.id,
         name: selectedProduct.Producto,
-        price: selectedProduct.PrecioRevendedor,
+        price: selectedProduct.PrecioRevendedor ?? 0,
         quantity: 0
       }]);
     }
@@ -236,7 +237,7 @@ export default function NuevaVenta() {
                       <Calendar
                         defaultValue={defaultDate}
                         value={selectedDate}
-                        onChange={(date) => {
+                        onChange={(date: React.SetStateAction<DateValue>) => {
                           if (date) {
                             setSelectedDate(date);
                             setOpen(false);

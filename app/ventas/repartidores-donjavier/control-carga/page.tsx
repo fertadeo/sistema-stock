@@ -1,7 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import "@/styles/globals.css"
-import { Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react"
+import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react"
 import repartidores from '@/components/soderia-data/repartidores.json'
 import productos from '@/components/soderia-data/productos.json'
 import { motion, AnimatePresence } from "framer-motion"
