@@ -8,8 +8,8 @@ interface SiteConfig {
 }
 
 export const siteConfig: SiteConfig = {
-  name: "Your Site Name",
-  description: "Your Site Description",
+  name: "Sistema Don Javier",
+  description: "",
   navItems: [
     {
       href: "/",
