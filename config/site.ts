@@ -1,6 +1,20 @@
-export type SiteConfig = typeof siteConfig;
+interface SiteConfig {
+  name: string;
+  description: string;
+  navItems: Array<{
+    href: string;
+    label: string;
+  }>;
+}
 
-export const siteConfig = {
-  name: "Sistema Soderia Don Javier",
-  description: ""
+export const siteConfig: SiteConfig = {
+  name: "Your Site Name",
+  description: "Your Site Description",
+  navItems: [
+    {
+      href: "/",
+      label: "Home",
+    },
+    // ... otros items
+  ],
 };

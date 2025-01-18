@@ -10,6 +10,12 @@ import { useBudgetCalculations } from "../../hooks/useBudgetCalculations";
 import GenerarPedidoModal from "../GenerarPedidoModal";
 import BudgetResume from "../budgetResume";
 
+interface BudgetResumeProps {
+  presupuestoData: PresupuestoResumen;
+  onDownloadPDF?: () => void;
+  onSendWhatsApp?: () => void;
+}
+
 export const BudgetGenerator = () => {
   // Estados del cliente
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -236,7 +242,17 @@ export const BudgetGenerator = () => {
       />
 
       {showResume && presupuestoGenerado && (
-        <BudgetResume presupuestoData={presupuestoGenerado} />
+        <BudgetResume 
+          presupuestoData={presupuestoGenerado}
+          onDownloadPDF={() => {
+            // Implementa la lógica para descargar PDF
+            console.log('Descargando PDF...');
+          }}
+          onSendWhatsApp={() => {
+            // Implementa la lógica para enviar WhatsApp
+            console.log('Enviando por WhatsApp...');
+          }}
+        />
       )}
     </Card>
   );

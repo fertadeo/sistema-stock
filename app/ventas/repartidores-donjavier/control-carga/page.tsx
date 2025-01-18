@@ -628,7 +628,8 @@ const ControlCargaPage = () => {
         </ModalContent>
       </Modal>
 
-      <AnimatePresence>
+      {/* @ts-ignore */}
+      <AnimatePresence mode="wait">
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0 }}

@@ -39,7 +39,11 @@ const BudgetPDFModal: React.FC<BudgetPDFModalProps> = ({ isOpen, onClose, presup
     >
       <ModalContent>
         <ModalBody>
-          <BudgetResume presupuestoData={presupuestoData} />
+          <BudgetResume 
+            presupuestoData={presupuestoData}
+            onDownloadPDF={() => {}}
+            onSendWhatsApp={() => {}}
+          />
         </ModalBody>
       </ModalContent>
     </Modal>
