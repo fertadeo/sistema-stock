@@ -37,7 +37,8 @@ export const Login = () => {
     // Simula una demora de 2 segundos antes de realizar la petición
     setTimeout(async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+        console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -81,17 +82,7 @@ export const Login = () => {
 
 
       <div className="flex relative flex-col justify-center items-center px-6 w-full h-screen bg-white md:max-w-md lg:max-w-full md:w-1/2 xl:w-1/3 lg:px-16 xl:px-12">
-        <div className="absolute transform -translate-x-1/2 -translate-y-1/2 w-[70%] h-[70%] left-[45%] top-[22%]">
-          <Image
-           
-            src="/images/soderialogo.png"
-            alt="Logo"
-            layout="fill"
-            objectFit="cover"
-            priority
-            className="w-full h-full" 
-          />
-        </div>
+        
 
         <div className="mt-16 w-full">
           <h1 className="mt-12 text-2xl font-bold leading-tight text-center">
@@ -104,8 +95,8 @@ export const Login = () => {
             </div>
           )}
 
-          <form className="mt-6" onSubmit={handleSubmit}>
-            <div>
+          <form className="mt-6 z-40" onSubmit={handleSubmit}>
+          <div className="mt-4">
               <label htmlFor="email" className="block text-gray-700">
                 Correo Electrónico
               </label>
@@ -113,7 +104,7 @@ export const Login = () => {
                 type="email"
                 id="email"
                 placeholder="Ingresa tu correo electrónico"
-                className="px-4 py-3 mt-2 w-full rounded-lg border focus:border-yellow-500 focus:bg-white focus:outline-none"
+                className=" px-4 py-3 mt-2 w-full rounded-lg border focus:border-yellow-500 focus:bg-white focus:outline-none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

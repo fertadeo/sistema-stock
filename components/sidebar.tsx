@@ -146,7 +146,11 @@ export const SideBar = () => {
 
             <div className="mt-auto">
               <button
-                onClick={() => handleNavigation('/logout')}
+                onClick={() => {
+                  // Eliminar la cookie del token
+                  document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                  handleNavigation('/');
+                }}
                 className="flex gap-2 items-center px-4 py-2 text-sm font-medium text-red-700 rounded-md transition duration-150 ease-in-out hover:bg-red-500 hover:text-white hover:scale-105"
               >
                 <svg
