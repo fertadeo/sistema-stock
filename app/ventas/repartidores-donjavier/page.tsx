@@ -1,6 +1,5 @@
 'use client';
 import Link from 'next/link';
-import '../../../styles/globals.css'; // Asegúrate de que los estilos globales estén importados
 import { Card, CardBody } from '@nextui-org/react';
 
 export default function RepartidoresPage() {
@@ -34,7 +33,7 @@ export default function RepartidoresPage() {
 
           {/* Revendedores */}
           <div className="m-4 w-64 h-60">
-            <Link href="/ventas/repartidores-donjavier/generar-orden">
+            <Link href="/ventas/repartidores-donjavier/ventas">
               <Card className="p-6 transition-shadow duration-300 hover:shadow-lg">
                 <div className="flex flex-col space-y-4">
                   <div className="flex items-center">
