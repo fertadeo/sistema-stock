@@ -1,16 +1,33 @@
 "use client";
 
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from "react";
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card } from "@nextui-org/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card, Alert } from "@heroui/react";
 import { FaEye } from "react-icons/fa";
 import ProductModal from "./productModal";
-import { SearchIcon } from "@nextui-org/shared-icons";
+import { SearchIcon } from "@heroui/shared-icons";
 import { Product } from './productModal';
+import { uid } from "chart.js/dist/helpers/helpers.core";
 
 
 
 type TableProductsProps = {
   userLevel: number; // Nivel del usuario (1: empleado, 2: dueño, 3: programador)
+};
+
+const Notification = ({ type, message, onClose }: { 
+  type: 'success' | 'error', 
+  message: string, 
+  onClose: () => void 
+}) => {
+  return (
+    <div className="fixed top-4 right-4 z-50">
+      <Alert 
+        color={type === 'success' ? 'success' : 'danger'}
+        title={message}
+        onClose={onClose}
+      />
+    </div>
+  );
 };
 
 const TableProducts = forwardRef((props: TableProductsProps, ref) => {
@@ -23,39 +40,54 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const itemsPerPage = 13;
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{id: number, field: string} | null>(null);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Configuración de columnas según nivel de usuario
   const columns = [
     { name: "ID/SKU", uid: "id" },
     { name: "Producto", uid: "nombreProducto" },
-    { name: "Descripción", uid: "descripcion" },
-    // ...(userLevel > 1 ? [{ name: "Precio Costo", uid: "precioCosto" }] : []), // Agregar columna condicionalmente
-    { name: "Descuento", uid: "descuento" },
-    { name: "Precio", uid: "precio" },
-    // { name: "Acciones", uid: "acciones" },
+    { name: "Precio Público", uid: "precioPublico" },
+    { name: "Precio Revendedor", uid: "precioRevendedor" }
   ];
 
   const fetchProducts = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/productos`);
-
-      if (!response.ok) throw new Error("Error al obtener productos");
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+      if (!response.ok) {
+        const errorMessage = await response.text(); // Get the error message from the response
+        throw new Error(`Error al obtener productos: ${errorMessage}`);
+      }
       const data = await response.json();
+      console.log('API Response:', data); // Log the response to check its structure
 
-      const updatedData = data.map((product: Product) => ({
-        ...product,
-        proveedor: {
-          id: product.proveedor.id,
-          nombre: product.proveedor.nombreProveedores
-        },
-        habilitado: product.cantidad_stock > 0,
-      }));
+      const updatedData = data.map((product: Product) => {
+        const precioPublico = product.precioPublico;
+        const precioRevendedor = product.precioRevendedor;
+
+
+        return {
+          id: product.id,
+          nombreProducto: product.nombreProducto,
+          precioPublico: !isNaN(precioPublico) ? precioPublico.toFixed(2) : "0.00", // Handle null or invalid values
+          precioRevendedor: !isNaN(precioRevendedor) ? precioRevendedor.toFixed(2) : "0.00" // Handle null or invalid values
+        };
+      });
+
 
       setProducts(updatedData);
       setFilteredProducts(updatedData);
+      setError(null);
     } catch (error) {
       console.error("Error fetching products:", error);
+      setError('Error al cargar los productos. Por favor, intente más tarde.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,8 +156,77 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     );
   };
 
+  const handlePriceEdit = async (productId: number, field: string, newValue: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      
+      // Validar que el valor sea un número válido
+      const numericValue = parseFloat(newValue);
+      if (isNaN(numericValue) || numericValue < 0) {
+        throw new Error('El precio debe ser un número válido mayor o igual a 0');
+      }
+
+      // Preparar los datos en el formato requerido
+      const updateData = {
+        [field]: numericValue  // Ejemplo: { "precioPublico": 100 }
+      };
+
+      // Realizar la petición PUT
+      const response = await fetch(`${apiUrl}/api/productos/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Error al actualizar el precio: ${errorData}`);
+      }
+
+      // Actualizar el estado local
+      setProducts(products.map(product => 
+        product.id === productId 
+          ? { ...product, [field]: numericValue.toFixed(2) }
+          : product
+      ));
+
+      showNotification({ type: 'success', message: 'Precio actualizado correctamente' });
+      setEditingCell(null);
+
+    } catch (error) {
+      console.error('Error updating price:', error);
+      showNotification({ type: 'error', message: (error as Error).message });
+      fetchProducts();
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent, productId: number, field: string, value: string) => {
+    if (e.key === 'Enter') {
+      handlePriceEdit(productId, field, value);
+    } else if (e.key === 'Escape') {
+      setEditingCell(null);
+    }
+  };
+
+  const showNotification = ({ type, message }: { type: 'success' | 'error'; message: string }) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3500); // Auto-cierre después de 3 segundos
+  };
+
+  if (loading) return <div>Cargando productos...</div>;
+  if (error) return <div>Error: {error}</div>;
+
   return (
     <>
+      {notification && (
+        <Notification
+          type={notification.type}
+          message={notification.message}
+          onClose={() => setNotification(null)}
+        />
+      )}
       <Card className="p-4">
         <div className="flex justify-between mb-5">
           <Input
@@ -147,42 +248,64 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
           <TableBody>
             {paginatedProducts.length > 0 ? (
               paginatedProducts.map((product) => (
-                <TableRow
-                  key={product.id}
-                  className={`cursor-pointer ${selectedRowId === product.id ? 'bg-gray-200' : 'hover:bg-gray-100'}`}
-                  onClick={() => setSelectedRowId(product.id)}
-                >
-                  {columns.map((column) => (
-                    <TableCell key={column.uid}>
-                      {column.uid === "id" && product.id}
-                      {column.uid === "nombreProducto" && product.nombreProducto}
-                      {column.uid === "descripcion" && product.descripcion}
-                      {column.uid === "cantidad_stock" && (
-                        <span style={getCantidadStyle(product.cantidad_stock)}>
-                          {product.cantidad_stock}
-                        </span>
-                      )}
-                      {column.uid === "precioCosto" && product.precioCosto}
-                      {column.uid === "descuento" && `${product.descuento}%`}
-                      {column.uid === "precio" && (
-                        <span style={{ fontWeight: "bold", color: "#0070f3" }}>
-                          {product.precio}
-                        </span>
-                      )}
-                      {column.uid === "acciones" && (
-                        <FaEye className="cursor-pointer" onClick={() => handleViewProduct(product)} />
-                      )}
-                    </TableCell>
-                  ))}
+                <TableRow key={product.id}>
+                  <TableCell>{product.id}</TableCell>
+                  <TableCell>{product.nombreProducto}</TableCell>
+                  <TableCell
+                    className="cursor-pointer"
+                    onClick={() => setEditingCell({ id: product.id, field: 'precioPublico' })}
+                  >
+                    {editingCell?.id === product.id && editingCell?.field === 'precioPublico' ? (
+                      <Input
+                        type="number"
+                        value={product.precioPublico.toString()}
+                        onChange={(e) => {
+                          const newProducts = products.map(p => 
+                            p.id === product.id 
+                              ? { ...p, precioPublico: parseFloat(e.target.value) }
+                              : p
+                          );
+                          setProducts(newProducts);
+                        }}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'precioPublico', product.precioPublico.toString())}
+                        onBlur={() => handlePriceEdit(product.id, 'precioPublico', product.precioPublico.toString())}
+                      />
+
+                    ) : (
+                      product.precioPublico
+                    )}
+                  </TableCell>
+                  <TableCell
+                    className="cursor-pointer"
+                    onClick={() => setEditingCell({ id: product.id, field: 'precioRevendedor' })}
+                  >
+                    {editingCell?.id === product.id && editingCell?.field === 'precioRevendedor' ? (
+                      <Input
+                        type="number"
+                        value={product.precioRevendedor}
+                        onChange={(e) => {
+                          const newProducts = products.map(p => 
+                            p.id === product.id 
+                              ? { ...p, precioRevendedor: e.target.value }
+                              : p
+                          );
+                          setProducts(newProducts);
+                        }}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'precioRevendedor', product.precioRevendedor.toString())}
+                        onBlur={() => handlePriceEdit(product.id, 'precioRevendedor', product.precioRevendedor.toString())}
+                      />
+
+                    ) : (
+                      product.precioRevendedor
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                {columns.map((column, index) => (
-                  <TableCell key={index} style={{ textAlign: "center", fontStyle: "italic" }}>
-                    {index === Math.floor(columns.length / 2) ? "No encontramos más resultados..." : ""}
-                  </TableCell>
-                ))}
+                <TableCell colSpan={4} style={{ textAlign: "center" }}>
+                  No hay productos disponibles.
+                </TableCell>
               </TableRow>
             )}
           </TableBody>

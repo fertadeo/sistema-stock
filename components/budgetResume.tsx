@@ -1,6 +1,6 @@
 // components/budgetResume.tsx
 import React from 'react';
-import { Button, Card, CardBody } from "@nextui-org/react";
+import { Button, Card, CardBody } from "@heroui/react";
 import Image from 'next/image';
 
 interface BudgetResumeProps {

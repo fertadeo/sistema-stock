@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import '../../styles/globals.css'; // Asegúrate de que los estilos globales estén importados
-import { Card, CardBody } from '@nextui-org/react';
+import { Card, CardBody } from "@heroui/react";
 
 export default function VentasPage() {
   return (

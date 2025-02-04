@@ -11,27 +11,16 @@ import {
   Button,
   Select,
   SelectItem
-} from "@nextui-org/react";
+} from "@heroui/react";
 import { FaTrash, FaToggleOn, FaToggleOff } from "react-icons/fa";
 import EditableField from "./EditableField";
 
 
 export type Product = {
-  precio: number;
-  cantidad_stock: number;
   id: number;
-  nombreProducto: string;
-  descripcion: string;
-  proveedor: {
-    id: number;
-    nombreProveedores: string;
-  };
-  cantidadDisponible: number;
-  precioCosto: number;
-  precioLista: number;
-  descuento: number;
+  precioRevendedor: any;
   precioPublico: number;
-  habilitado: boolean;
+  nombreProducto: string;
 };
 
 type Proveedor = {
@@ -167,66 +156,32 @@ useEffect(() => {
                   })
                 }
               />
-              <EditableField
-                label="Descripción"
-                value={editedProduct.descripcion}
-                onChange={(value) =>
-                  setEditedProduct({
-                    ...editedProduct,
-                    descripcion: value.toString(),
-                  })
-                }
-              />
+             
 
-              {/* Proveedor como Select */}
-              <div className="mb-4">
-                <label htmlFor="proveedor-select" className="block mb-1 font-medium">
-                  Proveedor
-                </label>
-                <Select
-                  id="proveedor-select"
-                  value={editedProduct.proveedor.nombreProveedores}
-                  onChange={(event) => handleProveedorChange(event.target.value)}
-                  aria-label="Seleccionar proveedor"
-                >
-                  {proveedores.map((proveedor) => (
-                    <SelectItem key={proveedor.id} value={proveedor.nombreProveedores}>
-                      {proveedor.nombreProveedores}
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
 
-              <EditableField
-                label="Cantidad Disponible"
-                value={editedProduct.cantidadDisponible ?? 0}
-                onChange={(value) =>
-                  setEditedProduct({
-                    ...editedProduct,
-                    cantidadDisponible: Number(value),
-                  })
-                }
-                type="number"
-              />
+             
               <EditableField
                 label="Precio"
-                value={editedProduct.precio}
+                value={editedProduct.precioPublico}
                 onChange={(value) =>
                   setEditedProduct({
                     ...editedProduct,
-                    precio: Number(value),
+                    precioPublico: Number(value),
                   })
                 }
+
                 type="number"
               />
               <EditableField
-                label="Descuento (%)"
-                value={editedProduct.descuento}
+                label="Precio Revendedor"
+                value={editedProduct.precioRevendedor}
+
                 onChange={(value) =>
                   setEditedProduct({
                     ...editedProduct,
-                    descuento: Number(value),
+                    precioRevendedor: Number(value),
                   })
+
                 }
                 type="number"
               />
@@ -252,16 +207,11 @@ useEffect(() => {
               <FaToggleOn style={{ marginLeft: "5px" }} />
             )}
           </Button> */}
-          {editedProduct?.cantidadDisponible === 0 && (
-            <Button
-              variant="flat"
-              color="danger"
-              onClick={handleDelete}
-            >
-              <FaTrash style={{ marginRight: "5px" }} />
+        
+              {/* <FaTrash style={{ marginRight: "5px" }} />
               Eliminar
             </Button>
-          )}
+          )} */}
         </ModalFooter>
       </ModalContent>
     </Modal>

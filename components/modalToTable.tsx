@@ -9,7 +9,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger
-} from "@nextui-org/react";
+} from "@heroui/react";
 
 interface Producto {
   detalles: {

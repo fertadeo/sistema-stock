@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Card, CardBody } from '@nextui-org/react';
+import { Card, CardBody } from "@heroui/react";
 
 export default function RepartidoresPage() {
   return (

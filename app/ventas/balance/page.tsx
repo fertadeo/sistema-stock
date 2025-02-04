@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react';
 import '../../../styles/globals.css';
-import { Table, Button, Card, CardHeader, CardBody, TableHeader, TableColumn, TableBody, TableRow, TableCell } from '@nextui-org/react';
+import { Table, Button, Card, CardHeader, CardBody, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/react";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 

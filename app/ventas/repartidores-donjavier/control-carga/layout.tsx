@@ -1,13 +1,15 @@
-export default function RepartidoresDonjavierLayout({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) {
-    return (
-        <main className="flex flex-col gap-4 mx-auto w-full md:flex-row">
-                {children}
-        </main>
-
-    );
-  }
-  
+export default function ControlCargaLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex  ">
+     
+    
+      <main className="flex flex-col  p-4 w-screen translate-x-[-20%]">
+              {children}
+            </main>
+    </section>
+  );
+}

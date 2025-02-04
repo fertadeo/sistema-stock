@@ -1,7 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import "@/styles/globals.css"
-import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react"
+import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react"
 import repartidores from '@/components/soderia-data/repartidores.json'
 import productos from '@/components/soderia-data/productos.json'
 import { motion, AnimatePresence } from "framer-motion"
@@ -237,8 +237,9 @@ const ControlCargaPage = () => {
 
   return (
     <>
-      <div className="flex justify-center w-full min-h-screen bg-gradient-to-b from-background to-default-100">
-        <div className="w-full min-w-[300px] max-w-[900px] px-4">
+      <div className="flex justify-center w-full min-h-screen bg-gradient-to-b from-background to-default-100 bg-blue-500">
+        <div className="w-full min-w-[300px] max-w-[900px] px-4 bg-none ">
+
           <Card className={`w-full ${
             isCarga ? 'bg-green-100' : 'bg-rose-100'
           }`}>

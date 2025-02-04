@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Select,SelectItem,Spinner,} from "@nextui-org/react";
+import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Spinner,} from "@heroui/react";
 import Notification from "./notification";
-import { Proveedores } from "@/types/proveedores";
 
 
 
@@ -13,23 +12,23 @@ interface OneProductModalProps {
 
 const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onProductAdded }) => {
   const [discountEnabled, setDiscountEnabled] = useState(false);
-  const [proveedores, setProveedores] = useState<Proveedores[]>([]);
+
   const [productData, setProductData] = useState({
     id: "",
-    Producto: "",
-    Cantidad_stock: "",
+    ProductoNombre: "",
+    CantidadStock: "",
     Descripción: "",
-    PrecioCosto: "",
-    Precio: "",
-    Divisa: "ARS",
+    PrecioPublico: "",
+    PrecioRevendedor: "",
     Descuento: "",
-    proveedor_id: "",
+
+
   });
   const [inputValidity, setInputValidity] = useState({
-    Producto: true,
-    Precio: true,
-    proveedor_id: true,
+    ProductoNombre: true,
+   
   });
+
   
   const [notification, setNotification] = useState({
     isVisible: false,
@@ -41,29 +40,18 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
   useEffect(() => {
     if (isOpen) {
-      fetchProveedores();
       fetchNextProductId();
     }
   }, [isOpen]);
 
-  const fetchProveedores = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/proveedores`);
-      if (!response.ok) throw new Error("Error al obtener proveedores");
-      const data = await response.json();
-      setProveedores(data);
-    } catch (error) {
-      console.error("Error fetching proveedores:", error);
-    }
-  };
 
   const fetchNextProductId = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/productos/last-id/obtener`);
+      const response = await fetch(`${apiUrl}/api/productos/last-id/obtener`);
       if (!response.ok) throw new Error("Error al obtener el último ID de producto");
       const data = await response.json();
+      console.log('API Response:', data); // Verifica la respuesta de la API
       const lastId = parseInt(data.ultimoId, 10);
       setProductData((prevState) => ({ ...prevState, id: isNaN(lastId) ? "1" : (lastId + 1).toString() }));
     } catch (error) {
@@ -90,9 +78,11 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
   const validateInputs = () => {
     const newValidity = {
-      Producto: productData.Producto.trim() !== "",
-      Precio: productData.Precio.trim() !== "",
-      proveedor_id: productData.proveedor_id.trim() !== "",
+      ProductoNombre: productData.ProductoNombre.trim() !== "",
+      PrecioPublico: productData.PrecioPublico.trim() !== "",
+      PrecioRevendedor: productData.PrecioRevendedor.trim() !== "",
+      CantidadStock: productData.CantidadStock.trim() !== "",
+      Descripción: productData.Descripción.trim() !== "",
     };
     setInputValidity(newValidity);
     return Object.values(newValidity).every((valid) => valid);
@@ -103,19 +93,18 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
     setIsSaving(true);
     try {
-      const productToSend = [{
+      const productToSend = {
         id: parseInt(productData.id, 10),
-        Producto: productData.Producto,
-        Cantidad_stock: productData.Cantidad_stock,
-        Descripción: productData.Descripción,
-        PrecioCosto: productData.PrecioCosto,
-        Precio: productData.Precio,
-        Divisa: productData.Divisa,
-        Descuento: discountEnabled ? `${productData.Descuento}%` : "0%",
-        proveedor_id: parseInt(productData.proveedor_id, 10),
-      }];
+        nombreProducto: productData.ProductoNombre,
+        cantidadStock: productData.CantidadStock,
+        descripcion: productData.Descripción,
+        precioPublico: productData.PrecioPublico,
+        precioRevendedor: productData.PrecioRevendedor,
+        descuento: discountEnabled ? `${productData.Descuento}%` : "0%",
+      };
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/productos/importar-productos`, {
+      const response = await fetch(`${apiUrl}/api/productos/crear-producto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productToSend),
@@ -148,16 +137,6 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
     }
   };
 
-  const handleProveedorChange = (id: string) => {
-    setProductData((prevState) => ({
-      ...prevState,
-      proveedor_id: id,
-    }));
-    setInputValidity((prevValidity) => ({
-      ...prevValidity,
-      proveedor_id: id.trim() !== "",
-    }));
-  };
 
   const handleNotificationClose = () => {
     setNotification((prevState) => ({ ...prevState, isVisible: false }));
@@ -184,11 +163,12 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
                 <Input
                   label="Nombre del Producto"
                   placeholder="Nombre del producto"
-                  name="Producto"
-                  value={productData.Producto}
+                  name="ProductoNombre"
+                  value={productData.ProductoNombre}
                   onChange={handleInputChange}
-                  isInvalid={!inputValidity.Producto}
+                  isInvalid={!inputValidity.ProductoNombre}
                   labelPlacement="inside"
+
                 />
 </div>
 <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
@@ -203,37 +183,35 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
        </div>
 
               <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
-              <Input
-                  type="number"
-                  label="Precio de Costo/Proveedor"
-                  placeholder="0.00"
-                  name="PrecioCosto"
-                  value={productData.PrecioCosto}
-                  onChange={handleInputChange}
-                  labelPlacement="inside"
-                  startContent={
-                    <div className="flex items-center pointer-events-none">
-                      <span className="text-default-400 text-small">$</span>
-                    </div>
-                  }
-                />
 
                 <Input
                   type="number"
-                  label="Precio de Venta"
+                  label="Precio de Venta al publico"
                   placeholder="0.00"
-                  name="Precio"
-                  value={productData.Precio}
+                  name="PrecioPublico"
+                  value={productData.PrecioPublico}
                   onChange={handleInputChange}
-                  isInvalid={!inputValidity.Precio}
+
                   labelPlacement="inside"
+
                   startContent={
                     <div className="flex items-center pointer-events-none">
                       <span className="text-default-400 text-small">$</span>
                     </div>
                   }
                 />
-               
+              </div>
+
+              <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
+                <Input
+                  label="Precio Revendedor"
+                  placeholder="$0.00 "
+                  name="PrecioRevendedor"
+                  value={productData.PrecioRevendedor}
+                  onChange={handleInputChange}
+                  labelPlacement="inside"
+
+                />
               </div>
 
               <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
@@ -241,27 +219,14 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
                   type="number"
                   label="Stock Ingresante"
                   placeholder="Cantidad"
-                  name="Cantidad_stock"
-                  value={productData.Cantidad_stock}
+                  name="CantidadStock"
+                  value={productData.CantidadStock}
                   onChange={handleInputChange}
                   labelPlacement="inside"
+
                 />
 
-                <Select
-                  label="Proveedor"
-                  placeholder="Seleccione un proveedor"
-                  name="proveedor_id"
-                  value={productData.proveedor_id}
-                  onChange={(e) => handleProveedorChange(e.target.value)}
-                  isInvalid={!inputValidity.proveedor_id}
-                  labelPlacement="inside"
-                >
-                  {proveedores.map((prov) => (
-                    <SelectItem key={prov.id} textValue={`${prov.id} ${prov.nombreProveedores}`}>
-                      {prov.id} {prov.nombreProveedores}
-                    </SelectItem>
-                  ))}
-                </Select>
+            
               </div>
 
               <div className="flex flex-wrap items-center w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
@@ -285,6 +250,8 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
                   }
                 />
               </div>
+
+            
             </div>
             <ModalFooter>
               <Button color="danger" variant="light" onPress={onClose}>

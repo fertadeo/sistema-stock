@@ -1,4 +1,4 @@
-import { Checkbox, Input, Select, SelectItem } from "@nextui-org/react";
+import { Checkbox, Input, Select, SelectItem } from "@heroui/react";
 
 interface RollerDetailFormProps {
   detalle: string;

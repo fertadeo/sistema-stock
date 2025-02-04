@@ -1,9 +1,9 @@
 'use client';
 import '../../../styles/globals.css'; 
 import React from 'react';
-import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@nextui-org/react";
+import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@heroui/react";
 import { CalendarIcon } from "@heroicons/react/24/outline";
-import { Calendar } from "@nextui-org/calendar";
+import { Calendar } from "@heroui/calendar";
 import { useState } from "react";
 import Link from "next/link";
 import { today, getLocalTimeZone } from "@internationalized/date";

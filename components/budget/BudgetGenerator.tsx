@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, Spacer } from "@nextui-org/react";
+import { Card, Spacer } from "@heroui/react";
 import { Client, TableItem, PresupuestoResumen } from '../../types/budget';
 import { BudgetClientSection } from "./BudgetClientSection";
 import { BudgetProductSection } from "./BudgetProductSection";
@@ -7,7 +7,6 @@ import { BudgetTable } from "./BudgetTable";
 import { BudgetSummary } from "./BudgetSummary";
 import { LoadingButton } from "../shared/LoadingButton";
 import { useBudgetCalculations } from "../../hooks/useBudgetCalculations";
-import GenerarPedidoModal from "../GenerarPedidoModal";
 import BudgetResume from "../budgetResume";
 
 interface BudgetResumeProps {
@@ -232,14 +231,7 @@ export const BudgetGenerator = () => {
         </div>
       </form>
 
-      <GenerarPedidoModal
-        isOpen={showPedidoModal}
-        onOpenChange={setShowPedidoModal}
-        selectedClient={selectedClient}
-        productos={tableData}
-        total={calculateTotals(tableData, applyDiscount).finalTotal}
-        onPedidoCreated={handleAddPedido}
-      />
+ 
 
       {showResume && presupuestoGenerado && (
         <BudgetResume 

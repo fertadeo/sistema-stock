@@ -3,7 +3,7 @@ import "../styles/globals.css";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Spinner } from "@nextui-org/react";
+import { Spinner } from "@heroui/react";
 import Link from "next/link";
 
 export const Login = () => {
@@ -62,7 +62,7 @@ export const Login = () => {
         setError("Ocurrió un error. Intenta de nuevo más tarde.");
         setLoading(false); // Desactiva el spinner si hay error
       }
-    }, 2000); // Simula la demora de 2 segundos
+    }, 900); // Simula la demora de 2 segundos
   };
 
   return (

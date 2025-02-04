@@ -1,4 +1,4 @@
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button } from "@nextui-org/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button } from "@heroui/react";
 import { TableItem } from '../../types/budget';
 
 interface BudgetTableProps {
