@@ -176,7 +176,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       case "actions":
         return (
           <div className="flex relative gap-2">
-            <Tooltip content="Copiar DNI">
+            <Tooltip content="Copiar DNI/CUIL">
               <span
                 role="button"
                 tabIndex={0}

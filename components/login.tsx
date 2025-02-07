@@ -67,14 +67,14 @@ export const Login = () => {
 
   return (
     <section className="flex flex-col items-center h-screen font-serif antialiased md:flex-row">
-      <div className="hidden relative w-full h-screen lg:block md:w-1/2 xl:w-2/3">
+      <div className=" relative w-full h-screen  lg:block md:w-1/2 xl:w-2/3">
         <Image
           src="/images/soderiabg.jpeg"
           alt="Background Empresa"
           fill
           objectFit="cover"
           style={{
-            objectPosition: "30% 80%",
+            objectPosition: "50% 80%",
           }}
           priority
         />
@@ -82,7 +82,8 @@ export const Login = () => {
 
 
       <div className="flex relative flex-col justify-center items-center px-6 w-full h-screen bg-white md:max-w-md lg:max-w-full md:w-1/2 xl:w-1/3 lg:px-16 xl:px-12">
-        
+          <Image src="/images/soderialogo.png" alt="Logo Empresa" width={500} height={500} />
+   
 
         <div className="mt-16 w-full">
           <h1 className="mt-12 text-2xl font-bold leading-tight text-center">
