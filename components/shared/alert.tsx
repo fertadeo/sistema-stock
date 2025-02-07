@@ -26,10 +26,11 @@ const Alert: React.FC<AlertProps> = ({
       role="alert"
     >
       {title && <strong className="font-bold">{title}<br /></strong>}
-      <span className="block sm:inline">{message}</span>
+      <span className="block sm:inline mr-6">{message}</span>
       {onClose && (
-        <span className="absolute top-0 right-0 bottom-0 px-4 py-3">
+        <span className="absolute top-2 right-0 px-2 py-1">
           <svg
+
             className={`w-6 h-6 fill-current ${
               type === 'error' ? 'text-red-500' :
               type === 'warning' ? 'text-yellow-500' :

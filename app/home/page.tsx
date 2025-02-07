@@ -1,9 +1,8 @@
-import { Menucards } from '@/components/menucards';
-import SimpleTable from '@/components/simpleTable';
+
 import BarChart from '@/components/chart';
 import PresupuestosTable from '@/components/presupuestosTable';
-import AnimatedButton from '@/components/animatedButton';
 
+import SimpleTable from '@/components/simpleTable';
 
 export default function Home() {
   // const data = {
@@ -11,6 +10,7 @@ export default function Home() {
   //   datasets: [
   //     {
   //       label: 'Pedidos Realizados',
+
   //       data: [25, 19, 40, 11, 6, 5, 10],
   //       backgroundColor: '#12C0C8',
   //       borderColor: 'rgba(75, 192, 192, 1)',

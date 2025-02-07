@@ -229,10 +229,11 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
             
               </div>
 
-              <div className="flex flex-wrap items-center w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
+              <div className="hidden flex flex-wrap items-center w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
                 <Checkbox isSelected={discountEnabled} onChange={handleDiscountChange}>
                   ¿Aplicar descuento?
                 </Checkbox>
+
 
                 <Input
                   type="number"

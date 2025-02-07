@@ -8,8 +8,12 @@ import {
   Button,
   Input,
   Spinner,
+  Select,
+  SelectItem,
 } from "@heroui/react";
 import Notification from "./notification"; // Importa el componente de notificación
+import zonas from "./soderia-data/zonas.json"; // Importamos el archivo de zonas
+
 
 interface NuevoClienteModalProps {
   isOpen: boolean;
@@ -28,6 +32,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   const [telefono, setTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
   const [email, setEmail] = useState("");
+  const [zona, setZona] = useState("");
   const [notificationMessage, setNotificationMessage] = useState("");
   const [notificationDescription, setNotificationDescription] = useState("");
   const [notificationVisible, setNotificationVisible] = useState(false);
@@ -41,10 +46,11 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   // Fetch para obtener el próximo ID
   const fetchNextClienteId = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes/getNextClienteId`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/getNextClienteId`);
       if (!response.ok) {
         throw new Error("Error al obtener el próximo ID");
       }
+
       const data = await response.json();
       setIdCliente(data.nextId); // Actualiza el estado con el ID obtenido
     } catch (error) {
@@ -61,37 +67,44 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   }, [isOpen]);
 
   const handleInputChange = (
-    e: ChangeEvent<HTMLInputElement>,
+    e: ChangeEvent<HTMLInputElement> | string,
     field: string
   ) => {
-    const value = e.target.value;
+    if (typeof e !== 'string') {
+      const value = e.target.value;
 
-    switch (field) {
-      case "nombre":
-        setNombre(value);
-        setFormErrors((prevErrors) => ({
-          ...prevErrors,
-          nombre: value.trim() === "",
-        }));
-        break;
-      case "telefono":
-        setTelefono(value);
-        setFormErrors((prevErrors) => ({
-          ...prevErrors,
-          telefono: value.trim() === "",
-        }));
-        break;
-      case "direccion":
-        setDireccion(value);
-        break;
-      case "email":
-        setEmail(value);
-        break;
-      case "dni":
-        setDni(value);
-        break;
-      default:
-        break;
+      switch (field) {
+        case "nombre":
+          setNombre(value);
+          setFormErrors((prevErrors) => ({
+            ...prevErrors,
+            nombre: value.trim() === "",
+          }));
+          break;
+        case "telefono":
+          setTelefono(value);
+          setFormErrors((prevErrors) => ({
+            ...prevErrors,
+            telefono: value.trim() === "",
+          }));
+          break;
+        case "direccion":
+          setDireccion(value);
+          break;
+        case "email":
+          setEmail(value);
+          break;
+        case "dni":
+          setDni(value);
+          break;
+        default:
+          break;
+      }
+    } else {
+      // Si es un string (para el Select de zona)
+      if (field === "zona") {
+        setZona(e);
+      }
     }
   };
 
@@ -111,19 +124,25 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       return;
     }
 
+    // Convertir el índice a nombre de zona
+    const nombreZona = zona ? zonas[parseInt(zona)].nombre : null;
+
     const nuevoCliente = {
-      id: idCliente, // Incluye el ID en el cliente
+      id: idCliente,
       nombre,
       telefono,
       email: email || null,
       direccion: direccion || null,
       dni: dni || null,
+      zona: nombreZona, // Usamos el nombre de la zona en lugar del índice
     };
+
+    console.log("Datos a enviar:", nuevoCliente);
 
     try {
       setIsSaving(true);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -162,6 +181,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         setTelefono("");
         setEmail("");
         setDireccion("");
+        setZona("");
         setIsSaving(false);
         onClose();
       }, 3000);
@@ -231,8 +251,23 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 value={direccion}
                 onChange={(e) => handleInputChange(e, "direccion")}
               />
+              <Select  
+                fullWidth
+                label="Zona"
+                placeholder="Seleccione la zona"
+                value={zona}
+                onChange={(e) => handleInputChange(e.target.value, "zona")}
+              >
+                {zonas.map((zona, index) => (
+                  <SelectItem key={index} value={index.toString()}>
+                    {zona.nombre}
+                  </SelectItem>
+                ))}
+              </Select>
             </ModalBody>
             <ModalFooter>
+
+
               <Button color="danger" variant="light" onPress={onClose}>
                 Cerrar
               </Button>

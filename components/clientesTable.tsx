@@ -4,11 +4,11 @@ import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
 import ModalToTable from "@/components/modalToTable";
 import NuevoClienteModal from "@/components/nuevoClienteModal";
 import ModalConfirmation from "@/components/modalConfirmation";
-import { columns } from "@/components/utils/dataclientes";
 import { EyeIcon } from "@/components/utils/eyeIcon";
 import { EditIcon } from "@/components/utils/editIcon";
 import { DeleteIcon } from "@/components/utils/deleteIcon";
 import EditarComponent from "@/components/editarComponent"
+import Alert from "@/components/shared/alert";
 
 type User = {
   id: number;
@@ -16,11 +16,14 @@ type User = {
   telefono: string;
   email: string;
   direccion: string;
+  zona: string;
+  dni: string;
 };
 
 interface Props {
   initialUsers: User[];
 }
+
 
 const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -33,7 +36,17 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editarModal, setEditarModal] = useState(false);
   const itemsPerPage = 10;
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertType, setAlertType] = useState<"error" | "success">("success");
 
+  const columns = [
+    { uid: "name", name: "Nombre" },
+    { uid: "telefono", name: "Teléfono" },
+    { uid: "direccion", name: "Dirección" },
+    { uid: "zona", name: "Zona" },
+    { uid: "actions", name: "Acciones" }
+  ];
 
   const handleEditarModal = (user: User) => {
     setEditarModal(true);
@@ -78,10 +91,11 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     if (!userToDelete) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes/${userToDelete.id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${userToDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
+
 
         throw new Error('Error al eliminar el cliente');
       }
@@ -95,12 +109,13 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const fetchClientes = async () => {
     try {
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
       if (!response.ok) {
         throw new Error("Error al obtener los clientes");
       }
 
       const data = await response.json();
+      console.log('Datos recibidos:', data);
       setUsers(data);
     } catch (error) {
       // console.error("Error al obtener los clientes:", error);
@@ -110,8 +125,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   useEffect(() => {
     fetchClientes();
   }, []);
-
-
 
   const renderCell = useCallback((user: User, columnKey: React.Key) => {
 
@@ -136,6 +149,8 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             name={user.nombre}
           >
             {user.email}
+            <br />
+            {user.dni ? user.dni : "DNI no disponible"}
           </User>
         </span>
         
@@ -146,9 +161,58 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             <p className="text-sm capitalize text-bold">{user.telefono}</p>
           </div>
         );
+      case "direccion":
+        return (
+          <div className="flex flex-col">
+            <p className="text-sm capitalize text-bold">{user.direccion}</p>
+          </div>
+        );
+      case "zona":
+        return (
+          <div className="flex flex-col">
+            <p className="text-sm capitalize text-bold">{user.zona}</p>
+          </div>
+        );
       case "actions":
         return (
           <div className="flex relative gap-2">
+            <Tooltip content="Copiar DNI">
+              <span
+                role="button"
+                tabIndex={0}
+                className="text-lg cursor-pointer text-default-400 active:opacity-50"
+                onClick={() => {
+                  if (user.dni) {
+                    navigator.clipboard.writeText(user.dni);
+                    setAlertMessage("DNI copiado: " + user.dni);
+                    setAlertType("success");
+                    setAlertVisible(true);
+                  } else {
+                    setAlertMessage("No hay DNI disponible para copiar.");
+                    setAlertType("error");
+                    setAlertVisible(true);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    if (user.dni) {
+                      navigator.clipboard.writeText(user.dni);
+                      setAlertMessage("DNI copiado: " + user.dni);
+                      setAlertType("success");
+                      setAlertVisible(true);
+                    } else {
+                      setAlertMessage("No hay DNI disponible para copiar.");
+                      setAlertType("error");
+                      setAlertVisible(true);
+                    }
+                  }
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                </svg>
+              </span>
+            </Tooltip>
             <Tooltip content="Ver">
               <span
                 role="button"
@@ -164,7 +228,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 <EyeIcon />
               </span>
             </Tooltip>
-
             <Tooltip content="Editar">
               <span
                 role="button"
@@ -177,10 +240,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                   }
                 }}
               >
-                <EditIcon />
+                <EditIcon className="hidden" />
               </span>
             </Tooltip>
-
             <Tooltip color="danger" content="Eliminar">
               <span
                 role="button"
@@ -196,7 +258,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 <DeleteIcon className="hidden" />
               </span>
             </Tooltip>
-
           </div>
         );
       default:
@@ -204,7 +265,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     }
   }, []);
 
-  const filteredColumns = columns.filter((column) => column.uid !== "status");
+  const filteredColumns = columns;
 
   const filteredUsers = users.filter((user) => {
     const name = user.nombre.toLowerCase() || "";
@@ -219,8 +280,27 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const endIdx = startIdx + itemsPerPage;
   const currentItems = filteredUsers.slice(startIdx, endIdx);
 
+  useEffect(() => {
+    if (alertVisible) {
+      const timer = setTimeout(() => {
+        setAlertVisible(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [alertVisible]);
+
   return (
     <div className="flex flex-col w-full h-full">
+      {alertVisible && (
+        <div className="absolute bottom-8 right-8 z-50">
+          <Alert
+            type={alertType}
+            message={alertMessage}
+            onClose={() => setAlertVisible(false)}
+          />
+        </div>
+      )}
       <div className="flex justify-between items-center p-4 h-20 bg-white rounded-lg shadow-medium">
         <Input
           isClearable
