@@ -37,7 +37,7 @@ export const Login = () => {
     // Simula una demora de 2 segundos antes de realizar la petición
     setTimeout(async () => {
       try {
-        console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+        // console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
           method: "POST",
           headers: {
