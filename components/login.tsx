@@ -6,6 +6,13 @@ import Image from "next/image";
 import { Spinner } from "@heroui/react";
 import Link from "next/link";
 
+// Crear una utilidad para manejar las rutas de la API
+const createApiUrl = (path: string): string => {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, ''); // Elimina las barras finales
+  const cleanPath = path.replace(/^\/+/, ''); // Elimina las barras iniciales
+  return `${baseUrl}/${cleanPath}`;
+};
+
 export const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,11 +41,11 @@ export const Login = () => {
 
     setLoading(true);
 
-    // Simula una demora de 2 segundos antes de realizar la petición
     setTimeout(async () => {
       try {
-        // console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}api/auth/login`, {
+        const url = createApiUrl('api/auth/login');
+        console.log('URL de login:', url);
+        const response = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
