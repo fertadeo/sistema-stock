@@ -1,83 +1,200 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@heroui/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Pagination, Input } from "@heroui/react";
 
-interface Pedido {
-  id: string;
-  cliente: string;
-  estado: string;
+interface Venta {
+  venta_id: string;
+  revendedor_nombre: string;
+  fecha_venta: string;
+  monto_total: string;
+  forma_pago: string;
+  medio_pago: string;
+  zona?: string;
+  direccion?: string;
+}
+
+interface ApiResponse {
+  ventas: Venta[];
+  estadisticas: {
+    montoTotal: string;
+    totalVentas: number;
+    ventasConSaldo: number;
+    ventasPorDia: Record<string, number>;
+    ventasPorMedioPago: {
+      efectivo: number;
+      transferencia: number;
+    };
+  };
 }
 
 export default function SimpleTable() {
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [ventas, setVentas] = useState<Venta[]>([]);
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const rowsPerPage = 5;
 
   useEffect(() => {
-    const fetchPedidos = async () => {
+    const fetchVentas = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pedidos`);
-        const data: Pedido[] = await response.json();
-        setPedidos(data);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/resumen`);
+        const data: ApiResponse = await response.json();
+        setVentas(data.ventas);
       } catch (error) {
-        console.error("Error fetching pedidos:", error);
+        console.error("Error al obtener ventas:", error);
       }
     };
 
-    fetchPedidos();
+    fetchVentas();
   }, []);
 
-  return (
-    <>
+  // Filtrar ventas basado en el término de búsqueda
+  const ventasFiltradas = ventas.filter((venta) => {
+    const searchString = searchTerm.toLowerCase().trim();
     
+    // Si no hay término de búsqueda, mostrar todas las ventas
+    if (!searchString) return true;
+
+    // Buscar en todos los campos relevantes
+    return (
+      venta.venta_id.toLowerCase().includes(searchString) ||
+      venta.revendedor_nombre.toLowerCase().includes(searchString) ||
+      formatDate(venta.fecha_venta).toLowerCase().includes(searchString) ||
+      venta.monto_total.toString().includes(searchString) ||
+      venta.medio_pago.toLowerCase().includes(searchString) ||
+      venta.forma_pago.toLowerCase().includes(searchString) ||
+      (venta.zona && venta.zona.toLowerCase().includes(searchString)) ||
+      (venta.direccion && venta.direccion.toLowerCase().includes(searchString))
+    );
+  });
+
+  // Calcular páginas basado en resultados filtrados
+  const pages = Math.ceil(ventasFiltradas.length / rowsPerPage);
+  
+  // Obtener las ventas de la página actual
+  const ventasPaginadas = ventasFiltradas.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
+
+  // Reset página cuando cambia la búsqueda
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
     <div className="flex flex-col gap-3">
+      {/* Buscador */}
+      <div className="mb-4">
+        <Input
+          isClearable
+          className="w-full sm:max-w-[44%]"
+          placeholder="Buscar por ID, revendedor, fecha, monto, zona, dirección..."
+          startContent={
+            <svg
+              className="w-5 h-5 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          }
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       <Table
         selectionMode="single"
-        aria-label="Tabla de pedidos"
+        aria-label="Tabla de últimas ventas"
+        bottomContent={
+          pages > 1 ? (
+            <div className="flex justify-center w-full">
+              <Pagination
+                isCompact
+                showControls
+                showShadow
+                color="secondary"
+                page={page}
+                total={pages}
+                onChange={setPage}
+              />
+            </div>
+          ) : null
+        }
       >
         <TableHeader>
-          <TableColumn>PEDIDO</TableColumn>
-          <TableColumn>CLIENTE</TableColumn>
-          <TableColumn>ESTADO</TableColumn>
+          <TableColumn>VENTA #</TableColumn>
+          <TableColumn>REVENDEDOR</TableColumn>
+          <TableColumn>FECHA</TableColumn>
+          <TableColumn>MONTO</TableColumn>
+          <TableColumn>PAGO</TableColumn>
         </TableHeader>
         <TableBody>
-          {pedidos.length > 0 ? (
-            pedidos.map((pedido) => (
-              <TableRow key={pedido.id}>
-                <TableCell>{`Pedido #${pedido.id}`}</TableCell>
-                <TableCell>{pedido.cliente}</TableCell>
-                <TableCell>{pedido.estado}</TableCell>
+          {ventasPaginadas.length > 0 ? (
+            ventasPaginadas.map((venta) => (
+              <TableRow key={venta.venta_id}>
+                <TableCell>{`#${venta.venta_id.slice(0, 8)}`}</TableCell>
+                <TableCell>{venta.revendedor_nombre}</TableCell>
+                <TableCell>{formatDate(venta.fecha_venta)}</TableCell>
+                <TableCell>${Number(venta.monto_total).toLocaleString('es-AR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })}</TableCell>
+                <TableCell>
+                  <span className={`capitalize ${venta.medio_pago === 'efectivo' ? 'text-green-600' : 'text-blue-600'}`}>
+                    {venta.medio_pago}
+                  </span>
+                  {venta.forma_pago === 'parcial' && (
+                    <span className="ml-2 text-yellow-600">(Parcial)</span>
+                  )}
+                </TableCell>
               </TableRow>
             ))
           ) : (
-<></>
+            <TableRow>
+              <TableCell>-</TableCell>
+              <TableCell>-</TableCell>
+              <TableCell>No hay ventas registradas</TableCell>
+              <TableCell>-</TableCell>
+              <TableCell>-</TableCell>
+            </TableRow>
           )}
         </TableBody>
       </Table>
 
-      {/* Alerta de Tailwind CSS que solo aparece si no hay pedidos */}
-      {pedidos.length === 0 && (
-      <div
-      className="relative px-4 py-3 text-teal-700 bg-teal-200 border border-teal-500 rounded bg-opacity-30 border-opacity-30"
-      role="alert"
-  >
-      <strong className="font-bold">No hay pedidos pendientes! <br /></strong>
-      <span className="block sm:inline">Cargá tus pedidos para volver a verlos aquí.</span>
-      <span className="absolute top-0 bottom-0 right-0 px-4 py-3">
-          <svg
-              className="w-6 h-6 text-teal-500 fill-current"
-              role="button"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-          >
-              <title>Close</title>
-              <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" />
-          </svg>
-      </span>
-  </div>
-  
-   
+      {ventasFiltradas.length === 0 && (
+        <div className="relative px-4 py-3 text-teal-700 bg-teal-200 bg-opacity-30 rounded border border-teal-500 border-opacity-30" role="alert">
+          {searchTerm ? (
+            <>
+              <strong className="font-bold">No se encontraron resultados! <br /></strong>
+              <span className="block sm:inline">No hay ventas que coincidan con tu búsqueda.</span>
+            </>
+          ) : (
+            <>
+              <strong className="font-bold">No hay ventas registradas! <br /></strong>
+              <span className="block sm:inline">Las ventas realizadas aparecerán aquí.</span>
+            </>
+          )}
+        </div>
       )}
     </div>
-    </>
   );
 }

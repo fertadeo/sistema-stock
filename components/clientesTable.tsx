@@ -268,12 +268,15 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const filteredColumns = columns;
 
   const filteredUsers = users.filter((user) => {
-    const name = user.nombre.toLowerCase() || "";
-    const telefono = user.telefono.toLowerCase() || "";
-    const email = user.email? user.email.toLowerCase() : "";
-    const search = searchTerm.toLowerCase();
-
-    return name.includes(search) || telefono.includes(search) || email.includes(search);
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (user.nombre?.toLowerCase() || '').includes(searchLower) ||
+      (user.telefono?.toLowerCase() || '').includes(searchLower) ||
+      (user.email?.toLowerCase() || '').includes(searchLower) ||
+      (user.dni?.toLowerCase() || '').includes(searchLower) ||
+      (user.zona?.toLowerCase() || '').includes(searchLower) ||
+      (user.direccion?.toLowerCase() || '').includes(searchLower)
+    );
   });
 
   const startIdx = (currentPage - 1) * itemsPerPage;
@@ -293,7 +296,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   return (
     <div className="flex flex-col w-full h-full">
       {alertVisible && (
-        <div className="absolute bottom-8 right-8 z-50">
+        <div className="absolute right-8 bottom-8 z-50">
           <Alert
             type={alertType}
             message={alertMessage}
@@ -304,7 +307,22 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       <div className="flex justify-between items-center p-4 h-20 bg-white rounded-lg shadow-medium">
         <Input
           isClearable
-          placeholder="Buscar"
+          placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
+          startContent={
+            <svg
+              className="w-5 h-5 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          }
           onChange={(e) => setSearchTerm(e.target.value)}
           value={searchTerm}
           className="pr-4"
@@ -313,6 +331,22 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           Agregar Nuevo +
         </Button>
       </div>
+
+      {filteredUsers.length === 0 && searchTerm && (
+        <div className="px-4 py-3 mt-4 text-blue-700 bg-blue-100 rounded border-l-4 border-blue-500">
+          <div className="flex">
+            <div className="py-1">
+              <svg className="mr-4 w-6 h-6 text-blue-500 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold">No se encontraron resultados</p>
+              <p className="text-sm">No hay clientes que coincidan con tu búsqueda.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-auto flex-1 mt-4">
         <Table aria-label="Tabla de Clientes" className="w-full">

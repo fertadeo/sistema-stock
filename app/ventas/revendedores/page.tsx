@@ -1,24 +1,24 @@
 'use client';
 import '../../../styles/globals.css'; 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@heroui/react";
 import { CalendarIcon } from "@heroicons/react/24/outline";
 import { Calendar } from "@heroui/calendar";
-import { useState } from "react";
 import Link from "next/link";
 import { today, getLocalTimeZone } from "@internationalized/date";
 import type { DateValue } from "@react-types/calendar";
-import productosData from '../../../components/soderia-data/productos.json';
 import revendedoresData from '../../../components/soderia-data/revendedores.json';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import BudgetResume from '@/components/budgetResume';
 import Alert from '@/components/shared/alert';
+import PDFContent from '@/components/PDFContent';
 
 interface Product {
+  nombreProducto: any;
   id: number;
   name: string;
-  price: number;
+  precioRevendedor: number;
   quantity: number;
 }
 
@@ -33,20 +33,27 @@ interface Revendedor {
   name: string;
 }
 
+interface VentaData {
+  revendedor_nombre: string;
+  repartidor_id: string;
+  productos: {
+    producto_id: string;
+    cantidad: number;
+    precio_unitario: string;
+    subtotal: string;
+  }[];
+  monto_total: string;
+  medio_pago: string;
+  forma_pago: string;
+  saldo_monto: string;
+}
+
 export default function NuevaVenta() {
   const defaultDate = today(getLocalTimeZone());
   const [selectedDate, setSelectedDate] = useState<DateValue>(defaultDate);
   const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>(
-    productosData
-      .filter(producto => [1, 2, 3].includes(producto.id))
-      .map(producto => ({
-        id: producto.id,
-        name: producto.Producto,
-        price: producto.PrecioRevendedor ?? 0, // Add null check with ?? 0
-        quantity: 0
-      }))
-  );
+  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [selectedRevendedor, setSelectedRevendedor] = useState("");
   const [budgetResume, setBudgetResume] = useState<BudgetResume>({
     totalCajones: 0,
@@ -66,15 +73,71 @@ export default function NuevaVenta() {
     message: ''
   });
   const [showPDF, setShowPDF] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/productos`;
+        // console.log('Llamando a la API en:', apiUrl);
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // console.log('Respuesta recibida del servidor:', data);
+
+        const filteredProducts = data
+          .filter((producto: { id: number }) => [1, 2, 4].includes(producto.id))
+          .map((producto: {
+            id: number;
+            nombreProducto: string;
+            precioPublico: number;
+            precioRevendedor: number;
+            cantidadStock: number | null;
+            descripcion: string | null;
+          }) => ({
+            id: producto.id,
+            name: producto.nombreProducto || '',
+            precioRevendedor: producto.precioRevendedor ?? 0,
+            quantity: 0
+          }));
+        
+        const allAvailableProducts = data.map((producto: {
+          id: number;
+          nombreProducto: string;
+          precioPublico: number;
+          precioRevendedor: number;
+          cantidadStock: number | null;
+          descripcion: string | null;
+        }) => ({
+          id: producto.id,
+          name: producto.nombreProducto || '',
+          precioRevendedor: producto.precioRevendedor ?? 0,
+          quantity: 0
+        }));
+
+        setProducts(filteredProducts);
+        setAllProducts(allAvailableProducts);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   const handleAddProduct = (productId: string) => {
-    const selectedProduct = productosData.find(p => p.id === parseInt(productId));
+    const selectedProduct = allProducts.find(p => p.id === parseInt(productId));
     if (selectedProduct && !products.some(p => p.id === selectedProduct.id)) {
       setProducts([...products, {
         id: selectedProduct.id,
-        name: selectedProduct.Producto,
-        price: selectedProduct.PrecioRevendedor ?? 0,
-        quantity: 0
+        name: selectedProduct.name,
+        precioRevendedor: selectedProduct.precioRevendedor ?? 0,
+        quantity: 0,
+        nombreProducto: undefined
       }]);
     }
   };
@@ -99,90 +162,139 @@ export default function NuevaVenta() {
       totalCajones: updatedProducts.reduce((sum, product) => 
         sum + (product.name.toLowerCase().includes('soda') ? Math.floor(product.quantity / 6) : 0), 0),
       totalUnidades: updatedProducts.reduce((sum, product) => sum + product.quantity, 0),
-      totalGeneral: updatedProducts.reduce((sum, product) => sum + (product.price * product.quantity), 0)
+      totalGeneral: updatedProducts.reduce((sum, product) => sum + (product.precioRevendedor * product.quantity), 0)
     };
 
     setBudgetResume(newResume);
   };
 
   const handleGenerateVenta = async () => {
-    if (!selectedRevendedor) {
-      setAlertInfo({
-        show: true,
-        type: 'error',
-        title: 'Error',
-        message: 'Debe seleccionar un revendedor para generar la venta'
-      });
-      return;
-    }
-
-    const hasProducts = products.some(p => p.quantity > 0);
-    if (!hasProducts) {
-      setAlertInfo({
-        show: true,
-        type: 'error',
-        title: 'Error',
-        message: 'Debe agregar al menos un producto a la venta'
-      });
-      return;
-    }
-
-    if (budgetResume.totalGeneral === 0) {
-      setAlertInfo({
-        show: true,
-        type: 'error',
-        title: 'Error',
-        message: 'El total de la venta no puede ser $0'
-      });
-      return;
-    }
-
-    if (!invoiceRef.current) return;
-    
     try {
+      setIsGeneratingPDF(true);
+
+      // Obtener el nombre del revendedor seleccionado
+      const revendedorNombre = revendedoresData.revendedores[parseInt(selectedRevendedor)];
+      
+      if (!revendedorNombre) {
+        throw new Error('Revendedor no seleccionado');
+      }
+
+      // Preparar los productos en el formato requerido
+      const productosFormateados = products
+        .filter(p => p.quantity > 0)
+        .map(p => ({
+          producto_id: `prod-${p.id}`,
+          cantidad: p.quantity,
+          precio_unitario: p.precioRevendedor.toFixed(2),
+          subtotal: (p.precioRevendedor * p.quantity).toFixed(2)
+        }));
+
+      // Preparar datos para la API
+      const ventaData = {
+        revendedor_nombre: revendedorNombre,
+        repartidor_id: "",
+        productos: productosFormateados,
+        monto_total: products
+          .reduce((sum, p) => sum + (p.precioRevendedor * p.quantity), 0)
+          .toFixed(2),
+        medio_pago: "efectivo",
+        forma_pago: "total",
+        saldo_monto: "0.00"
+      };
+
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-resumen`;
+      // console.log('Llamando a la API en:', apiUrl);
+      // console.log('Datos enviados:', JSON.stringify(ventaData, null, 2));
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(ventaData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        // console.error('Respuesta del servidor:', {
+        //   status: response.status,
+        //   statusText: response.statusText,
+        //   data: errorData
+        // });
+        throw new Error(`Error al guardar la venta en la base de datos: ${response.status} ${response.statusText}`);
+      }
+
+      const savedVenta = await response.json();
+      console.log('Respuesta recibida del servidor:', savedVenta);
+
+      // Continuar con la generación del PDF...
+      setShowPDF(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (!invoiceRef.current) {
+        throw new Error('No se pudo generar el contenido del PDF');
+      }
+
+      // Generar PDF...
       const canvas = await html2canvas(invoiceRef.current, {
         scale: 2,
-        logging: false,
-        useCORS: true
+        logging: true,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
       });
 
+      // Crear el PDF
       const pdf = new jsPDF({
         format: 'a4',
         unit: 'mm'
       });
-      
+
       const imgWidth = 190;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+      const imgData = canvas.toDataURL('image/png', 1.0);
 
-      pdf.save(`Venta-Revendedor-${selectedRevendedor}-${selectedDate}.pdf`);
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight, undefined, 'FAST');
+
+      // Guardar el PDF
+      pdf.save(`Venta-Revendedor-${revendedorNombre}-${formatDate(selectedDate)}.pdf`);
+      // console.log('PDF guardado correctamente'); // Debug
 
       setAlertInfo({
         show: true,
         type: 'success',
         title: 'Éxito',
-        message: `Venta generada exitosamente\nTotal Cajones: ${budgetResume.totalCajones}\nTotal Unidades: ${budgetResume.totalUnidades}\nTotal General: $${budgetResume.totalGeneral}`
+        message: `Venta guardada y PDF generado exitosamente\nTotal: $${ventaData.monto_total}`
       });
+
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      // console.error('Error completo:', error);
       setAlertInfo({
         show: true,
         type: 'error',
         title: 'Error',
-        message: 'Hubo un error generando el PDF. Por favor intente nuevamente.'
+        message: error instanceof Error ? error.message : 'Error al procesar la venta'
       });
+    } finally {
+      setIsGeneratingPDF(false);
+      setShowPDF(false);
     }
-    setShowPDF(true);
   };
 
-  const selectedRevendedorName = revendedoresData.revendedores.find(
-    revendedor => revendedor === selectedRevendedor
-  ) || '';
+  const selectedRevendedorIndex = parseInt(selectedRevendedor);
+  const selectedRevendedorName = revendedoresData.revendedores[selectedRevendedorIndex] || 'Nombre no disponible';
 
-  console.log('Revendedor elegido:', selectedRevendedorName);
-  console.log('Nombre del revendedor seleccionado:', selectedRevendedor);
-  console.log('Datos de revendedores:', revendedoresData.revendedores);
+  // console.log('Revendedor elegido:', selectedRevendedorName);
+  // console.log('Nombre del revendedor seleccionado:', selectedRevendedor);
+  // console.log('Datos de revendedores:', revendedoresData.revendedores);
+  // console.log('RevendedoresData', revendedoresData);
+  const formatDate = (date: DateValue) => {
+    const day = String(date.day).padStart(2, '0');
+    const month = String(date.month).padStart(2, '0');
+    const year = date.year;
+
+    return `${day}/${month}/${year}`;
+  };
 
   return (
     <div className="container p-4 mx-auto">
@@ -226,7 +338,7 @@ export default function NuevaVenta() {
                           variant="bordered"
                           color="secondary"
                           type="text"
-                          value={selectedDate.toString()}
+                          value={formatDate(selectedDate)}
                           readOnly
                           placeholder="Selecciona una fecha"
                           className="pl-10 w-[200px]"
@@ -236,7 +348,7 @@ export default function NuevaVenta() {
                     <PopoverContent className="transform" >
                       <Calendar
                         defaultValue={defaultDate}
-                        value={selectedDate}
+                        value={ selectedDate}
                         onChange={(date: React.SetStateAction<DateValue>) => {
                           if (date) {
                             setSelectedDate(date);
@@ -258,12 +370,12 @@ export default function NuevaVenta() {
                     value={selectedRevendedor}
                     onChange={(e) => {
                       setSelectedRevendedor(e.target.value);
-                      console.log('Revendedor seleccionado:', e.target.value);
+                      // console.log('Revendedor seleccionado:', e.target.value);
                     }}
                     className="w-[200px]"
                   >
                     {revendedoresData.revendedores.map((revendedor, index) => (
-                      <SelectItem key={index} value={revendedor}>
+                      <SelectItem key={index} value={index.toString()}>
                         {revendedor}
                       </SelectItem>
                     ))}
@@ -294,10 +406,10 @@ export default function NuevaVenta() {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-bold">{product.name}</p>
-                      <p className="text-gray-500">Precio: ${product.price}</p>
+                      <p className="text-gray-500">Precio: ${product.precioRevendedor}</p>
                     </div>
                     <div className="flex gap-4 items-center">
-                      {product.name.toLowerCase().includes('soda') ? (
+                      {product.name && product.name.toLowerCase().includes('soda') ? (
                         <>
                           <div>
                             <label htmlFor={`cajones-${product.id}`} className="block mb-2 text-gray-700">
@@ -352,11 +464,11 @@ export default function NuevaVenta() {
                           className="w-24"
                           variant="bordered"
                           color="secondary"
-                          readOnly={product.name.toLowerCase().includes('soda')}
+                          isReadOnly={product.name?.toLowerCase().includes('soda') || false}
                         />
                       </div>
                       <div className="flex justify-end mt-2 mr-12 min-w-36">
-                    <h2 className="text-lg font-bold">Total: ${product.price * product.quantity}</h2>
+                      <h2 className="text-lg font-bold">Total: ${product.precioRevendedor * (product.quantity || 0)}</h2>
                   </div>
                     </div>
                   </div>
@@ -375,37 +487,48 @@ export default function NuevaVenta() {
                   onChange={(e) => handleAddProduct(e.target.value)}
                   className="mb-4 w-full"
                 >
-                  {productosData.map((producto) => (
-                    <SelectItem key={producto.id} value={producto.id.toString()}>
-                      {producto.Producto}
+                  {allProducts.map((product) => (
+                    <SelectItem key={product.id} value={product.id.toString()}>
+                      {product.name} - ${product.precioRevendedor}
                     </SelectItem>
                   ))}
                 </Select>
-        
               </div>
 
               {/* Totales - Agregar después del mapping de productos */}
               <div className="p-4 mt-4 bg-gray-200 rounded-lg">
                 <h2 className="mb-4 text-xl font-bold">Resumen de la Venta</h2>
                 <div className="space-y-2">
-                  {products.filter(p => p.quantity > 0).map(product => (
-                    <div key={product.id} className="flex justify-between">
-                      <span>{product.name} x {product.quantity}</span>
-                      <span>${product.price * product.quantity}</span>
-                    </div>
-                  ))}
+                 
                   <div className="pt-2 mt-2 border-t border-gray-400">
-                    <div className="flex justify-between font-bold">
-                      <span>Total Cajones:</span>
-                      <span>{budgetResume.totalCajones}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span>Total Unidades:</span>
-                      <span>{budgetResume.totalUnidades}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
+                    {/* Desglose por producto */}
+                    {products
+                      .filter(p => p.quantity > 0)
+                      .map(product => (
+                        <div key={product.id} className="flex justify-between mb-2">
+                          <span>{product.name}:</span>
+                          <div className="text-right">
+                            {product.name.toLowerCase().includes('soda') ? (
+                              <span>
+                                {Math.floor(product.quantity / 6)} cajones
+                                {product.quantity % 6 > 0 && ` + ${product.quantity % 6} unidades`}
+                                {' - '}
+                              </span>
+                            ) : (
+                              <span>{product.quantity} unidades - </span>
+                            )}
+                            <span className="font-bold">${(product.precioRevendedor * product.quantity).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+
+                    {/* Línea divisoria */}
+                    <div className="my-2 border-t border-gray-400"></div>
+
+                   
+                    <div className="flex justify-between mt-2 text-lg font-bold">
                       <span>Total General:</span>
-                      <span>${products.reduce((sum, product) => sum + (product.price * product.quantity), 0)}</span>
+                      <span>${products.reduce((sum, p) => sum + (p.precioRevendedor * p.quantity), 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -420,9 +543,34 @@ export default function NuevaVenta() {
                   variant="solid"
                   className="w-full"
                   size="lg"
-                  onClick={handleGenerateVenta}
+                  onClick={() => {
+                    // console.log('Botón clickeado'); // Debug
+                    handleGenerateVenta();
+                  }}
+                  disabled={isGeneratingPDF}
                 >
-                  Generar Venta
+                  {isGeneratingPDF ? (
+                    <div className="flex justify-center items-center">
+                      <svg className="mr-3 w-5 h-5 animate-spin" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      Generando PDF...
+                    </div>
+                  ) : (
+                    'Generar Venta'
+                  )}
                 </Button>
 
                 {alertInfo.show && (
@@ -439,69 +587,16 @@ export default function NuevaVenta() {
         </Card>
       </div>
 
-      {/* Contenido a convertir en PDF */}
-      <div ref={invoiceRef} className={`p-6 bg-white ${showPDF ? '':'hidden'}`}>
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="mb-4 text-2xl font-bold text-gray-900">
-              Sodería Don Javier
-            </h1>
-            <p className="font-bold">Revendedor: {selectedRevendedorName}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-gray-600">
-              <p>Gerónimo del Barco 2560</p>
-              <p>Río Cuarto, Córdoba</p>
-              <p>Tel: 3585602938</p>
-            </div>
-            <p className="text-gray-600">Fecha: {selectedDate.toString()}</p>
-          </div>
-        </div>
-
-        {/* Lista de productos */}
-        <table className="mb-8 w-full">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-3 font-semibold text-left text-gray-900">Producto</th>
-              <th className="px-4 py-3 font-semibold text-center text-gray-900">Cajones</th>
-              <th className="px-4 py-3 font-semibold text-center text-gray-900">Unidades</th>
-              <th className="px-4 py-3 font-semibold text-center text-gray-900">Total Unid.</th>
-              <th className="px-4 py-3 font-semibold text-right text-gray-900">Precio Unit.</th>
-              <th className="px-4 py-3 font-semibold text-right text-gray-900">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.filter(p => p.quantity > 0).map(product => (
-              <tr key={product.id} className="border-b border-gray-200">
-                <td className="px-4 py-3">{product.name}</td>
-                <td className="px-4 py-3 text-center">
-                  {product.name.toLowerCase().includes('soda') ? Math.floor(product.quantity / 6) : '-'}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  {product.name.toLowerCase().includes('soda') ? product.quantity % 6 : '-'}
-                </td>
-                <td className="px-4 py-3 text-center">{product.quantity}</td>
-                <td className="px-4 py-3 text-right">${product.price}</td>
-                <td className="px-4 py-3 text-right">${product.price * product.quantity}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="font-bold">
-              <td colSpan={5} className="px-4 py-3 text-right">Total General:</td>
-              <td className="px-4 py-3 text-right">
-                ${products.reduce((sum, product) => sum + (product.price * product.quantity), 0)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-
-        <div className="pt-4 mt-8 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
-            Gracias por su compra. Para consultas comunicarse al 3585602938.
-          </p>
-        </div>
-      </div>
+      {/* Asegurarnos de que PDFContent esté montado cuando isGeneratingPDF es true */}
+      {(isGeneratingPDF || showPDF) && (
+        <PDFContent
+          selectedRevendedorName={selectedRevendedorName}
+          selectedDate={selectedDate}
+          products={products}
+          formatDate={formatDate}
+          invoiceRef={invoiceRef}
+        />
+      )}
     </div>
   );
 }

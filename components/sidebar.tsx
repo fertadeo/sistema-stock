@@ -99,7 +99,7 @@ export const SideBar = () => {
 
             <Link
               href="/ventas"
-              className="hidden px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
+              className="px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out  hover:bg-teal-500 hover:text-white hover:scale-105"
             >
               <svg
                 className="inline-block w-6 h-6 fill-current"
@@ -117,7 +117,7 @@ export const SideBar = () => {
 
             <Link
               href="/ventas/repartidores-donjavier/control-carga"
-              className="hidden flex items-center px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
+              className="flex hidden items-center px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-6">
                 <path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25ZM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 1 1 6 0h3a.75.75 0 0 0 .75-.75V15Z" />
