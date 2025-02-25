@@ -18,7 +18,6 @@ import {
   TableRow,
   TableCell,
 } from "@heroui/react";
-import { FaFilter } from "react-icons/fa";
 
 type Product = {
   id: number;
@@ -183,7 +182,16 @@ const MultifilterModal: React.FC<MultifilterModalProps> = ({
       <ModalContent className="w-[90%]">
         <ModalHeader>
           <h2>
-            <FaFilter style={{ marginRight: "10px" }} />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              style={{ marginRight: "10px" }}
+              fill="currentColor"
+            >
+              <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
+            </svg>
             Multifiltro de Productos
           </h2>
         </ModalHeader>
