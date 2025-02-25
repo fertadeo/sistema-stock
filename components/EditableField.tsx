@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { Input } from "@heroui/react";
-import { FaEdit } from "react-icons/fa";
+import { FaEdit as EditIcon } from "react-icons/fa";
 
 type EditableFieldProps = {
   label: string;
@@ -37,7 +37,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
         type={type} // Tipo de input
       />
       {isEditable && (
-        <FaEdit
+        <EditIcon
           style={{
             position: "absolute",
             right: "10px",
