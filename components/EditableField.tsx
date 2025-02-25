@@ -3,7 +3,6 @@
 
 import React, { useState } from "react";
 import { Input } from "@heroui/react";
-import { FaEdit as EditIcon } from "react-icons/fa";
 
 type EditableFieldProps = {
   label: string;
@@ -37,16 +36,22 @@ const EditableField: React.FC<EditableFieldProps> = ({
         type={type} // Tipo de input
       />
       {isEditable && (
-        <EditIcon
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
           style={{
             position: "absolute",
             right: "10px",
             top: "35px",
             cursor: "pointer",
-            color: isEditing ? "green" : "gray",
+            fill: isEditing ? "green" : "gray",
           }}
           onClick={() => setIsEditing(!isEditing)}
-        />
+        >
+          <path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z" />
+        </svg>
       )}
     </div>
   );
