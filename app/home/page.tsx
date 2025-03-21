@@ -1,7 +1,48 @@
+'use client'
 import BarChart from '@/components/chart';
 import PresupuestosTable from '@/components/presupuestosTable';
-
 import SimpleTable from '@/components/simpleTable';
+import { Card, CardBody } from "@heroui/react";
+
+// Componente MetricCard
+const MetricCard = ({ title, amount, percentage, isPositive, icon }: {
+  title: string;
+  amount: string;
+  percentage: string;
+  isPositive: boolean;
+  icon: React.ReactNode;
+}) => {
+  return (
+    <Card className="w-full">
+      <CardBody className="p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-sm text-gray-500">{title}</p>
+            <h3 className="mt-1 text-2xl font-semibold">${amount}</h3>
+            <div className="flex items-center mt-2">
+              {isPositive ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-red-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6 9 12.75l4.306-4.306a11.95 11.95 0 0 1 5.814 5.518l2.74 1.22m0 0 5.94 2.281m-5.94-2.28 2.28-5.941" />
+                </svg>
+              )}
+              <span className={`ml-1 text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                {percentage}%
+              </span>
+              <span className="ml-2 text-sm text-gray-500">vs último mes</span>
+            </div>
+          </div>
+          <div className="p-3 bg-gray-100 rounded-full">
+            {icon}
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+};
 
 export default function Home() {
   // const data = {
@@ -36,6 +77,57 @@ export default function Home() {
 
   return (
     <div className="flex relative flex-col min-h-full" style={{ backgroundColor: '#F5F5F5' }}>
+      {/* Métricas Cards */}
+      <div className="grid grid-cols-1 gap-6 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title="Balance Total"
+          amount="15,700.00"
+          percentage="2.35"
+          isPositive={true}
+          icon={
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+        />
+
+        <MetricCard
+          title="Ingresos"
+          amount="8,500.00"
+          percentage="8.45"
+          isPositive={true}
+          icon={
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+            </svg>
+          }
+        />
+
+        <MetricCard
+          title="Gastos"
+          amount="6,222.00"
+          percentage="2.45"
+          isPositive={false}
+          icon={
+            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+            </svg>
+          }
+        />
+
+        <MetricCard
+          title="Ahorros Totales"
+          amount="32,913.00"
+          percentage="1.35"
+          isPositive={true}
+          icon={
+            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          }
+        />
+      </div>
+
       {/* Título responsivo */}
       <div className="px-4 py-2 w-full">
         {/* <Menucards /> */}

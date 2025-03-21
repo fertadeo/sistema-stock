@@ -1,8 +1,7 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import "@/styles/globals.css"
 import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react"
-import repartidores from '@/components/soderia-data/repartidores.json'
 import productos from '@/components/soderia-data/productos.json'
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -25,9 +24,57 @@ interface OrderForm {
   productos: ProductoDescarga[];
 }
 
+interface ProductoReporte {
+  producto: string;
+  total?: number;
+  cantidad?: number;
+  llenos?: number | { total: number };
+  vacios?: number | { total: number };
+}
+
+interface Diferencia {
+  producto: string;
+  cantidadCargada: number;
+  cantidadDescargada: number;
+  cantidadVendida: number;
+  envasesFaltantes: number;
+}
+
+interface Repartidor {
+  id: number;
+  nombre: string;
+  telefono: string;
+  zona_reparto: string;
+  activo: boolean;
+  fecha_registro: string;
+}
+
+interface CargaRepartidor {
+  id: number;
+  repartidor_id: number;
+  fecha_carga: string;
+  estado: 'pendiente' | 'completada';
+  items: {
+    id: number;
+    carga_id: number;
+    producto_id: number;
+    cantidad: number;
+  }[];
+  repartidor: {
+    id: number;
+    nombre: string;
+    telefono: string;
+    zona_reparto: string;
+    activo: boolean;
+    fecha_registro: string;
+  };
+}
+
 const ControlCargaPage = () => {
   const [isCarga, setIsCarga] = useState(true);
   const today = new Date().toISOString().split('T')[0];
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
+  const [isLoadingRepartidores, setIsLoadingRepartidores] = useState(true);
   const [formData, setFormData] = useState<OrderForm>({
     fecha: today,
     repartidor: '',
@@ -50,6 +97,63 @@ const ControlCargaPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [cargasPendientes, setCargasPendientes] = useState<CargaRepartidor[]>([]);
+  const [cargaSeleccionada, setCargaSeleccionada] = useState<CargaRepartidor | null>(null);
+  const [repartidorSeleccionado, setRepartidorSeleccionado] = useState<string>('');
+
+  useEffect(() => {
+    const fetchRepartidores = async () => {
+      try {
+        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Error al obtener repartidores: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setRepartidores(data);
+      } catch (error) {
+        console.error('Error al cargar repartidores:', error);
+        handleError('Error al cargar la lista de repartidores');
+      } finally {
+        setIsLoadingRepartidores(false);
+      }
+    };
+
+    fetchRepartidores();
+  }, []);
+
+  const fetchCargasPendientes = async (repartidorId: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/repartidor/${repartidorId}`);
+      if (!response.ok) {
+        throw new Error(`Error al obtener cargas pendientes: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      console.log('=== CARGAS PENDIENTES RECIBIDAS ===');
+      console.log('Datos completos:', data);
+      console.log('Cantidad de cargas:', data.length);
+      data.forEach((carga: CargaRepartidor, index: number) => {
+        console.log(`\nCarga #${index + 1}:`);
+        console.log('ID:', carga.id);
+        console.log('Fecha:', new Date(carga.fecha_carga).toLocaleString());
+        console.log('Repartidor:', carga.repartidor.nombre);
+        console.log('Items:', carga.items.length);
+        console.log('Detalle de items:');
+        carga.items.forEach(item => {
+          console.log(`  - Producto ID: ${item.producto_id}, Cantidad: ${item.cantidad}`);
+        });
+      });
+      console.log('===============================');
+
+      setCargasPendientes(data);
+    } catch (error) {
+      console.error('Error al cargar las cargas pendientes:', error);
+      handleError('Error al cargar las cargas pendientes');
+    }
+  };
 
   const calcularTotalUnidades = (cajones: number = 0, unidades: number = 0) => {
     return (cajones * 6) + unidades;
@@ -192,26 +296,247 @@ const ControlCargaPage = () => {
     }, 3000);
   };
 
-  const confirmarGuardado = () => {
+  const confirmarGuardado = async () => {
     try {
-      // Simulamos un error aleatorio (30% de probabilidad de error)
-      if (Math.random() < 0.3) {
-        throw new Error("Error de conexión con el servidor");
-      }
+      if (isCarga) {
+        const repartidorId = parseInt(formData.repartidor);
+        
+        console.log('=== DEBUGGING INFORMACIÓN ===');
+        console.log('Estado del formulario:', formData);
+        console.log('Lista de repartidores:', repartidores);
+        console.log('ID del repartidor seleccionado:', repartidorId);
+        console.log('Repartidor encontrado:', repartidores.find(r => r.id === repartidorId)?.nombre);
+        console.log('========================');
 
-      console.log('=== REPORTE DE ' + reporteTemp.tipo + ' ===');
-      console.log('Fecha:', reporteTemp.fecha);
-      console.log('Repartidor:', reporteTemp.repartidor);
-      console.log('Productos:', reporteTemp.productos);
+        // Validar que existe el repartidor_id
+        if (!repartidorId || !repartidores.some(r => r.id === repartidorId)) {
+          console.error('Error: ID del repartidor inválido');
+          console.log('ID del repartidor buscado:', repartidorId);
+          console.log('Lista de repartidores disponibles:', repartidores.map(r => ({ id: r.id, nombre: r.nombre })));
+          throw new Error('Por favor selecciona un repartidor válido');
+        }
+
+        // Guardar nueva carga
+        const nuevaCarga = {
+          repartidor_id: repartidorId,
+          items: formData.productos
+            .filter(p => p.cantidadCarga && p.cantidadCarga > 0)
+            .map(p => ({
+              producto_id: p.id,
+              cantidad: p.cantidadCarga
+            })),
+          estado: "pendiente"
+        };
+
+        // Log de los datos que se envían
+        console.log('=== DATOS DE LA CARGA A ENVIAR ===');
+        console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/cargas`);
+        console.log('Método:', 'POST');
+        console.log('Headers:', { 'Content-Type': 'application/json' });
+        console.log('Datos:', JSON.stringify(nuevaCarga, null, 2));
+        console.log('===============================');
+
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(nuevaCarga)
+          });
+
+          console.log('=== RESPUESTA DEL SERVIDOR ===');
+          console.log('Status:', response.status);
+          console.log('Status Text:', response.statusText);
+          console.log('Headers:', Object.fromEntries(response.headers.entries()));
+
+          const responseText = await response.text();
+          console.log('Respuesta completa:', responseText);
+
+          if (!response.ok) {
+            let errorMessage = `Error ${response.status}: ${response.statusText}`;
+            try {
+              // Intentar parsear como JSON si es posible
+              const errorData = JSON.parse(responseText);
+              errorMessage += `\nDetalles: ${JSON.stringify(errorData)}`;
+            } catch {
+              // Si no es JSON, usar el texto plano
+              errorMessage += `\nDetalles: ${responseText}`;
+            }
+            throw new Error(errorMessage);
+          }
+
+          console.log('=== OPERACIÓN EXITOSA ===');
+          console.log('La carga se guardó correctamente');
       console.log('========================');
 
-      setIsModalOpen(false);
-      setShowSuccess(true);
+        } catch (fetchError) {
+          console.error('=== ERROR EN LA PETICIÓN ===');
+          console.error('Error completo:', fetchError);
+          console.error('========================');
+          throw fetchError;
+        }
 
-      setTimeout(() => {
-        setShowSuccess(false);
+      } else {
+        // Guardar descarga vinculada a la carga
+        // Asegurarse de que el repartidor_id sea válido
+        const repartidorId = cargaSeleccionada?.repartidor_id || parseInt(formData.repartidor);
+        
+        if (!repartidorId) {
+          console.error('Error: No se pudo obtener el ID del repartidor');
+          console.error('Carga seleccionada:', cargaSeleccionada);
+          console.error('Form data:', formData);
+          throw new Error('No se pudo obtener el ID del repartidor para la descarga');
+        }
+
+        // Validar que la carga exista y tenga un ID válido
+        if (!cargaSeleccionada?.id) {
+          console.error('Error: No se pudo obtener el ID de la carga');
+          console.error('Carga seleccionada:', cargaSeleccionada);
+          throw new Error('No se pudo obtener el ID de la carga para la descarga');
+        }
+
+        // Obtener los productos de la carga original para validación
+        const productosCarga = cargaSeleccionada.items || [];
+        console.log('Productos en la carga original:', productosCarga);
+        
+        // Preparar los arrays de productos para la descarga
+        const productosDevueltos = formData.productos
+          .filter(p => (p.cantidadLlenos || 0) > 0)
+          .map(p => ({
+            producto_id: p.id,
+            cantidad: p.cantidadLlenos || 0
+          }));
+          
+        const envasesRecuperados = formData.productos
+          .filter(p => (p.cantidadVacios || 0) > 0)
+          .map(p => ({
+            producto_id: p.id,
+            cantidad: p.cantidadVacios || 0
+          }));
+        
+        // Validar que no se estén devolviendo más productos de los que se cargaron
+        let errorValidacion = '';
+        productosDevueltos.forEach(prod => {
+          const productoCarga = productosCarga.find(p => p.producto_id === prod.producto_id);
+          if (!productoCarga) {
+            errorValidacion = `El producto ID ${prod.producto_id} no estaba en la carga original`;
+            console.error(errorValidacion);
+          } else if (prod.cantidad > productoCarga.cantidad) {
+            errorValidacion = `No puede devolver más productos (${prod.cantidad}) de los que se cargaron (${productoCarga.cantidad}) para el producto ID ${prod.producto_id}`;
+            console.error(errorValidacion);
+          }
+        });
+        
+        if (errorValidacion) {
+          throw new Error(errorValidacion);
+        }
+        
+        const descarga = {
+          repartidor_id: repartidorId,
+          carga_id: cargaSeleccionada.id,
+          productos_devueltos: productosDevueltos,
+          envases_recuperados: envasesRecuperados,
+          observaciones: `Descarga de productos de ${repartidores.find(r => r.id === repartidorId)?.nombre || 'Repartidor'}`
+        };
+
+        // Verificar que los arrays no estén vacíos
+        if (descarga.productos_devueltos.length === 0 && descarga.envases_recuperados.length === 0) {
+          throw new Error("No hay productos ni envases para descargar. Debe ingresar al menos un valor.");
+        }
+
+        console.log('=== DATOS DE LA DESCARGA A ENVIAR ===');
+        console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/descargas`);
+        console.log('Método:', 'POST');
+        console.log('Headers:', { 'Content-Type': 'application/json' });
+        console.log('Datos:', JSON.stringify(descarga, null, 2));
+        console.log('===============================');
+
+        try {
+          const responseDescarga = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(descarga)
+          });
+
+          // Capturar la respuesta completa para diagnóstico
+          const responseText = await responseDescarga.text();
+          console.log('Respuesta del servidor:', responseText);
+          
+          let errorDetail = '';
+          try {
+            // Intentar parsear como JSON
+            const responseJson = JSON.parse(responseText);
+            errorDetail = responseJson.message || responseJson.error || responseText;
+          } catch (e) {
+            // Si no es JSON, usar el texto tal cual
+            errorDetail = responseText;
+          }
+
+          if (!responseDescarga.ok) {
+            throw new Error(`Error al guardar la descarga: ${responseDescarga.status} ${responseDescarga.statusText} - ${errorDetail}`);
+          }
+
+          console.log('Descarga guardada correctamente');
+
+          // Después de guardar la descarga, necesitamos actualizar el estado de la carga a 'completada'
+          // Esto es necesario porque una carga con descarga ya registrada debe marcarse como completada
+          console.log(`Actualizando estado de carga ${cargaSeleccionada?.id} a completada`);
+          
+          // Intentar actualizar el estado de la carga usando la ruta principal de cargas
+          try {
+            // La ruta para actualizar una carga completa
+            const rutaActualizacionCarga = `${process.env.NEXT_PUBLIC_API_URL}/api/cargas/${cargaSeleccionada.id}`;
+            console.log('URL para actualización de carga:', rutaActualizacionCarga);
+            console.log('Método:', 'PUT');
+            console.log('Datos:', JSON.stringify({ estado: 'completada' }));
+            
+            const responseCarga = await fetch(rutaActualizacionCarga, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estado: 'completada' })
+            });
+
+            const responseText = await responseCarga.text();
+            console.log('Respuesta de actualización de carga:', responseText);
+
+            if (!responseCarga.ok) {
+              console.error(`Error al actualizar estado de la carga: ${responseCarga.status} ${responseCarga.statusText}`);
+              console.error('Detalles del error:', responseText);
+              // No lanzamos error aquí para que al menos la descarga se guarde
+            } else {
+              console.log('Estado de carga actualizado correctamente a "completada"');
+            }
+          } catch (error) {
+            console.error('Error al actualizar el estado de la carga:', error);
+            console.log('La descarga se guardó correctamente, pero no se pudo actualizar el estado de la carga');
+            // No propagamos este error para que no afecte al flujo principal
+          }
+        } catch (error) {
+          console.error('Error al procesar la descarga:', error);
+          throw error;
+        }
+      }
+
+      // Mostrar el resumen en consola
+      console.log('=== RESUMEN DE OPERACIÓN ===');
+      console.log(`Repartidor: ${formData.repartidor}`);
+      console.log(`Fecha: ${formData.fecha}`);
+      console.log('\nDiferencias por producto:');
+      reporteTemp.productos.forEach((producto: ProductoReporte): void => {
+        const cantidadLlenos = typeof producto.llenos === 'number' ? producto.llenos : producto.llenos?.total || 0;
+        const cantidadVacios = typeof producto.vacios === 'number' ? producto.vacios : producto.vacios?.total || 0;
+        
+        console.log(`\nProducto: ${producto.producto}`);
+        console.log(`Carga inicial: ${producto.total || producto.cantidad || 0} unidades`);
+        console.log(`Descarga total: ${cantidadLlenos + cantidadVacios} unidades`);
+        console.log(`Ventas realizadas: ${cantidadLlenos} unidades`);
+      });
+      console.log('\n=========================');
+
+      // Limpiar el formulario después de una operación exitosa
         setFormData({
-          fecha: today,
+        fecha: new Date().toISOString().split('T')[0],
           repartidor: '',
           productos: productos.map(p => ({
             id: p.id,
@@ -224,7 +549,19 @@ const ControlCargaPage = () => {
             cantidadVacios: 0
           }))
         });
-      }, 3000);
+      
+      // Limpiar la carga seleccionada si estamos en modo descarga
+      if (!isCarga) {
+        setCargaSeleccionada(null);
+      }
+      
+      // Mostrar mensaje de éxito
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+      
+      setIsLoadingRepartidores(false);
+      setIsModalOpen(false);
+
     } catch (error) {
       setIsModalOpen(false);
       if (error instanceof Error) {
@@ -235,9 +572,24 @@ const ControlCargaPage = () => {
     }
   };
 
+  // Modificar la función formatearFecha para incluir validación
+  const formatearFecha = (fecha: string | undefined) => {
+    if (!fecha) return 'Fecha no disponible';
+    const [anio, mes, dia] = fecha.split('-');
+    return `${dia}/${mes}/${anio}`;
+  };
+
+  // Agregar una función para formatear la hora
+  const formatearHora = (hora: string | undefined) => {
+    if (!hora) return '';
+    // Asumiendo que la hora viene en formato HH:MM:SS
+    const [horas, minutos] = hora.split(':');
+    return `${horas}:${minutos}`;
+  };
+
   return (
     <>
-      <div className="flex justify-center w-full min-h-screen bg-gradient-to-b from-background to-default-100 bg-blue-500">
+      <div className="flex justify-center w-full min-h-screen bg-blue-500 bg-gradient-to-b from-background to-default-100">
         <div className="w-full min-w-[300px] max-w-[900px] px-4 bg-none ">
 
           <Card className={`w-full ${
@@ -280,19 +632,82 @@ const ControlCargaPage = () => {
                   />
 
                   {/* Selector de Repartidor */}
+                  {!isCarga ? (
+                    <div className="flex flex-col gap-4">
                   <Select
                     label="Repartidor"
-                    placeholder="Selecciona un repartidor"
+                        placeholder={isLoadingRepartidores ? "Cargando repartidores..." : "Selecciona un repartidor"}
+                        value={repartidorSeleccionado}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          setRepartidorSeleccionado(selectedId);
+                          if (selectedId) {
+                            fetchCargasPendientes(selectedId);
+                          } else {
+                            setCargasPendientes([]);
+                          }
+                        }}
+                      >
+                        {repartidores.map((repartidor) => (
+                          <SelectItem key={repartidor.id} value={repartidor.id.toString()}>
+                            {repartidor.nombre}
+                          </SelectItem>
+                        ))}
+                      </Select>
+
+                      {repartidorSeleccionado && (
+                        <Select
+                          label="Seleccionar Carga Pendiente"
+                          placeholder={cargasPendientes.length === 0 ? "No hay cargas pendientes" : "Selecciona una carga"}
+                          value={cargaSeleccionada?.id.toString() || ""}
+                          onChange={(e) => {
+                            const carga = cargasPendientes.find(c => c.id.toString() === e.target.value);
+                            if (carga) {
+                              setCargaSeleccionada(carga);
+                              setFormData(prev => ({
+                                ...prev,
+                                repartidor: repartidores.find(r => r.id === carga.repartidor_id)?.nombre || '',
+                                productos: carga.items.map(p => ({
+                                  id: p.producto_id,
+                                  cantidadCarga: p.cantidad,
+                                  cajonesLlenos: 0,
+                                  unidadesLlenas: 0,
+                                  cajonesVacios: 0,
+                                  unidadesVacias: 0,
+                                  cantidadLlenos: 0,
+                                  cantidadVacios: 0
+                                }))
+                              }));
+                            }
+                          }}
+                        >
+                          {cargasPendientes.map(carga => {
+                            const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
+                            const fecha = new Date(carga.fecha_carga);
+                            
+                            return (
+                              <SelectItem key={carga.id} value={carga.id.toString()}>
+                                {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
+                              </SelectItem>
+                            );
+                          })}
+                        </Select>
+                      )}
+                    </div>
+                  ) : (
+                    <Select
+                      label="Repartidor"
+                      placeholder={isLoadingRepartidores ? "Cargando repartidores..." : "Selecciona un repartidor"}
                     value={formData.repartidor}
                     onChange={(e) => setFormData({...formData, repartidor: e.target.value})}
-                    className="text-base md:text-lg"
-                  >
-                    {repartidores.repartidores.map((repartidor, index) => (
-                      <SelectItem key={index} value={repartidor}>
-                        {repartidor}
+                    >
+                      {repartidores.map((repartidor) => (
+                        <SelectItem key={repartidor.id} value={repartidor.id.toString()}>
+                          {repartidor.nombre}
                       </SelectItem>
                     ))}
                   </Select>
+                  )}
                 </div>
 
                 {/* Tabla de Productos */}
@@ -446,13 +861,12 @@ const ControlCargaPage = () => {
                                       </div>
                                       <div className="flex flex-col">
                                         <label htmlFor={`unidades-llenas-${producto.id}`} className="text-xs font-medium text-green-600">
-                                          Unidades:
+                                          Unidades Llenas:
                                         </label>
                                         <Input
                                           id={`unidades-llenas-${producto.id}`}
                                           type="number"
                                           min="0"
-                                          max="5"
                                           value={formProduct.unidadesLlenas?.toString() || "0"}
                                           onChange={(e) => handleProductChange(
                                             producto.id, 
@@ -463,21 +877,15 @@ const ControlCargaPage = () => {
                                           className="w-full border-green-200 focus:border-green-500"
                                         />
                                       </div>
-                                      <div className="text-sm font-medium text-gray-600">
-                                        Total: {(formProduct.cajonesLlenos || 0) * 6 + (formProduct.unidadesLlenas || 0)} unidades
-                                      </div>
                                     </div>
                                   ) : (
                                     <Input
                                       type="number"
                                       min="0"
                                       value={formProduct.cantidadLlenos?.toString() || "0"}
-                                      onChange={(e) => handleProductChange(
-                                        producto.id, 
-                                        'cantidadLlenos', 
-                                        parseInt(e.target.value) || 0
-                                      )}
+                                      onChange={(e) => handleProductChange(producto.id, 'cantidadLlenos', parseInt(e.target.value) || 0)}
                                       className="w-full"
+                                      size="sm"
                                     />
                                   )}
                                 </td>
@@ -486,7 +894,7 @@ const ControlCargaPage = () => {
                                     <div className="flex flex-col gap-2">
                                       <div className="flex flex-col">
                                         <label htmlFor={`cajones-vacios-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                          Cajones Vacíos (x6):
+                                          Cajones Vacios:
                                         </label>
                                         <Input
                                           id={`cajones-vacios-${producto.id}`}
@@ -504,13 +912,12 @@ const ControlCargaPage = () => {
                                       </div>
                                       <div className="flex flex-col">
                                         <label htmlFor={`unidades-vacias-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                          Unidades:
+                                          Unidades Vacias:
                                         </label>
                                         <Input
                                           id={`unidades-vacias-${producto.id}`}
                                           type="number"
                                           min="0"
-                                          max="5"
                                           value={formProduct.unidadesVacias?.toString() || "0"}
                                           onChange={(e) => handleProductChange(
                                             producto.id, 
@@ -521,33 +928,28 @@ const ControlCargaPage = () => {
                                           className="w-full border-blue-200 focus:border-blue-500"
                                         />
                                       </div>
-                                      <div className="text-sm font-medium text-gray-600">
-                                        Total: {(formProduct.cajonesVacios || 0) * 6 + (formProduct.unidadesVacias || 0)} unidades
-                                      </div>
                                     </div>
                                   ) : (
                                     <Input
                                       type="number"
                                       min="0"
                                       value={formProduct.cantidadVacios?.toString() || "0"}
-                                      onChange={(e) => handleProductChange(
-                                        producto.id, 
-                                        'cantidadVacios', 
-                                        parseInt(e.target.value) || 0
-                                      )}
+                                      onChange={(e) => handleProductChange(producto.id, 'cantidadVacios', parseInt(e.target.value) || 0)}
                                       className="w-full"
+                                      size="sm"
                                     />
                                   )}
                                 </td>
-                                <td className={`p-2 text-center ${
-                                  faltantes > 0 ? 'text-red-500' : 'text-green-500'
-                                }`}>
-                                  <div className="flex flex-col items-center">
-                                    <span className="text-lg font-bold">{faltantes}</span>
-                                    <span className="text-xs">
-                                      {faltantes > 0 ? 'Faltan envases' : 'Completo'}
-                                    </span>
+                                <td className="p-2">
+                                  {faltantes > 0 ? (
+                                    <div className="text-red-600">
+                                      {faltantes} unidades
                                   </div>
+                                  ) : (
+                                    <div className="text-gray-500">
+                                      {faltantes} unidades
+                                    </div>
+                                  )}
                                 </td>
                               </>
                             )}
@@ -558,14 +960,11 @@ const ControlCargaPage = () => {
                   </table>
                 </div>
 
-                <Button 
-                  color="primary" 
-                  type="submit"
-                  size="lg"
-                  className="mt-6"
-                >
+                <div className="mt-6">
+                  <Button type="submit" className="w-full">
                   {isCarga ? 'Guardar Carga' : 'Guardar Descarga'}
                 </Button>
+                </div>
               </form>
             </CardBody>
           </Card>
@@ -602,7 +1001,12 @@ const ControlCargaPage = () => {
         size="lg"
       >
         <ModalContent>
-          {(onClose) => (
+          {(onClose) => {
+            // Busca el repartidor por ID
+            const repartidorEncontrado = repartidores.find(r => r.id === parseInt(formData.repartidor));
+            const nombreRepartidor = repartidorEncontrado ? repartidorEncontrado.nombre : 'Desconocido';
+
+            return (
             <>
               <ModalHeader className="flex flex-col gap-1">
                 Confirmar {isCarga ? 'Carga' : 'Descarga'}
@@ -610,10 +1014,10 @@ const ControlCargaPage = () => {
               <ModalBody>
                 <p>¿Estás seguro de que deseas guardar esta {isCarga ? 'carga' : 'descarga'}?</p>
                 <p className="text-sm text-gray-600">
-                  Repartidor: <span className="font-medium">{formData.repartidor}</span>
+                    Repartidor: <span className="font-medium">{nombreRepartidor}</span>
                 </p>
                 <p className="text-sm text-gray-600">
-                  Fecha: <span className="font-medium">{formData.fecha}</span>
+                    Fecha: <span className="font-medium">{formatearFecha(formData.fecha)}</span>
                 </p>
               </ModalBody>
               <ModalFooter>
@@ -625,7 +1029,8 @@ const ControlCargaPage = () => {
                 </Button>
               </ModalFooter>
             </>
-          )}
+            );
+          }}
         </ModalContent>
       </Modal>
 
@@ -726,6 +1131,12 @@ const ControlCargaPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showError && (
+        <div className="fixed top-0 right-0 left-0 p-4 text-white bg-red-500">
+          {errorMessage}
+        </div>
+      )}
     </>
   );
 };

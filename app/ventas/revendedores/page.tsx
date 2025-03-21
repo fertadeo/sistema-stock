@@ -168,7 +168,26 @@ export default function NuevaVenta() {
     setBudgetResume(newResume);
   };
 
+  // Agregar función para resetear el formulario
+  const resetForm = () => {
+    setSelectedDate(defaultDate);
+    setSelectedRevendedor("");
+    setProducts(prevProducts => 
+      prevProducts.map(product => ({
+        ...product,
+        quantity: 0
+      }))
+    );
+    setBudgetResume({
+      totalCajones: 0,
+      totalUnidades: 0,
+      totalGeneral: 0
+    });
+  };
+
   const handleGenerateVenta = async () => {
+    if (isGeneratingPDF) return; // Prevenir múltiples clicks
+
     try {
       setIsGeneratingPDF(true);
 
@@ -266,6 +285,9 @@ export default function NuevaVenta() {
         title: 'Éxito',
         message: `Venta guardada y PDF generado exitosamente\nTotal: $${ventaData.monto_total}`
       });
+
+      // Resetear el formulario después de una venta exitosa
+      resetForm();
 
     } catch (error) {
       // console.error('Error completo:', error);

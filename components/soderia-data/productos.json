@@ -1,31 +1,25 @@
-[
-    {
-        "id": 1,
-        "Producto": "Bidón x 20L",
-        "PrecioPublico": 2900,
-        "PrecioRevendedor": 1500
-    }, 
-    {
-        "id": 2,
-        "Producto": "Bidón x 12L",
-        "PrecioPublico": 2450,
-        "PrecioRevendedor": 1350
-    },
-    {
-        "id": 3,
-        "Producto": "Sifon x 1500",
-        "PrecioPublico": 850,
-        "PrecioRevendedor": null
-    },
-    {
-        "id": 4,
-        "Producto": "Sifon x 1250",
-        "PrecioPublico": 800,
-        "PrecioRevendedor": 500
-    }, {
-        "id": 5,
-        "Producto": "Sifon x 1000",
-        "PrecioPublico": 700,
-        "PrecioRevendedor": 500
-    }
-]
+{
+    "productos": [
+        {
+            "id": 1,
+            "nombre": "Bidón x 20L",
+            "tipo": "AGUA",
+            "capacidad": 20,
+            "unidad": "L"
+        },
+        {
+            "id": 2,
+            "nombre": "Sifón de Soda",
+            "tipo": "SODA",
+            "capacidad": 12,
+            "unidad": "L"
+        },
+        {
+            "id": 3,
+            "nombre": "Dispenser Frío/Calor",
+            "tipo": "DISPENSER",
+            "capacidad": null,
+            "unidad": null
+        }
+    ]
+}

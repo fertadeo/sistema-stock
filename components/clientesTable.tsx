@@ -10,6 +10,12 @@ import { DeleteIcon } from "@/components/utils/deleteIcon";
 import EditarComponent from "@/components/editarComponent"
 import Alert from "@/components/shared/alert";
 
+type EnvasePrestado = {
+  productoId: number;
+  cantidad: number;
+  nombreProducto: string;
+};
+
 type User = {
   id: number;
   nombre: string;
@@ -18,6 +24,9 @@ type User = {
   direccion: string;
   zona: string;
   dni: string;
+  repartidor: string;
+  diaReparto: string;
+  envasesPrestados: EnvasePrestado[];
 };
 
 interface Props {
@@ -45,6 +54,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     { uid: "telefono", name: "Teléfono" },
     { uid: "direccion", name: "Dirección" },
     { uid: "zona", name: "Zona" },
+    { uid: "repartidor", name: "Repartidor" },
+    { uid: "diaReparto", name: "Día de Reparto" },
+    { uid: "envasesPrestados", name: "Envases prestados" },
     { uid: "actions", name: "Acciones" }
   ];
 
@@ -132,28 +144,25 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     switch (columnKey) {
       case "name":
         return (
-          <span
-          role="button"
-          tabIndex={0}
-          className="cursor-pointer"
-          onClick={() => handleOpenModal(user)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              handleOpenModal(user);
-            }
-          }}
-        >
-          <User
-            avatarProps={{ radius: "lg" }}
-            description={user.email}
-            name={user.nombre}
-          >
-            {user.email}
-            <br />
-            {user.dni ? user.dni : "DNI no disponible"}
-          </User>
-        </span>
-        
+          <div className="flex items-start w-full">
+            <User
+              avatarProps={{ radius: "lg" }}
+              description={user.email}
+              name={user.nombre}
+              className="text-left"
+              classNames={{
+                name: "text-left",
+                description: "text-left"
+              }}
+              onClick={() => handleOpenModal(user)}
+            >
+              <div className="text-left">
+                {user.email}
+                <br />
+                {user.dni ? user.dni : "DNI no disponible"}
+              </div>
+            </User>
+          </div>
         );
       case "telefono":
         return (
@@ -171,6 +180,32 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         return (
           <div className="flex flex-col">
             <p className="text-sm capitalize text-bold">{user.zona}</p>
+          </div>
+        );
+      case "repartidor":
+        return (
+          <div className="flex flex-col">
+            <p className="text-sm capitalize text-bold">{user.repartidor || "No asignado"}</p>
+          </div>
+        );
+      case "diaReparto":
+        return (
+          <div className="flex flex-col">
+            <p className="text-sm capitalize text-bold">{user.diaReparto || "No asignado"}</p>
+          </div>
+        );
+      case "envasesPrestados":
+        return (
+          <div className="flex flex-col">
+            {user.envasesPrestados && user.envasesPrestados.length > 0 ? (
+              user.envasesPrestados.map((envase, index) => (
+                <p key={index} className="text-sm text-bold">
+                  {envase.cantidad} x {envase.nombreProducto}
+                </p>
+              ))
+            ) : (
+              <p className="text-sm text-bold">Sin envases prestados</p>
+            )}
           </div>
         );
       case "actions":
@@ -261,7 +296,8 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           </div>
         );
       default:
-        return user[columnKey as keyof User];
+        const value = user[columnKey as keyof User];
+        return typeof value === 'object' ? null : <span>{value}</span>;
     }
   }, []);
 
@@ -275,7 +311,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       (user.email?.toLowerCase() || '').includes(searchLower) ||
       (user.dni?.toLowerCase() || '').includes(searchLower) ||
       (user.zona?.toLowerCase() || '').includes(searchLower) ||
-      (user.direccion?.toLowerCase() || '').includes(searchLower)
+      (user.direccion?.toLowerCase() || '').includes(searchLower) ||
+      (user.repartidor?.toLowerCase() || '').includes(searchLower) ||
+      (user.diaReparto?.toLowerCase() || '').includes(searchLower)
     );
   });
 
@@ -352,7 +390,10 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         <Table aria-label="Tabla de Clientes" className="w-full">
           <TableHeader columns={filteredColumns}>
             {(column) => (
-              <TableColumn key={column.uid} align={column.uid === "actions" ? "start" : "center"}>
+              <TableColumn 
+                key={column.uid} 
+                align={column.uid === "name" ? "start" : column.uid === "actions" ? "start" : "center"}
+              >
                 {column.name}
               </TableColumn>
             )}

@@ -11,7 +11,7 @@ export default function VentasPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 
           {/* Repartidores Don Javier */}
-          <div className="hidden mt-4 w-64 h-60">
+          <div className="mt-4 w-64 h-60">
             <Link href="/ventas/repartidores-donjavier">
               <Card className="p-6 transition-shadow duration-300 hover:shadow-lg">
                 <div className="flex flex-col space-y-4">

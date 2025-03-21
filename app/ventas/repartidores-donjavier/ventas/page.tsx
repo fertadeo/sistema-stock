@@ -1,9 +1,15 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Card, CardBody, CardHeader, Select, SelectItem, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Button } from "@heroui/react";
+import { Card, CardBody, CardHeader, Select, SelectItem, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Button, Tabs, Tab, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip as ChartTooltip, Legend } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import TableProcesos from '@/components/ventas/repartidores/tableprocesos';
+import ModalCierreProceso from '@/components/ventas/repartidores/modalcierreproceso';
+import CardResumenVentas from '@/components/ventas/repartidores/cardResumenVentas';
+import { Proceso } from '@/types/ventas';
 
 // Agregar la función cx si no la tienes en utils
 const cx = (...args: any) => twMerge(clsx(...args));
@@ -55,14 +61,7 @@ const procesosEjemplo = [
   // Agrega más procesos si es necesario
 ];
 
-// Define the Proceso interface
-interface Proceso {
-  id: string;
-  fecha: string;
-  carga: { producto: string; cantidad: number; precio: number }[];
-  descarga: { producto: string; cantidad: number; precio: number }[];
-}
-
+// Definir las opciones de filtrado
 const options = [
   { label: 'Hoy', days: 0 },
   { label: '7D', days: 7 },
@@ -71,92 +70,240 @@ const options = [
   { label: '6M', days: 180 },
 ];
 
+// Registrar los componentes necesarios de ChartJS
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
+
 const VentasDonjavier = () => {
-  const [repartidores, setRepartidores] = useState<Array<{id: string, nombre: string}>>([]);
-  const [repartidorSeleccionado, setRepartidorSeleccionado] = useState("");
-  const [procesoSeleccionado, setProcesoSeleccionado] = useState<Proceso | null>(null);
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState(0);
-
-  useEffect(() => {
-    const fetchRepartidores = async () => {
-      try {
-        const response = await fetch('/api/repartidores');
-        const data = await response.json();
-        const repartidoresMapeados = data.map((nombre: string, index: number) => ({
-          id: (index + 1).toString(),
-          nombre: nombre
-        }));
-        setRepartidores(repartidoresMapeados);
-      } catch (error) {
-        console.error('Error al cargar repartidores:', error);
-      }
-    };
-
-    fetchRepartidores();
-  }, []);
-
-  console.log('Valor seleccionado:', repartidorSeleccionado);
-
+  // Función para formatear fechas
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('es-ES', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return {
+      fecha: `${year}-${month}-${day}`,
+      hora: `${hours}:${minutes}`
+    };
   };
 
+  // Función para obtener un rango de fechas
   const getDateRange = (days: number) => {
     const end = new Date();
     const start = new Date();
+    
+    if (days > 0) {
+      // Para rangos de días, restar los días a la fecha inicial
     start.setDate(end.getDate() - days);
-    return `${formatDate(start)} – ${formatDate(end)}`;
-  };
-
-  const procesosFiltrados = procesosEjemplo.filter(proceso => {
-    if (periodoSeleccionado === 0) {
-      return new Date(proceso.fecha).toDateString() === new Date().toDateString();
+    } else if (days === 0) {
+      // Para "Hoy", usar el inicio del día actual
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      // Para "Mostrar Todo", usar un rango amplio
+      start.setFullYear(start.getFullYear() - 1); // Un año atrás
     }
-    const fechaProceso = new Date(proceso.fecha);
-    const fechaLimite = new Date();
-    fechaLimite.setDate(fechaLimite.getDate() - periodoSeleccionado);
-    return fechaProceso >= fechaLimite;
-  });
 
-  const calcularDiferencias = () => {
-    if (!procesoSeleccionado) return [];
-
-    return procesoSeleccionado.carga.map((itemCarga: { producto: string; cantidad: number; precio: number }) => {
-      const itemDescarga = procesoSeleccionado.descarga.find(
-        (d: { producto: string; cantidad: number; precio: number }) => d.producto === itemCarga.producto
-      );
-      const diferencia = itemCarga.cantidad - (itemDescarga?.cantidad || 0);
-      const montoVenta = diferencia * itemCarga.precio;
-
-      return {
-        producto: itemCarga.producto,
-        cargado: itemCarga.cantidad,
-        descargado: itemDescarga?.cantidad || 0,
-        diferencia,
-        precio: itemCarga.precio,
-        montoVenta
-      };
+    console.log('Rango de fechas calculado:', {
+      days,
+      start: start.toISOString(),
+      end: end.toISOString()
     });
+
+    return {
+      startDate: start,
+      endDate: end,
+      formattedRange: `${formatDate(start).fecha} – ${formatDate(end).fecha}`
+    };
   };
 
+  const [repartidores, setRepartidores] = useState<any[]>([]);
+  const [repartidorSeleccionado, setRepartidorSeleccionado] = useState<string>('');
+  const [procesosFiltrados, setProcesosFiltrados] = useState<Proceso[]>([]);
+  const [procesoSeleccionado, setProcesoSeleccionado] = useState<Proceso | null>(null);
+  const [fechaInicio, setFechaInicio] = useState<Date>(new Date(0)); // Fecha mínima por defecto
+  const [fechaFin, setFechaFin] = useState<Date>(new Date()); // Fecha actual por defecto
+  const [loading, setLoading] = useState<boolean>(true);
+  const [productos, setProductos] = useState<any[]>([]);
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<number>(7); // Default a 7 días
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20); // Default 20%
+
+  // Función para obtener el precio de un producto específico
+  const obtenerPrecioProducto = (producto_id: number) => {
+    const productoEncontrado = productos.find(p => p.id === producto_id);
+    return productoEncontrado?.precioPublico || 0;
+  };
+
+  // Función para obtener las ventas de un repartidor
+  const fetchVentasRepartidor = async (repartidorId: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Error al obtener las ventas');
+      }
+      
+      const data = await response.json();
+      console.log('Datos de descargas obtenidos:', data);
+      setProcesosFiltrados(data);
+      
+    } catch (error) {
+      console.error('Error:', error);
+      setProcesosFiltrados([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    const fetchInicial = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        if (!response.ok) {
+          throw new Error('Error al obtener los repartidores');
+        }
+        const data = await response.json();
+        setRepartidores(data);
+        
+        // Seleccionar el primer repartidor por defecto
+        if (data.length > 0) {
+          const primerRepartidorId = data[0].id.toString();
+          setRepartidorSeleccionado(primerRepartidorId);
+          await fetchVentasRepartidor(primerRepartidorId);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInicial();
+  }, []);
+
+  // Actualizar datos cuando cambia el repartidor
+  useEffect(() => {
+    if (repartidorSeleccionado) {
+      fetchVentasRepartidor(repartidorSeleccionado);
+    }
+  }, [repartidorSeleccionado]);
+
+  // Actualizar fechas cuando cambia el período
+  useEffect(() => {
+    const range = getDateRange(periodoSeleccionado);
+    setFechaInicio(range.startDate);
+    setFechaFin(range.endDate);
+  }, [periodoSeleccionado]);
+
+  console.log('Valor seleccionado:', repartidorSeleccionado);
+
+  // Función para calcular el total de ventas de todos los procesos
   const calcularTotalVenta = () => {
-    const diferencias = calcularDiferencias();
-    return diferencias.reduce((total, item) => total + item.montoVenta, 0);
+    return procesosFiltrados.reduce((total, proceso) => {
+      const monto = proceso.monto_total ? parseFloat(proceso.monto_total) : 0;
+      return total + monto;
+    }, 0);
+  };
+
+  const obtenerProductosMasVendidos = () => {
+    if (!procesosFiltrados.length) return [];
+    
+    return procesosFiltrados.map(proceso => ({
+      nombre: proceso.observaciones,
+      cantidad: proceso.productos_vendidos,
+      subtotal: parseFloat(proceso.monto_total || '0')
+    })).sort((a, b) => b.cantidad - a.cantidad);
+  };
+
+  // Función para preparar los datos del gráfico
+  const prepararDatosGrafico = (procesos: Proceso[]) => {
+    // Agrupar ventas por fecha
+    const ventasPorFecha = procesos.reduce((acc: Record<string, number>, proceso) => {
+      const fecha = new Date(proceso.fecha_descarga).toLocaleDateString();
+      const monto = proceso.monto_total ? parseFloat(proceso.monto_total) : 0;
+      acc[fecha] = (acc[fecha] || 0) + monto;
+      return acc;
+    }, {});
+
+    // Ordenar fechas
+    const fechasOrdenadas = Object.keys(ventasPorFecha).sort();
+
+    return {
+      labels: fechasOrdenadas,
+      datasets: [
+        {
+          label: 'Ventas por día',
+          data: fechasOrdenadas.map(fecha => ventasPorFecha[fecha]),
+          backgroundColor: 'rgba(75, 192, 192, 0.5)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  // Opciones del gráfico
+  const opcionesGrafico = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Ventas Diarias',
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Monto ($)',
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Fecha',
+        },
+      },
+    },
   };
 
   return (
-    <div className="p-6 max-w-full mx-auto space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="p-4 mx-auto space-y-4 max-w-[1400px]">
         <Card className="p-4 w-full">
           <CardHeader className="pb-2">
-            <h4 className="text-lg font-semibold">Selección de Período y Repartidor</h4>
+          <h4 className="text-xl font-semibold">Ventas por Repartidor</h4>
           </CardHeader>
           <CardBody className="space-y-4">
-            <div className="inline-flex items-center rounded-tremor-small text-tremor-default font-medium shadow-tremor-input dark:shadow-dark-tremor-input w-full">
+          <div className="w-full">
+            <Tabs 
+              aria-label="Repartidores" 
+              selectedKey={repartidorSeleccionado}
+              onSelectionChange={(key) => setRepartidorSeleccionado(key.toString())}
+              className="w-full"
+              variant="underlined"
+              size="lg"
+            >
+              {repartidores.map((repartidor) => (
+                <Tab key={repartidor.id.toString()} title={repartidor.nombre} />
+              ))}
+            </Tabs>
+          </div>
+
+          <div className="space-y-2">
+            <h5 className="text-sm font-medium text-gray-700">Período de tiempo</h5>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="inline-flex items-center font-medium rounded-tremor-small text-tremor-default shadow-tremor-input dark:shadow-dark-tremor-input">
               {options.map((item, index) => (
                 <Tooltip.Provider key={index}>
                   <Tooltip.Root>
@@ -171,8 +318,8 @@ const VentasDonjavier = () => {
                               ? '-ml-px rounded-r-tremor-small'
                               : '-ml-px',
                           focusInput,
-                          'border border-tremor-border bg-tremor-background px-4 py-2 text-tremor-content-strong hover:bg-tremor-background-muted hover:text-tremor-content-strong focus:z-10 focus:outline-none dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong hover:dark:bg-dark-tremor-background/50',
-                          periodoSeleccionado === item.days && 'bg-tremor-background-muted'
+                            'border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm text-tremor-content-strong hover:bg-tremor-background-muted hover:text-tremor-content-strong focus:z-10 focus:outline-none dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong hover:dark:bg-dark-tremor-background/50',
+                            periodoSeleccionado === item.days && 'bg-tremor-background-muted text-primary border-primary'
                         )}
                       >
                         {item.label}
@@ -182,9 +329,9 @@ const VentasDonjavier = () => {
                       <Tooltip.Content
                         side="top"
                         sideOffset={8}
-                        className="z-50 rounded-md bg-gray-900 px-2 py-1 text-xs text-white"
+                        className="z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded-md"
                       >
-                        {getDateRange(item.days)}
+                          {getDateRange(item.days).formattedRange}
                         <Tooltip.Arrow className="fill-gray-900" />
                       </Tooltip.Content>
                     </Tooltip.Portal>
@@ -192,121 +339,114 @@ const VentasDonjavier = () => {
                 </Tooltip.Provider>
               ))}
             </div>
-            
-            <div className="w-full">
-              <Select
-                label="Seleccionar Repartidor"
-                placeholder="Elige un repartidor"
-                value={repartidorSeleccionado}
-                onChange={(e) => setRepartidorSeleccionado(e.target.value)}
+              <Button 
+                size="sm"
+                variant="light"
+                onClick={() => {
+                  setPeriodoSeleccionado(-1);
+                  setFechaInicio(new Date(0));
+                  setFechaFin(new Date());
+                }}
               >
-                {repartidores.map((repartidor) => (
-                  <SelectItem 
-                    key={repartidor.id} 
-                    value={repartidor.id}
-                  >
-                    {repartidor.nombre}
-                  </SelectItem>
-                ))}
-              </Select>
+                Mostrar Todo
+              </Button>
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="fechaInicio" className="block mb-1 text-sm font-medium text-gray-700">Fecha Inicio</label>
+              <input
+                id="fechaInicio"
+                type="date"
+                value={fechaInicio.toISOString().split('T')[0]}
+                onChange={(e) => setFechaInicio(new Date(e.target.value))}
+                className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </div>
+            <div>
+              <label htmlFor="fechaFin" className="block mb-1 text-sm font-medium text-gray-700">Fecha Fin</label>
+              <input
+                id="fechaFin"
+                type="date"
+                value={fechaFin.toISOString().split('T')[0]}
+                onChange={(e) => setFechaFin(new Date(e.target.value))}
+                className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {loading && (
+            <div className="flex justify-center items-center py-2">
+              <div className="w-5 h-5 rounded-full border-b-2 animate-spin border-primary"></div>
+              <span className="ml-2 text-sm text-gray-600">Cargando datos...</span>
+            </div>
+          )}
           </CardBody>
         </Card>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Tabla de Procesos */}
+        <div className="lg:col-span-2">
+          <TableProcesos 
+            procesosFiltrados={procesosFiltrados}
+            loading={loading}
+            onSelectProceso={setProcesoSeleccionado}
+            setModalAbierto={setModalAbierto}
+          />
+        </div>
+
         {/* Resumen de Cuenta */}
+        <CardResumenVentas
+          procesosFiltrados={procesosFiltrados}
+          repartidorSeleccionado={repartidorSeleccionado}
+          repartidores={repartidores}
+          fechaInicio={fechaInicio}
+          fechaFin={fechaFin}
+          calcularTotalVenta={calcularTotalVenta}
+          obtenerProductosMasVendidos={obtenerProductosMasVendidos}
+          formatDate={formatDate}
+        />
+
+        {/* Gráfico de Ventas */}
         <Card className="p-4 w-full">
           <CardHeader className="pb-2">
-            <h4 className="text-lg font-semibold">Resumen de Cuenta</h4>
+            <h4 className="text-lg font-semibold">
+              Gráfico de Ventas {repartidorSeleccionado !== 'todos' && 
+                `- ${repartidores.find(r => r.id.toString() === repartidorSeleccionado)?.nombre}`
+              }
+            </h4>
           </CardHeader>
           <CardBody>
-            <div className="space-y-2">
-              <p>Procesos Completados: {procesosFiltrados.length}</p>
-              <p>Total a Pagar: ${calcularTotalVenta().toFixed(2)}</p>
+            <div className="w-full h-[250px]">
+              {loading ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="w-6 h-6 rounded-full border-b-2 animate-spin border-primary"></div>
+                </div>
+              ) : procesosFiltrados.length > 0 ? (
+                <Bar 
+                  data={prepararDatosGrafico(procesosFiltrados)} 
+                  options={opcionesGrafico}
+                />
+              ) : (
+                <div className="flex justify-center items-center h-full text-gray-500">
+                  No hay datos disponibles para mostrar
+                </div>
+              )}
             </div>
           </CardBody>
         </Card>
       </div>
 
-      {/* Tabla de Procesos */}
-      <Card className="p-4 w-full">
-        <CardHeader className="pb-2">
-          <h4 className="text-lg font-semibold">Procesos de Carga y Descarga</h4>
-        </CardHeader>
-        <CardBody>
-          <Table 
-            aria-label="Tabla de Procesos"
-            selectionMode="single"
-            onSelectionChange={(key) => {
-              const proceso = procesosFiltrados.find(p => p.id === key);
-              setProcesoSeleccionado(proceso as Proceso | null);
-            }}
-          >
-            <TableHeader>
-              <TableColumn>ID Proceso</TableColumn>
-              <TableColumn>Fecha</TableColumn>
-              <TableColumn>Productos Cargados</TableColumn>
-              <TableColumn>Productos Descargados</TableColumn>
-              <TableColumn>Acciones</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {procesosFiltrados.map((proceso) => (
-                <TableRow key={proceso.id}>
-                  <TableCell>{proceso.id}</TableCell>
-                  <TableCell>{proceso.fecha}</TableCell>
-                  <TableCell>
-                    {proceso.carga.reduce((sum, item) => sum + item.cantidad, 0)}
-                  </TableCell>
-                  <TableCell>
-                    {proceso.descarga.reduce((sum, item) => sum + item.cantidad, 0)}
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      size="sm" 
-                      color="primary"
-                      onClick={() => setProcesoSeleccionado(proceso as Proceso | null)}
-                    >
-                      Ver Detalle
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardBody>
-      </Card>
-
-      {/* Detalle del Proceso Seleccionado */}
-      {procesoSeleccionado && (
-        <Card className="p-4 w-full">
-          <CardHeader className="pb-2">
-            <h4 className="text-lg font-semibold">Detalle del Proceso</h4>
-          </CardHeader>
-          <CardBody>
-            <Table aria-label="Tabla de Diferencias">
-              <TableHeader>
-                <TableColumn>Producto</TableColumn>
-                <TableColumn>Cargado</TableColumn>
-                <TableColumn>Descargado</TableColumn>
-                <TableColumn>Diferencia</TableColumn>
-                <TableColumn>Precio Unitario</TableColumn>
-                <TableColumn>Monto Venta</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {calcularDiferencias().map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{item.producto}</TableCell>
-                    <TableCell>{item.cargado}</TableCell>
-                    <TableCell>{item.descargado}</TableCell>
-                    <TableCell>{item.diferencia}</TableCell>
-                    <TableCell>${item.precio}</TableCell>
-                    <TableCell>${item.montoVenta}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardBody>
-        </Card>
-      )}
+      <ModalCierreProceso
+        isOpen={modalAbierto}
+        onClose={() => {
+          setModalAbierto(false);
+          setProcesoSeleccionado(null);
+        }}
+        proceso={procesoSeleccionado}
+        obtenerPrecioProducto={obtenerPrecioProducto}
+      />
     </div>
   );
 };

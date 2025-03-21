@@ -172,20 +172,8 @@ export default function SalesDashboard() {
             </div>
           </div>
         </CardBody>
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          <button className="flex justify-center items-center p-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800">
-            <span className="mr-1">+</span> Agregar
-          </button>
-          <button className="flex justify-center items-center p-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800">
-            <span className="mr-1">↗</span> Enviar
-          </button>
-          <button className="flex justify-center items-center p-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800">
-            <span className="mr-1">↑</span> Cargar
-          </button>
-          <button className="flex justify-center items-center p-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800">
-            <span className="mr-1">⋯</span> Más
-          </button>
-        </div>
+      
+      
       </Card>
 
       <Card className="p-4 h-auto">
