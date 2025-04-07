@@ -1,6 +1,6 @@
 import '../styles/globals.css';
 import React, { useState, useCallback, useEffect } from "react";
-import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tooltip, useDisclosure, Pagination, Button, User } from "@heroui/react";
+import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tooltip, useDisclosure, Pagination, Button, User, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from "@heroui/react";
 import ModalToTable from "@/components/modalToTable";
 import NuevoClienteModal from "@/components/nuevoClienteModal";
 import ModalConfirmation from "@/components/modalConfirmation";
@@ -9,11 +9,15 @@ import { EditIcon } from "@/components/utils/editIcon";
 import { DeleteIcon } from "@/components/utils/deleteIcon";
 import EditarComponent from "@/components/editarComponent"
 import Alert from "@/components/shared/alert";
+import zonas from "@/components/soderia-data/zonas.json";
+import repartidoresData from "@/components/soderia-data/repartidores.json";
+import diasRepartoData from "@/components/soderia-data/diareparto.json";
 
 type EnvasePrestado = {
-  productoId: number;
+  producto_id: number;
   cantidad: number;
-  nombreProducto: string;
+  nombre_producto: string;
+  producto_nombre?: string;
 };
 
 type User = {
@@ -25,8 +29,8 @@ type User = {
   zona: string;
   dni: string;
   repartidor: string;
-  diaReparto: string;
-  envasesPrestados: EnvasePrestado[];
+  dia_reparto: string;
+  envases_prestados: EnvasePrestado[];
 };
 
 interface Props {
@@ -48,6 +52,11 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertType, setAlertType] = useState<"error" | "success">("success");
+  
+  // Nuevos estados para los filtros
+  const [filtroDiaReparto, setFiltroDiaReparto] = useState("");
+  const [filtroRepartidor, setFiltroRepartidor] = useState("");
+  const [filtroZona, setFiltroZona] = useState("");
 
   const columns = [
     { uid: "name", name: "Nombre" },
@@ -67,7 +76,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   };
 
   const handleSave = async () => {
-
     await fetchClientes();
   };
 
@@ -103,24 +111,34 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     if (!userToDelete) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${userToDelete.id}`, {
+      // Eliminamos el cliente y todos sus datos asociados
+      const deleteClienteResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${userToDelete.id}`, {
         method: 'DELETE',
       });
-      if (!response.ok) {
 
-
-        throw new Error('Error al eliminar el cliente');
+      if (!deleteClienteResponse.ok) {
+        const errorData = await deleteClienteResponse.json();
+        throw new Error(errorData.message || 'Error al eliminar el cliente');
       }
+
+      // Actualizamos la lista de clientes localmente
       setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
-      handleCloseDeleteModal(); // Cierra el modal después de eliminar
+      handleCloseDeleteModal();
+      
+      // Mostramos mensaje de éxito
+      setAlertMessage("Cliente eliminado exitosamente");
+      setAlertType("success");
+      setAlertVisible(true);
     } catch (error) {
-      // console.error('Error al eliminar el cliente:', error);
+      console.error('Error al eliminar el cliente:', error);
+      setAlertMessage(error instanceof Error ? error.message : "Error al eliminar el cliente");
+      setAlertType("error");
+      setAlertVisible(true);
     }
   };
 
   const fetchClientes = async () => {
     try {
-
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
       if (!response.ok) {
         throw new Error("Error al obtener los clientes");
@@ -128,15 +146,46 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
 
       const data = await response.json();
       console.log('Datos recibidos:', data);
+      // Verificar la estructura de los envases prestados
+      if (data && data.length > 0) {
+        console.log('Estructura de envases prestados del primer cliente:', data[0].envases_prestados);
+      }
       setUsers(data);
     } catch (error) {
-      // console.error("Error al obtener los clientes:", error);
+      console.error("Error al obtener los clientes:", error);
+      setAlertMessage("Error al cargar los clientes");
+      setAlertType("error");
+      setAlertVisible(true);
     }
   };
 
+  // Efecto para cargar clientes inicialmente
   useEffect(() => {
     fetchClientes();
   }, []);
+
+  // Efecto para actualizar los datos cada 30 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchClientes();
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Efecto para actualizar cuando cambia el modal de nuevo cliente
+  useEffect(() => {
+    if (!isNuevoClienteModalOpen) {
+      fetchClientes();
+    }
+  }, [isNuevoClienteModalOpen]);
+
+  // Efecto para actualizar cuando cambia el modal de edición
+  useEffect(() => {
+    if (!editarModal) {
+      fetchClientes();
+    }
+  }, [editarModal]);
 
   const renderCell = useCallback((user: User, columnKey: React.Key) => {
 
@@ -179,7 +228,11 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       case "zona":
         return (
           <div className="flex flex-col">
-            <p className="text-sm capitalize text-bold">{user.zona}</p>
+            <p className="text-sm capitalize text-bold">
+              {user.zona !== null && user.zona !== undefined 
+                ? zonas[parseInt(user.zona.toString())]?.nombre || `Zona ${user.zona}` 
+                : "Sin zona"}
+            </p>
           </div>
         );
       case "repartidor":
@@ -191,18 +244,24 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       case "diaReparto":
         return (
           <div className="flex flex-col">
-            <p className="text-sm capitalize text-bold">{user.diaReparto || "No asignado"}</p>
+            <p className="text-sm capitalize text-bold">{user.dia_reparto || "No asignado"}</p>
           </div>
         );
       case "envasesPrestados":
         return (
           <div className="flex flex-col">
-            {user.envasesPrestados && user.envasesPrestados.length > 0 ? (
-              user.envasesPrestados.map((envase, index) => (
-                <p key={index} className="text-sm text-bold">
-                  {envase.cantidad} x {envase.nombreProducto}
-                </p>
-              ))
+            {user.envases_prestados && user.envases_prestados.length > 0 ? (
+              user.envases_prestados.map((envase, index) => {
+                // Verificar la estructura del envase
+                const cantidad = envase.cantidad || 0;
+                const nombreProducto = envase.nombre_producto || envase.producto_nombre || 'Producto desconocido';
+                
+                return (
+                  <p key={index} className="text-sm text-bold">
+                    {cantidad} x {nombreProducto}
+                  </p>
+                );
+              })
             ) : (
               <p className="text-sm text-bold">Sin envases prestados</p>
             )}
@@ -250,6 +309,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             </Tooltip>
             <Tooltip content="Ver">
               <span
+                
                 role="button"
                 tabIndex={0}
                 className="text-lg cursor-pointer text-default-400 active:opacity-50"
@@ -275,7 +335,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                   }
                 }}
               >
-                <EditIcon className="hidden" />
+                <EditIcon className="" />
               </span>
             </Tooltip>
             <Tooltip color="danger" content="Eliminar">
@@ -290,7 +350,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                   }
                 }}
               >
-                <DeleteIcon className="hidden" />
+                <DeleteIcon className="" />
               </span>
             </Tooltip>
           </div>
@@ -305,16 +365,25 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
 
   const filteredUsers = users.filter((user) => {
     const searchLower = searchTerm.toLowerCase();
-    return (
+    
+    // Filtro de búsqueda general
+    const cumpleBusquedaGeneral = (
       (user.nombre?.toLowerCase() || '').includes(searchLower) ||
       (user.telefono?.toLowerCase() || '').includes(searchLower) ||
       (user.email?.toLowerCase() || '').includes(searchLower) ||
       (user.dni?.toLowerCase() || '').includes(searchLower) ||
-      (user.zona?.toLowerCase() || '').includes(searchLower) ||
+      (user.zona !== null && user.zona !== undefined ? user.zona.toString().includes(searchLower) : false) ||
       (user.direccion?.toLowerCase() || '').includes(searchLower) ||
       (user.repartidor?.toLowerCase() || '').includes(searchLower) ||
-      (user.diaReparto?.toLowerCase() || '').includes(searchLower)
+      (user.dia_reparto?.toLowerCase() || '').includes(searchLower)
     );
+    
+    // Filtros adicionales
+    const cumpleFiltroDiaReparto = !filtroDiaReparto || user.dia_reparto === filtroDiaReparto;
+    const cumpleFiltroRepartidor = !filtroRepartidor || user.repartidor === filtroRepartidor;
+    const cumpleFiltroZona = !filtroZona || user.zona?.toString() === filtroZona;
+    
+    return cumpleBusquedaGeneral && cumpleFiltroDiaReparto && cumpleFiltroRepartidor && cumpleFiltroZona;
   });
 
   const startIdx = (currentPage - 1) * itemsPerPage;
@@ -342,35 +411,128 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           />
         </div>
       )}
-      <div className="flex justify-between items-center p-4 h-20 bg-white rounded-lg shadow-medium">
-        <Input
-          isClearable
-          placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
-          startContent={
-            <svg
-              className="w-5 h-5 text-gray-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          }
-          onChange={(e) => setSearchTerm(e.target.value)}
-          value={searchTerm}
-          className="pr-4"
-        />
-        <Button color="primary" variant="shadow" className="pr-4" onClick={handleNuevoClienteModalOpen}>
-          Agregar Nuevo +
-        </Button>
+      <div className="flex flex-col gap-4 p-4 h-auto bg-white rounded-lg shadow-medium">
+        <div className="flex justify-between items-center">
+          <Input
+            isClearable
+            placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
+            startContent={
+              <svg
+                className="w-5 h-5 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            }
+            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchTerm}
+            className="pr-4"
+          />
+          <Button color="primary" variant="shadow" className="pr-4" onClick={handleNuevoClienteModalOpen}>
+            Agregar Nuevo +
+          </Button>
+        </div>
+        
+        {/* Filtros adicionales */}
+        <div className="flex gap-4">
+          <div className="w-1/3">
+            <label htmlFor="filtroDiaReparto" className="block mb-1 text-sm font-bold text-gray-700">Día de Reparto</label>
+            <div className="relative">
+              <select
+                id="filtroDiaReparto"
+                className="p-2 pr-10 pl-3 w-full text-sm bg-white rounded-md border border-gray-300 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={filtroDiaReparto}
+                onChange={(e) => setFiltroDiaReparto(e.target.value)}
+              >
+                <option value="">Todos los días</option>
+                {diasRepartoData.diasReparto.map((dia) => (
+                  <option key={dia} value={dia}>
+                    {dia}
+                  </option>
+                ))}
+              </select>
+              <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <div className="w-1/3">
+            <label htmlFor="filtroRepartidor" className="block mb-1 text-sm font-bold text-gray-700">Repartidor</label>
+            <div className="relative">
+              <select
+                id="filtroRepartidor"
+                className="p-2 pr-10 pl-3 w-full text-sm bg-white rounded-md border border-gray-300 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={filtroRepartidor}
+                onChange={(e) => setFiltroRepartidor(e.target.value)}
+              >
+                <option value="">Todos los repartidores</option>
+                {repartidoresData.repartidores.map((repartidor) => (
+                  <option key={repartidor} value={repartidor}>
+                    {repartidor}
+                  </option>
+                ))}
+              </select>
+              <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <div className="w-1/3">
+            <label htmlFor="filtroZona" className="block mb-1 text-sm font-bold text-gray-700">Zona</label>
+            <div className="relative">
+              <select
+                id="filtroZona"
+                className="p-2 pr-10 pl-3 w-full text-sm bg-white rounded-md border border-gray-300 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={filtroZona}
+                onChange={(e) => setFiltroZona(e.target.value)}
+              >
+                <option value="">Todas las zonas</option>
+                {zonas.map((zona, index) => (
+                  <option key={index} value={index.toString()}>
+                    {zona.nombre}
+                  </option>
+                ))}
+              </select>
+              <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Botón para limpiar filtros */}
+        <div className="flex justify-end">
+          <Button 
+            color="success" 
+            variant="flat" 
+            onClick={() => {
+              setFiltroDiaReparto("");
+              setFiltroRepartidor("");
+              setFiltroZona("");
+              setSearchTerm("");
+            }}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
       </div>
 
-      {filteredUsers.length === 0 && searchTerm && (
+      {filteredUsers.length === 0 && (searchTerm || filtroDiaReparto || filtroRepartidor || filtroZona) && (
         <div className="px-4 py-3 mt-4 text-blue-700 bg-blue-100 rounded border-l-4 border-blue-500">
           <div className="flex">
             <div className="py-1">
@@ -380,7 +542,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             </div>
             <div>
               <p className="font-bold">No se encontraron resultados</p>
-              <p className="text-sm">No hay clientes que coincidan con tu búsqueda.</p>
+              <p className="text-sm">No hay clientes que coincidan con los filtros aplicados.</p>
             </div>
           </div>
         </div>
@@ -428,6 +590,10 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
         onConfirm={handleDeleteUser}
+        cliente={{
+          nombre: userToDelete?.nombre || '',
+          mensaje: "¿Está seguro que desea borrar este cliente? Todos los datos asociados a él como información de ventas y envases también se perderán"
+          }}
       />
     </div>
   );

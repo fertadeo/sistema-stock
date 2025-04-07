@@ -123,17 +123,9 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       switch (field) {
         case "nombre":
           setNombre(value);
-          setFormErrors((prevErrors) => ({
-            ...prevErrors,
-            nombre: value.trim() === "",
-          }));
           break;
         case "telefono":
           setTelefono(value);
-          setFormErrors((prevErrors) => ({
-            ...prevErrors,
-            telefono: value.trim() === "",
-          }));
           break;
         case "direccion":
           setDireccion(value);
@@ -164,14 +156,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   };
 
   const validateForm = () => {
-    const errors = {
-      nombre: nombre.trim() === "",
-      telefono: telefono.trim() === "",
-    };
-
-    setFormErrors(errors);
-
-    return !Object.values(errors).some((error) => error);
+    return true; // Siempre retorna true ya que todos los campos son opcionales
   };
 
   const handleAgregarEnvase = () => {
@@ -180,13 +165,53 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
     const producto = productos.find(p => p.id === parseInt(productoSeleccionado));
     if (!producto) return;
 
+    // Extraer la capacidad del nombre del producto si no está definida explícitamente
+    let capacidad = producto.capacidad;
+    
+    if (!capacidad) {
+      // Intentar extraer la capacidad del nombre del producto
+      const nombreProducto = producto.nombreProducto;
+      
+      // Buscar patrones como "20L", "12L", "1250cc", etc.
+      const capacidadMatch = nombreProducto.match(/(\d+)(?:\.\d+)?\s*(?:L|l|litros?|cc|ml)/i);
+      
+      if (capacidadMatch) {
+        let valor = parseFloat(capacidadMatch[1]);
+        const unidad = capacidadMatch[0].toLowerCase();
+        
+        // Convertir a litros si es necesario
+        if (unidad.includes('cc') || unidad.includes('ml')) {
+          valor = valor / 1000; // Convertir cc/ml a litros
+        }
+        
+        capacidad = valor;
+        console.log(`Capacidad extraída del nombre: ${capacidad}L`);
+      } else {
+        // Si no se puede extraer, usar un valor predeterminado
+        capacidad = 1; // Valor predeterminado de 1 litro
+        console.log(`No se pudo extraer la capacidad, usando valor predeterminado: ${capacidad}L`);
+      }
+    }
+
+    // Asegurarnos de que cantidad sea un número válido
+    const cantidad = isNaN(cantidadSeleccionada) || cantidadSeleccionada <= 0 ? 1 : cantidadSeleccionada;
+
     const nuevoEnvase: EnvasePrestado = {
       productoId: producto.id,
-      cantidad: cantidadSeleccionada,
+      cantidad: cantidad,
       nombreProducto: producto.nombreProducto,
       tipo: producto.tipo,
-      capacidad: producto.capacidad
+      capacidad: capacidad
     };
+
+    // Verificar que todos los campos requeridos estén presentes
+    if (!nuevoEnvase.productoId || !nuevoEnvase.cantidad || !nuevoEnvase.nombreProducto || !nuevoEnvase.capacidad) {
+      setNotificationMessage("Error en los datos del envase");
+      setNotificationDescription("Faltan datos requeridos para el envase.");
+      setNotificationType("error");
+      setNotificationVisible(true);
+      return;
+    }
 
     setEnvasesPrestados(prev => [...prev, nuevoEnvase]);
     setProductoSeleccionado("");
@@ -202,28 +227,57 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       return;
     }
 
-    const nombreZona = zona ? zonas[parseInt(zona)].nombre : null;
+    // Asegurarnos de que zona sea un número o null
+    let zonaId = null;
+    if (zona && zona.trim() !== "") {
+      zonaId = parseInt(zona);
+      if (isNaN(zonaId)) {
+        zonaId = null;
+      }
+    }
 
-    // Transformar los envases prestados al formato requerido
-    const envases_prestados = envasesPrestados.map(envase => ({
-      tipo_producto: envase.tipo,
-      capacidad: envase.capacidad,
-      cantidad: envase.cantidad
-    }));
+    // Verificar que todos los envases tengan los campos requeridos
+    const envasesValidos = envasesPrestados.every(envase => 
+      envase.productoId && 
+      envase.cantidad && 
+      envase.nombreProducto && 
+      envase.capacidad
+    );
+
+    if (!envasesValidos) {
+      setNotificationMessage("Error en los datos");
+      setNotificationDescription("Todos los envases deben tener producto, cantidad y capacidad.");
+      setNotificationType("error");
+      setNotificationVisible(true);
+      return;
+    }
 
     const nuevoCliente = {
       dni: dni || null,
-      nombre,
+      nombre: nombre.trim(),
       email: email || null,
-      telefono,
+      telefono: telefono.trim(),
       direccion: direccion || null,
-      zona: nombreZona,
+      zona: zonaId, // Enviamos el ID de la zona como número o null
       repartidor: repartidor || null,
       dia_reparto: diaReparto || null,
-      envases_prestados
+      envases_prestados: envasesPrestados.length > 0 ? 
+        envasesPrestados.map(envase => ({
+          producto_id: envase.productoId,
+          producto_nombre: envase.nombreProducto,
+          capacidad: envase.capacidad,
+          cantidad: envase.cantidad
+        })) : 
+        [] // Enviamos un array vacío en lugar de null
     };
 
-    console.log("Datos a enviar:", nuevoCliente);
+    // Logs detallados
+    console.log("=== DATOS DEL NUEVO CLIENTE ===");
+    console.log("Datos completos:", nuevoCliente);
+    console.log("Estructura de envases:", envasesPrestados);
+    console.log("URL de la API:", `${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
+    console.log("Datos a enviar (JSON):", JSON.stringify(nuevoCliente, null, 2));
+    console.log("========================");
 
     try {
       setIsSaving(true);
@@ -236,22 +290,26 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         body: JSON.stringify(nuevoCliente),
       });
 
+      // Log de la respuesta
+      console.log("=== RESPUESTA DEL SERVIDOR ===");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
+      
+      const responseText = await response.text();
+      console.log("Respuesta completa:", responseText);
+      
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+        console.log("Respuesta parseada:", responseData);
+      } catch (e) {
+        console.log("No se pudo parsear la respuesta como JSON");
+      }
+      console.log("========================");
+
       if (!response.ok) {
-        const errorData = await response.json();
-
-        if (errorData.message === "El cliente con este DNI ya existe") {
-          setNotificationMessage("Error: Cliente duplicado");
-          setNotificationDescription("No se puede registrar un cliente con un DNI ya registrado.");
-          setNotificationType("error");
-        } else {
-          setNotificationMessage("Error al guardar el cliente");
-          setNotificationDescription("Ocurrió un problema al intentar guardar el cliente.");
-          setNotificationType("error");
-        }
-
-        setNotificationVisible(true);
-        setIsSaving(false);
-        return;
+        const errorMessage = responseData?.message || "Error al guardar el cliente";
+        throw new Error(errorMessage);
       }
 
       onClienteAgregado();
@@ -275,9 +333,13 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         onClose();
       }, 3000);
     } catch (error) {
-      console.error("Error al guardar el nuevo cliente:", error);
+      console.error("=== ERROR DETALLADO ===");
+      console.error("Error completo:", error);
+      console.error("Mensaje de error:", error instanceof Error ? error.message : "Error desconocido");
+      console.error("========================");
+      
       setNotificationMessage("Error inesperado");
-      setNotificationDescription("Ocurrió un error inesperado al intentar guardar el cliente.");
+      setNotificationDescription(error instanceof Error ? error.message : "Error al guardar el cliente");
       setNotificationType("error");
       setNotificationVisible(true);
       setIsSaving(false);
@@ -307,13 +369,11 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   label="Nombre completo"
                   placeholder="Ingrese el nombre"
                   value={nombre}
-                  required
                   onChange={(e) => handleInputChange(e, "nombre")}
-                  color={formErrors.nombre ? "danger" : "default"}
                 />
                 <Input
                   className="flex-1"
-                  label="Dirección (opcional)"
+                  label="Dirección"
                   placeholder="Ingrese la dirección"
                   value={direccion}
                   onChange={(e) => handleInputChange(e, "direccion")}
@@ -322,14 +382,14 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
               <div className="flex gap-4 mb-4">
                 <Input
                   className="w-1/3"
-                  label="DNI / CUIL (opcional)"
+                  label="DNI / CUIL"
                   placeholder="Ingrese el DNI o CUIL del cliente"
                   value={dni}
                   onChange={(e) => handleInputChange(e, "dni")}
                 />
                 <Input
                   className="w-1/3"
-                  label="Email (opcional)"
+                  label="Email"
                   placeholder="Ingrese el Email"
                   value={email}
                   onChange={(e) => handleInputChange(e, "email")}
@@ -339,9 +399,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   label="Teléfono"
                   placeholder="Ingrese el teléfono"
                   value={telefono}
-                  required
                   onChange={(e) => handleInputChange(e, "telefono")}
-                  color={formErrors.telefono ? "danger" : "default"}
                 />
               </div>
               <div className="flex gap-4 mb-4">
@@ -416,19 +474,25 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   </div>
                 </div>
                 <div className="overflow-y-auto mt-2 max-h-32">
-                  {envasesPrestados.map((envase, index) => (
-                    <div key={index} className="flex justify-between items-center py-1 hover:bg-gray-50">
-                      <span className="font-medium">{envase.cantidad} x {envase.nombreProducto}</span>
-                      <Button
-                        color="danger"
-                        size="sm"
-                        variant="light"
-                        onClick={() => handleQuitarEnvase(index)}
-                      >
-                        Quitar
-                      </Button>
+                  {envasesPrestados.length > 0 ? (
+                    envasesPrestados.map((envase, index) => (
+                      <div key={index} className="flex justify-between items-center py-1 hover:bg-gray-50">
+                        <span className="font-medium">{envase.cantidad} x {envase.nombreProducto}</span>
+                        <Button
+                          color="danger"
+                          size="sm"
+                          variant="light"
+                          onClick={() => handleQuitarEnvase(index)}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-2 italic text-center text-gray-500">
+                      Este cliente no tiene envases prestados
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </ModalBody>

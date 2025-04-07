@@ -2,8 +2,16 @@
 import React, { useState, useEffect } from 'react'
 import "@/styles/globals.css"
 import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react"
-import productos from '@/components/soderia-data/productos.json'
 import { motion, AnimatePresence } from "framer-motion"
+
+interface Producto {
+  id: number;
+  nombreProducto: string;
+  precioPublico: number;
+  precioRevendedor: number;
+  cantidadStock: number | null;
+  descripcion: string | null;
+}
 
 interface ProductoDescarga {
   id: number;
@@ -74,20 +82,13 @@ const ControlCargaPage = () => {
   const [isCarga, setIsCarga] = useState(true);
   const today = new Date().toISOString().split('T')[0];
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
   const [isLoadingRepartidores, setIsLoadingRepartidores] = useState(true);
+  const [isLoadingProductos, setIsLoadingProductos] = useState(true);
   const [formData, setFormData] = useState<OrderForm>({
     fecha: today,
     repartidor: '',
-    productos: productos.map(p => ({
-      id: p.id,
-      cantidadCarga: 0,
-      cajonesLlenos: 0,
-      unidadesLlenas: 0,
-      cajonesVacios: 0,
-      unidadesVacias: 0,
-      cantidadLlenos: 0,
-      cantidadVacios: 0
-    }))
+    productos: []
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,6 +101,9 @@ const ControlCargaPage = () => {
   const [cargasPendientes, setCargasPendientes] = useState<CargaRepartidor[]>([]);
   const [cargaSeleccionada, setCargaSeleccionada] = useState<CargaRepartidor | null>(null);
   const [repartidorSeleccionado, setRepartidorSeleccionado] = useState<string>('');
+  const [productosAdicionales, setProductosAdicionales] = useState<Producto[]>([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState<number[]>([1, 2, 3, 4]);
+  const [isModalCambioModoOpen, setIsModalCambioModoOpen] = useState(false);
 
   useEffect(() => {
     const fetchRepartidores = async () => {
@@ -122,6 +126,45 @@ const ControlCargaPage = () => {
     };
 
     fetchRepartidores();
+  }, []);
+
+  useEffect(() => {
+    const fetchProductos = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+        if (!response.ok) {
+          throw new Error('Error al cargar los productos');
+        }
+        const data = await response.json();
+        setProductos(data);
+        
+        // Separar los productos adicionales (ID > 4)
+        const adicionales = data.filter((p: Producto) => p.id > 4);
+        setProductosAdicionales(adicionales);
+        
+        // Inicializar el formData con los productos principales
+        setFormData(prev => ({
+          ...prev,
+          productos: data.map((p: Producto) => ({
+            id: p.id,
+            cantidadCarga: 0,
+            cajonesLlenos: 0,
+            unidadesLlenas: 0,
+            cajonesVacios: 0,
+            unidadesVacias: 0,
+            cantidadLlenos: 0,
+            cantidadVacios: 0
+          }))
+        }));
+      } catch (error) {
+        console.error('Error al cargar productos:', error);
+        handleError('Error al cargar la lista de productos');
+      } finally {
+        setIsLoadingProductos(false);
+      }
+    };
+
+    fetchProductos();
   }, []);
 
   const fetchCargasPendientes = async (repartidorId: string) => {
@@ -194,7 +237,38 @@ const ControlCargaPage = () => {
   };
 
   const toggleMode = () => {
+    if (!isCarga && cargaSeleccionada) {
+      // Si estamos en modo descarga y hay una carga seleccionada, mostrar confirmación
+      setIsModalCambioModoOpen(true);
+    } else {
+      // En cualquier otro caso, cambiar directamente
+      cambiarModo();
+    }
+  };
+
+  const cambiarModo = () => {
     setIsCarga(!isCarga);
+    // Limpiar el formulario
+    setFormData({
+      fecha: today,
+      repartidor: '',
+      productos: productos.map(p => ({
+        id: p.id,
+        cantidadCarga: 0,
+        cajonesLlenos: 0,
+        unidadesLlenas: 0,
+        cajonesVacios: 0,
+        unidadesVacias: 0,
+        cantidadLlenos: 0,
+        cantidadVacios: 0
+      }))
+    });
+    // Limpiar la selección de carga
+    setCargaSeleccionada(null);
+    setRepartidorSeleccionado('');
+    // Restablecer los productos seleccionados a los iniciales
+    setProductosSeleccionados([1, 2, 3, 4]);
+    setIsModalCambioModoOpen(false);
   };
 
   const showAlert = (message: string) => {
@@ -217,25 +291,25 @@ const ControlCargaPage = () => {
       repartidor: formData.repartidor,
       productos: formData.productos.map(producto => {
         const productoInfo = productos.find(p => p.id === producto.id);
-        const isSifon = productoInfo?.Producto.toLowerCase().includes('sifon');
+        const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
 
         if (isCarga) {
           if (isSifon) {
             return {
-              producto: productoInfo?.Producto,
+              producto: productoInfo?.nombreProducto || 'Producto desconocido',
               cajones: Math.floor((producto.cantidadCarga || 0) / 6),
               unidades: (producto.cantidadCarga || 0) % 6,
               total: producto.cantidadCarga
             };
           }
           return {
-            producto: productoInfo?.Producto,
+            producto: productoInfo?.nombreProducto || 'Producto desconocido',
             cantidad: producto.cantidadCarga
           };
         } else {
           if (isSifon) {
             return {
-              producto: productoInfo?.Producto,
+              producto: productoInfo?.nombreProducto,
               llenos: {
                 cajones: producto.cajonesLlenos,
                 unidades: producto.unidadesLlenas,
@@ -252,7 +326,7 @@ const ControlCargaPage = () => {
             };
           }
           return {
-            producto: productoInfo?.Producto,
+            producto: productoInfo?.nombreProducto,
             llenos: producto.cantidadLlenos,
             vacios: producto.cantidadVacios,
             faltantes: (producto.cantidadCarga || 0) - 
@@ -587,6 +661,66 @@ const ControlCargaPage = () => {
     return `${horas}:${minutos}`;
   };
 
+  // Agregar esta función para manejar la selección de productos adicionales
+  const handleAgregarProducto = (productoId: string) => {
+    if (productoId) {
+      const id = parseInt(productoId);
+      if (!productosSeleccionados.includes(id)) {
+        setProductosSeleccionados([...productosSeleccionados, id]);
+      }
+    }
+  };
+
+  // Agregar esta función para manejar la eliminación de productos
+  const handleRemoveProduct = (productId: number) => {
+    // Actualizar la lista de productos seleccionados
+    setProductosSeleccionados(prev => prev.filter(id => id !== productId));
+    
+    // Resetear los valores del producto en el formData
+    setFormData(prev => ({
+      ...prev,
+      productos: prev.productos.map(p => {
+        if (p.id === productId) {
+          return {
+            ...p,
+            cantidadCarga: 0,
+            cajonesLlenos: 0,
+            unidadesLlenas: 0,
+            cajonesVacios: 0,
+            unidadesVacias: 0,
+            cantidadLlenos: 0,
+            cantidadVacios: 0
+          };
+        }
+        return p;
+      })
+    }));
+  };
+
+  // Modificar el useEffect que maneja la selección de carga
+  const handleCargaSelection = (carga: CargaRepartidor) => {
+    setCargaSeleccionada(carga);
+    // Actualizar los productos seleccionados para mostrar solo los de la carga
+    const productosEnCarga = carga.items.map(item => item.producto_id);
+    setProductosSeleccionados(productosEnCarga);
+    
+    setFormData(prev => ({
+      ...prev,
+      repartidor: repartidores.find(r => r.id === carga.repartidor_id)?.nombre || '',
+      productos: productos.map(p => ({
+        id: p.id,
+        cantidadCarga: carga.items.find(item => item.producto_id === p.id)?.cantidad || 0,
+        cajonesLlenos: 0,
+        unidadesLlenas: 0,
+        cajonesVacios: 0,
+        unidadesVacias: 0,
+        cantidadLlenos: 0,
+        cantidadVacios: 0,
+        esProductoRecuperado: !productosEnCarga.includes(p.id) // Nuevo campo para identificar productos adicionales
+      }))
+    }));
+  };
+
   return (
     <>
       <div className="flex justify-center w-full min-h-screen bg-blue-500 bg-gradient-to-b from-background to-default-100">
@@ -609,7 +743,7 @@ const ControlCargaPage = () => {
                     type="checkbox" 
                     className="sr-only peer"
                     checked={!isCarga}
-                    onChange={() => setIsCarga(!isCarga)}
+                    onChange={toggleMode}
                   />
                   <label htmlFor="switch" className="sr-only">
                     {isCarga ? 'Cambiar a descarga' : 'Cambiar a carga'}
@@ -663,21 +797,7 @@ const ControlCargaPage = () => {
                           onChange={(e) => {
                             const carga = cargasPendientes.find(c => c.id.toString() === e.target.value);
                             if (carga) {
-                              setCargaSeleccionada(carga);
-                              setFormData(prev => ({
-                                ...prev,
-                                repartidor: repartidores.find(r => r.id === carga.repartidor_id)?.nombre || '',
-                                productos: carga.items.map(p => ({
-                                  id: p.producto_id,
-                                  cantidadCarga: p.cantidad,
-                                  cajonesLlenos: 0,
-                                  unidadesLlenas: 0,
-                                  cajonesVacios: 0,
-                                  unidadesVacias: 0,
-                                  cantidadLlenos: 0,
-                                  cantidadVacios: 0
-                                }))
-                              }));
+                              handleCargaSelection(carga);
                             }
                           }}
                         >
@@ -743,221 +863,278 @@ const ControlCargaPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {productos.map((producto) => {
-                        const formProduct = formData.productos.find(p => p.id === producto.id) || {
-                          id: producto.id,
-                          cantidadCarga: 0,
-                          cajonesLlenos: 0,
-                          unidadesLlenas: 0,
-                          cajonesVacios: 0,
-                          unidadesVacias: 0,
-                          cantidadLlenos: 0,
-                          cantidadVacios: 0
-                        };
+                      {isLoadingProductos ? (
+                        <tr>
+                          <td colSpan={isCarga ? 2 : 4} className="p-4 text-center">
+                            Cargando productos...
+                          </td>
+                        </tr>
+                      ) : (
+                        productos
+                          .filter(producto => productosSeleccionados.includes(producto.id))
+                          .map((producto) => {
+                            const formProduct = formData.productos.find(p => p.id === producto.id) || {
+                              id: producto.id,
+                              cantidadCarga: 0,
+                              cajonesLlenos: 0,
+                              unidadesLlenas: 0,
+                              cajonesVacios: 0,
+                              unidadesVacias: 0,
+                              cantidadLlenos: 0,
+                              cantidadVacios: 0
+                            };
 
-                        const isSoda = producto.Producto.toLowerCase().includes('sifon');
-                        const faltantes = isCarga ? 0 : 
-                          (formProduct.cantidadCarga || 0) - 
-                          ((formProduct.cantidadLlenos || 0) + (formProduct.cantidadVacios || 0));
+                            const isSoda = producto?.nombreProducto?.toLowerCase().includes('sifon') || false;
+                            const faltantes = isCarga ? 0 : 
+                              (formProduct.cantidadCarga || 0) - 
+                              ((formProduct.cantidadLlenos || 0) + (formProduct.cantidadVacios || 0));
 
-                        return (
-                          <tr key={producto.id} className="border-b hover:bg-gray-50">
-                            <td className="p-2">
-                              <div className="font-medium">{producto.Producto}</div>
-                              {!isCarga && (
-                                <div className="text-xs text-gray-500">
-                                  Carga inicial: {formProduct.cantidadCarga}
-                                </div>
-                              )}
-                            </td>
-                            {isCarga ? (
-                              <td className="p-2">
-                                {isSoda ? (
-                                  <div className="flex flex-col gap-2">
-                                    <div className="flex flex-col">
-                                      <div className="flex-1">
-                                        <label htmlFor={`cajones-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
-                                          Cajones (x6):
-                                        </label>
-                                        <Input
-                                          id={`cajones-carga-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          value={Math.floor((formProduct.cantidadCarga || 0) / 6).toString()}
-                                          onChange={(e) => {
-                                            const cajones = parseInt(e.target.value) || 0;
-                                            const unidades = formProduct.cantidadCarga ? formProduct.cantidadCarga % 6 : 0;
-                                            handleProductChange(
-                                              producto.id,
-                                              'cantidadCarga',
-                                              (cajones * 6) + unidades
-                                            );
-                                          }}
-                                          className="w-full"
-                                          size="sm"
-                                        />
-                                      </div>
-                                      <div className="flex-1">
-                                        <label htmlFor={`unidades-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
-                                          Unidades:
-                                        </label>
-                                        <Input
-                                          id={`unidades-carga-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          max="5"
-                                          value={((formProduct.cantidadCarga || 0) % 6).toString()}
-                                          onChange={(e) => {
-                                            const unidades = parseInt(e.target.value) || 0;
-                                            const cajones = formProduct.cantidadCarga ? Math.floor(formProduct.cantidadCarga / 6) : 0;
-                                            handleProductChange(
-                                              producto.id,
-                                              'cantidadCarga',
-                                              (cajones * 6) + unidades
-                                            );
-                                          }}
-                                          className="w-full"
-                                          size="sm"
-                                        />
-                                      </div>
+                            return (
+                              <tr key={producto.id} className="border-b hover:bg-gray-50">
+                                <td className="p-2">
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <div className="font-medium">{producto.nombreProducto}</div>
+                                      {!isCarga && (
+                                        <div className="text-sm font-bold text-gray-500">
+                                          Carga inicial: {formProduct.cantidadCarga}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="text-sm font-medium text-center text-gray-600">
-                                      Total: {formProduct.cantidadCarga || 0} unidades
-                                    </div>
+                                    {producto.id > 4 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveProduct(producto.id)}
+                                        className="p-1 text-gray-500 transition-colors hover:text-red-500"
+                                      >
+                                        <svg 
+                                          className="w-5 h-5" 
+                                          fill="none" 
+                                          viewBox="0 0 24 24" 
+                                          stroke="currentColor"
+                                        >
+                                          <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M6 18L18 6M6 6l12 12" 
+                                          />
+                                        </svg>
+                                      </button>
+                                    )}
                                   </div>
+                                </td>
+                                {isCarga ? (
+                                  <td className="p-2">
+                                    {isSoda ? (
+                                      <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col">
+                                          <div className="flex-1">
+                                            <label htmlFor={`cajones-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
+                                              Cajones (x6):
+                                            </label>
+                                            <Input
+                                              id={`cajones-carga-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              value={Math.floor((formProduct.cantidadCarga || 0) / 6).toString()}
+                                              onChange={(e) => {
+                                                const cajones = parseInt(e.target.value) || 0;
+                                                const unidades = formProduct.cantidadCarga ? formProduct.cantidadCarga % 6 : 0;
+                                                handleProductChange(
+                                                  producto.id,
+                                                  'cantidadCarga',
+                                                  (cajones * 6) + unidades
+                                                );
+                                              }}
+                                              className="w-full"
+                                              size="sm"
+                                            />
+                                          </div>
+                                          <div className="flex-1">
+                                            <label htmlFor={`unidades-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
+                                              Unidades:
+                                            </label>
+                                            <Input
+                                              id={`unidades-carga-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              max="5"
+                                              value={((formProduct.cantidadCarga || 0) % 6).toString()}
+                                              onChange={(e) => {
+                                                const unidades = parseInt(e.target.value) || 0;
+                                                const cajones = formProduct.cantidadCarga ? Math.floor(formProduct.cantidadCarga / 6) : 0;
+                                                handleProductChange(
+                                                  producto.id,
+                                                  'cantidadCarga',
+                                                  (cajones * 6) + unidades
+                                                );
+                                              }}
+                                              className="w-full"
+                                              size="sm"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="font-medium text-center text-gray-600 text-m">
+                                          Total: {formProduct.cantidadCarga || 0} unidades
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        value={formProduct.cantidadCarga?.toString() || "0"}
+                                        onChange={(e) => handleProductChange(producto.id, 'cantidadCarga', parseInt(e.target.value) || 0)}
+                                        className="w-full"
+                                        size="sm"
+                                      />
+                                    )}
+                                  </td>
                                 ) : (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={formProduct.cantidadCarga?.toString() || "0"}
-                                    onChange={(e) => handleProductChange(producto.id, 'cantidadCarga', parseInt(e.target.value) || 0)}
-                                    className="w-full"
-                                    size="sm"
-                                  />
+                                  <>
+                                    <td className="p-2">
+                                      {isSoda ? (
+                                        <div className="flex flex-col gap-2">
+                                          <div className="flex flex-col">
+                                            <label htmlFor={`cajones-llenos-${producto.id}`} className="text-xs font-medium text-green-600">
+                                              Cajones Llenos (x6):
+                                            </label>
+                                            <Input
+                                              id={`cajones-llenos-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              value={formProduct.cajonesLlenos?.toString() || "0"}
+                                              onChange={(e) => handleProductChange(
+                                                producto.id, 
+                                                'cajonesLlenos', 
+                                                parseInt(e.target.value) || 0, 
+                                                true
+                                              )}
+                                              className="w-full border-green-200 focus:border-green-500"
+                                            />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <label htmlFor={`unidades-llenas-${producto.id}`} className="text-xs font-medium text-green-600">
+                                              Unidades Llenas:
+                                            </label>
+                                            <Input
+                                              id={`unidades-llenas-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              value={formProduct.unidadesLlenas?.toString() || "0"}
+                                              onChange={(e) => handleProductChange(
+                                                producto.id, 
+                                                'unidadesLlenas', 
+                                                parseInt(e.target.value) || 0, 
+                                                true
+                                              )}
+                                              className="w-full border-green-200 focus:border-green-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={formProduct.cantidadLlenos?.toString() || "0"}
+                                          onChange={(e) => handleProductChange(producto.id, 'cantidadLlenos', parseInt(e.target.value) || 0)}
+                                          className="w-full"
+                                          size="sm"
+                                        />
+                                      )}
+                                    </td>
+                                    <td className="p-2">
+                                      {isSoda ? (
+                                        <div className="flex flex-col gap-2">
+                                          <div className="flex flex-col">
+                                            <label htmlFor={`cajones-vacios-${producto.id}`} className="text-xs font-medium text-blue-600">
+                                              Cajones Vacios:
+                                            </label>
+                                            <Input
+                                              id={`cajones-vacios-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              value={formProduct.cajonesVacios?.toString() || "0"}
+                                              onChange={(e) => handleProductChange(
+                                                producto.id, 
+                                                'cajonesVacios', 
+                                                parseInt(e.target.value) || 0, 
+                                                true
+                                              )}
+                                              className="w-full border-blue-200 focus:border-blue-500"
+                                            />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <label htmlFor={`unidades-vacias-${producto.id}`} className="text-xs font-medium text-blue-600">
+                                              Unidades Vacias:
+                                            </label>
+                                            <Input
+                                              id={`unidades-vacias-${producto.id}`}
+                                              type="number"
+                                              min="0"
+                                              value={formProduct.unidadesVacias?.toString() || "0"}
+                                              onChange={(e) => handleProductChange(
+                                                producto.id, 
+                                                'unidadesVacias', 
+                                                parseInt(e.target.value) || 0, 
+                                                true
+                                              )}
+                                              className="w-full border-blue-200 focus:border-blue-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={formProduct.cantidadVacios?.toString() || "0"}
+                                          onChange={(e) => handleProductChange(producto.id, 'cantidadVacios', parseInt(e.target.value) || 0)}
+                                          className="w-full"
+                                          size="sm"
+                                        />
+                                      )}
+                                    </td>
+                                    <td className="p-2">
+                                      {faltantes > 0 ? (
+                                        <div className="text-red-600">
+                                          {faltantes} unidades
+                                      </div>
+                                      ) : (
+                                        <div className="text-gray-500">
+                                          {faltantes} unidades
+                                        </div>
+                                      )}
+                                    </td>
+                                  </>
                                 )}
-                              </td>
-                            ) : (
-                              <>
-                                <td className="p-2">
-                                  {isSoda ? (
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex flex-col">
-                                        <label htmlFor={`cajones-llenos-${producto.id}`} className="text-xs font-medium text-green-600">
-                                          Cajones Llenos (x6):
-                                        </label>
-                                        <Input
-                                          id={`cajones-llenos-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          value={formProduct.cajonesLlenos?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(
-                                            producto.id, 
-                                            'cajonesLlenos', 
-                                            parseInt(e.target.value) || 0, 
-                                            true
-                                          )}
-                                          className="w-full border-green-200 focus:border-green-500"
-                                        />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <label htmlFor={`unidades-llenas-${producto.id}`} className="text-xs font-medium text-green-600">
-                                          Unidades Llenas:
-                                        </label>
-                                        <Input
-                                          id={`unidades-llenas-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          value={formProduct.unidadesLlenas?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(
-                                            producto.id, 
-                                            'unidadesLlenas', 
-                                            parseInt(e.target.value) || 0, 
-                                            true
-                                          )}
-                                          className="w-full border-green-200 focus:border-green-500"
-                                        />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={formProduct.cantidadLlenos?.toString() || "0"}
-                                      onChange={(e) => handleProductChange(producto.id, 'cantidadLlenos', parseInt(e.target.value) || 0)}
-                                      className="w-full"
-                                      size="sm"
-                                    />
-                                  )}
-                                </td>
-                                <td className="p-2">
-                                  {isSoda ? (
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex flex-col">
-                                        <label htmlFor={`cajones-vacios-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                          Cajones Vacios:
-                                        </label>
-                                        <Input
-                                          id={`cajones-vacios-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          value={formProduct.cajonesVacios?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(
-                                            producto.id, 
-                                            'cajonesVacios', 
-                                            parseInt(e.target.value) || 0, 
-                                            true
-                                          )}
-                                          className="w-full border-blue-200 focus:border-blue-500"
-                                        />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <label htmlFor={`unidades-vacias-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                          Unidades Vacias:
-                                        </label>
-                                        <Input
-                                          id={`unidades-vacias-${producto.id}`}
-                                          type="number"
-                                          min="0"
-                                          value={formProduct.unidadesVacias?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(
-                                            producto.id, 
-                                            'unidadesVacias', 
-                                            parseInt(e.target.value) || 0, 
-                                            true
-                                          )}
-                                          className="w-full border-blue-200 focus:border-blue-500"
-                                        />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={formProduct.cantidadVacios?.toString() || "0"}
-                                      onChange={(e) => handleProductChange(producto.id, 'cantidadVacios', parseInt(e.target.value) || 0)}
-                                      className="w-full"
-                                      size="sm"
-                                    />
-                                  )}
-                                </td>
-                                <td className="p-2">
-                                  {faltantes > 0 ? (
-                                    <div className="text-red-600">
-                                      {faltantes} unidades
-                                  </div>
-                                  ) : (
-                                    <div className="text-gray-500">
-                                      {faltantes} unidades
-                                    </div>
-                                  )}
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      })}
+                              </tr>
+                            );
+                          })
+                      )}
                     </tbody>
                   </table>
+                </div>
+
+                <div className="mb-4">
+                  <Select
+                    label="Agregar otro producto"
+                    placeholder={productos.filter(p => !productosSeleccionados.includes(p.id)).length === 0 
+                      ? "No hay productos para agregar" 
+                      : "Seleccionar producto adicional"}
+                    onChange={(e) => handleAgregarProducto(e.target.value)}
+                  >
+                    {(!isCarga ? productos : productosAdicionales)
+                      .filter(producto => !productosSeleccionados.includes(producto.id))
+                      .map((producto) => (
+                        <SelectItem 
+                          key={producto.id} 
+                          value={producto.id.toString()}
+                        >
+                          {producto.nombreProducto}
+                        </SelectItem>
+                      ))
+                    }
+                  </Select>
                 </div>
 
                 <div className="mt-6">
@@ -1014,10 +1191,13 @@ const ControlCargaPage = () => {
               <ModalBody>
                 <p>¿Estás seguro de que deseas guardar esta {isCarga ? 'carga' : 'descarga'}?</p>
                 <p className="text-sm text-gray-600">
-                    Repartidor: <span className="font-medium">{nombreRepartidor}</span>
+                    Repartidor: <span className="font-medium">{formData.repartidor}</span>
                 </p>
                 <p className="text-sm text-gray-600">
                     Fecha: <span className="font-medium">{formatearFecha(formData.fecha)}</span>
+                </p>
+                <p className="text-sm text-gray-600">
+                    Hora: <span className="font-medium">{formatearHora(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
                 </p>
               </ModalBody>
               <ModalFooter>
@@ -1137,6 +1317,37 @@ const ControlCargaPage = () => {
           {errorMessage}
         </div>
       )}
+
+      {/* Modal de confirmación de cambio de modo */}
+      <Modal 
+        isOpen={isModalCambioModoOpen} 
+        onOpenChange={setIsModalCambioModoOpen}
+        size="sm"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                Confirmar cambio
+              </ModalHeader>
+              <ModalBody>
+                <p>¿Estás seguro que deseas abandonar la descarga actual y crear una nueva carga?</p>
+                <p className="text-sm text-gray-600">
+                  Los datos no guardados se perderán.
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>
+                  Cancelar
+                </Button>
+                <Button color="primary" onPress={cambiarModo}>
+                  Confirmar
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 };
