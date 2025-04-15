@@ -60,6 +60,7 @@ const CardResumenVentas: React.FC<CardResumenVentasProps> = ({
               </div>
             </div>
           )}
+          {/* Sección de déficit de envases comentada temporalmente
           {procesosFiltrados.length > 0 && procesosFiltrados[0].envases && procesosFiltrados[0].envases.length > 0 && (
             <div className="pt-4 mt-4 border-t">
               <h5 className="mb-2 font-semibold">Déficit de envases:</h5>
@@ -120,6 +121,7 @@ const CardResumenVentas: React.FC<CardResumenVentasProps> = ({
               </div>
             </div>
           )}
+          */}
         </div>
       </CardBody>
     </Card>

@@ -9,7 +9,8 @@ import { Bar } from 'react-chartjs-2';
 import TableProcesos from '@/components/ventas/repartidores/tableprocesos';
 import ModalCierreProceso from '@/components/ventas/repartidores/modalcierreproceso';
 import CardResumenVentas from '@/components/ventas/repartidores/cardResumenVentas';
-import { Proceso } from '@/types/ventas';
+import TableVentasCerradas from '@/components/ventas/repartidores/tableVentasCerradas';
+import { Proceso, VentaCerrada } from '@/types/ventas';
 
 // Agregar la función cx si no la tienes en utils
 const cx = (...args: any) => twMerge(clsx(...args));
@@ -128,6 +129,9 @@ const VentasDonjavier = () => {
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<number>(7); // Default a 7 días
   const [modalAbierto, setModalAbierto] = useState(false);
   const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20); // Default 20%
+  const [selectedTab, setSelectedTab] = useState("pendientes");
+  const [loadingVentasCerradas, setLoadingVentasCerradas] = useState<boolean>(true);
+  const [ventasCerradas, setVentasCerradas] = useState<VentaCerrada[]>([]);
 
   // Función para obtener el precio de un producto específico
   const obtenerPrecioProducto = (producto_id: number) => {
@@ -156,6 +160,33 @@ const VentasDonjavier = () => {
       setProcesosFiltrados([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVentasCerradas = async (repartidorId: string) => {
+    try {
+      setLoadingVentasCerradas(true);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/repartidor/${repartidorId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Error al obtener las ventas cerradas');
+      }
+      
+      const data = await response.json();
+      console.log('Datos de ventas cerradas obtenidos:', data);
+      
+      if (data.success && data.ventas_cerradas) {
+        setVentasCerradas(data.ventas_cerradas);
+      } else {
+        setVentasCerradas([]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setVentasCerradas([]);
+    } finally {
+      setLoadingVentasCerradas(false);
     }
   };
 
@@ -190,7 +221,10 @@ const VentasDonjavier = () => {
   // Actualizar datos cuando cambia el repartidor
   useEffect(() => {
     if (repartidorSeleccionado) {
-      fetchVentasRepartidor(repartidorSeleccionado);
+      Promise.all([
+        fetchVentasRepartidor(repartidorSeleccionado),
+        fetchVentasCerradas(repartidorSeleccionado)
+      ]);
     }
   }, [repartidorSeleccionado]);
 
@@ -206,7 +240,7 @@ const VentasDonjavier = () => {
   // Función para calcular el total de ventas de todos los procesos
   const calcularTotalVenta = () => {
     return procesosFiltrados.reduce((total, proceso) => {
-      const monto = proceso.monto_total ? parseFloat(proceso.monto_total) : 0;
+      const monto = proceso.totales?.monto_total ? parseFloat(proceso.totales.monto_total.toString()) : 0;
       return total + monto;
     }, 0);
   };
@@ -216,17 +250,16 @@ const VentasDonjavier = () => {
     
     return procesosFiltrados.map(proceso => ({
       nombre: proceso.observaciones,
-      cantidad: proceso.productos_vendidos,
-      subtotal: parseFloat(proceso.monto_total || '0')
-    })).sort((a, b) => b.cantidad - a.cantidad);
+      cantidad: proceso.productos_detalle?.reduce((total, prod) => total + prod.cantidad_vendida, 0) || 0,
+      subtotal: parseFloat(proceso.totales?.monto_total?.toString() || '0')
+    })).sort((a, b) => b.cantidad  - a.cantidad);
   };
 
   // Función para preparar los datos del gráfico
   const prepararDatosGrafico = (procesos: Proceso[]) => {
-    // Agrupar ventas por fecha
     const ventasPorFecha = procesos.reduce((acc: Record<string, number>, proceso) => {
       const fecha = new Date(proceso.fecha_descarga).toLocaleDateString();
-      const monto = proceso.monto_total ? parseFloat(proceso.monto_total) : 0;
+      const monto = proceso.totales?.monto_total ? parseFloat(proceso.totales.monto_total.toString()) : 0;
       acc[fecha] = (acc[fecha] || 0) + monto;
       return acc;
     }, {});
@@ -278,6 +311,40 @@ const VentasDonjavier = () => {
     },
   };
 
+  // Función para actualizar los datos
+  const actualizarDatos = async () => {
+    if (repartidorSeleccionado) {
+      try {
+        // Actualizar procesos pendientes y ventas cerradas en paralelo
+        const [procesosResponse, ventasResponse] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/repartidor/${repartidorSeleccionado}`)
+        ]);
+
+        if (procesosResponse.ok) {
+          const data = await procesosResponse.json();
+          setProcesosFiltrados(data);
+        }
+
+        if (ventasResponse.ok) {
+          const data = await ventasResponse.json();
+          if (data.success && data.ventas_cerradas) {
+            setVentasCerradas(data.ventas_cerradas);
+          }
+        }
+      } catch (error) {
+        console.error('Error al actualizar datos:', error);
+      }
+    }
+  };
+
+  // Función para actualizar las ventas cerradas
+  const actualizarVentasCerradas = async () => {
+    if (repartidorSeleccionado) {
+      await fetchVentasCerradas(repartidorSeleccionado);
+    }
+  };
+
   return (
     <div className="p-4 mx-auto space-y-4 max-w-[1400px]">
         <Card className="p-4 w-full">
@@ -299,82 +366,82 @@ const VentasDonjavier = () => {
               ))}
             </Tabs>
           </div>
-
-          <div className="space-y-2">
-            <h5 className="text-sm font-medium text-gray-700">Período de tiempo</h5>
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="inline-flex items-center font-medium rounded-tremor-small text-tremor-default shadow-tremor-input dark:shadow-dark-tremor-input">
-              {options.map((item, index) => (
-                <Tooltip.Provider key={index}>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => setPeriodoSeleccionado(item.days)}
-                        className={cx(
-                          index === 0
-                            ? 'rounded-l-tremor-small'
-                            : index === options.length - 1
-                              ? '-ml-px rounded-r-tremor-small'
-                              : '-ml-px',
-                          focusInput,
-                            'border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm text-tremor-content-strong hover:bg-tremor-background-muted hover:text-tremor-content-strong focus:z-10 focus:outline-none dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong hover:dark:bg-dark-tremor-background/50',
-                            periodoSeleccionado === item.days && 'bg-tremor-background-muted text-primary border-primary'
-                        )}
-                      >
-                        {item.label}
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Portal>
-                      <Tooltip.Content
-                        side="top"
-                        sideOffset={8}
-                        className="z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded-md"
-                      >
-                          {getDateRange(item.days).formattedRange}
-                        <Tooltip.Arrow className="fill-gray-900" />
-                      </Tooltip.Content>
-                    </Tooltip.Portal>
-                  </Tooltip.Root>
-                </Tooltip.Provider>
-              ))}
+{/* 
+            <div className="space-y-2">
+              <h5 className="text-sm font-medium text-gray-700">Período de tiempo</h5>
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="inline-flex items-center font-medium rounded-tremor-small text-tremor-default shadow-tremor-input dark:shadow-dark-tremor-input">
+                {options.map((item, index) => (
+                  <Tooltip.Provider key={index}>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setPeriodoSeleccionado(item.days)}
+                          className={cx(
+                            index === 0
+                              ? 'rounded-l-tremor-small'
+                              : index === options.length - 1
+                                ? '-ml-px rounded-r-tremor-small'
+                                : '-ml-px',
+                            focusInput,
+                              'border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm text-tremor-content-strong hover:bg-tremor-background-muted hover:text-tremor-content-strong focus:z-10 focus:outline-none dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong hover:dark:bg-dark-tremor-background/50',
+                              periodoSeleccionado === item.days && 'bg-tremor-background-muted text-primary border-primary'
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="top"
+                          sideOffset={8}
+                          className="z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded-md"
+                        >
+                            {getDateRange(item.days).formattedRange}
+                          <Tooltip.Arrow className="fill-gray-900" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                  </Tooltip.Provider>
+                ))}
+              </div>
+                <Button 
+                  size="sm"
+                  variant="light"
+                  onClick={() => {
+                    setPeriodoSeleccionado(-1);
+                    setFechaInicio(new Date(0));
+                    setFechaFin(new Date());
+                  }}
+                >
+                  Mostrar Todo
+                </Button>
+              </div>
             </div>
-              <Button 
-                size="sm"
-                variant="light"
-                onClick={() => {
-                  setPeriodoSeleccionado(-1);
-                  setFechaInicio(new Date(0));
-                  setFechaFin(new Date());
-                }}
-              >
-                Mostrar Todo
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="fechaInicio" className="block mb-1 text-sm font-medium text-gray-700">Fecha Inicio</label>
-              <input
-                id="fechaInicio"
-                type="date"
-                value={fechaInicio.toISOString().split('T')[0]}
-                onChange={(e) => setFechaInicio(new Date(e.target.value))}
-                className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-            </div>
-            <div>
-              <label htmlFor="fechaFin" className="block mb-1 text-sm font-medium text-gray-700">Fecha Fin</label>
-              <input
-                id="fechaFin"
-                type="date"
-                value={fechaFin.toISOString().split('T')[0]}
-                onChange={(e) => setFechaFin(new Date(e.target.value))}
-                className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-            </div>
-          </div>
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="fechaInicio" className="block mb-1 text-sm font-medium text-gray-700">Fecha Inicio</label>
+                <input
+                  id="fechaInicio"
+                  type="date"
+                  value={fechaInicio.toISOString().split('T')[0]}
+                  onChange={(e) => setFechaInicio(new Date(e.target.value))}
+                  className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
+              <div>
+                <label htmlFor="fechaFin" className="block mb-1 text-sm font-medium text-gray-700">Fecha Fin</label>
+                <input
+                  id="fechaFin"
+                  type="date"
+                  value={fechaFin.toISOString().split('T')[0]}
+                  onChange={(e) => setFechaFin(new Date(e.target.value))}
+                  className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
+            </div> */}
 
           {loading && (
             <div className="flex justify-center items-center py-2">
@@ -386,17 +453,40 @@ const VentasDonjavier = () => {
         </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Tabla de Procesos */}
+        {/* Tabs de Ventas */}
         <div className="lg:col-span-2">
-          <TableProcesos 
-            procesosFiltrados={procesosFiltrados}
-            loading={loading}
-            onSelectProceso={setProcesoSeleccionado}
-            setModalAbierto={setModalAbierto}
-          />
+          <Card className="p-4 w-full">
+            <CardHeader className="pb-2">
+              <h4 className="text-lg font-semibold">Gestión de Ventas</h4>
+            </CardHeader>
+            <CardBody>
+              <Tabs 
+                selectedKey={selectedTab} 
+                onSelectionChange={(key) => setSelectedTab(key.toString())}
+                className="mb-4"
+              >
+                <Tab key="pendientes" title="Descargas Pendientes">
+                  <TableProcesos 
+                    procesosFiltrados={procesosFiltrados}
+                    loading={loading}
+                    onSelectProceso={setProcesoSeleccionado}
+                    setModalAbierto={setModalAbierto}
+                  />
+                </Tab>
+                <Tab key="cerradas" title="Ventas Cerradas">
+                  <TableVentasCerradas 
+                    repartidorId={repartidorSeleccionado}
+                    ventasCerradas={ventasCerradas}
+                    loading={loadingVentasCerradas}
+                    onVentasActualizadas={actualizarVentasCerradas}
+                  />
+                </Tab>
+              </Tabs>
+            </CardBody>
+          </Card>
         </div>
 
-        {/* Resumen de Cuenta */}
+        {/* Resumen de Cuenta
         <CardResumenVentas
           procesosFiltrados={procesosFiltrados}
           repartidorSeleccionado={repartidorSeleccionado}
@@ -406,10 +496,10 @@ const VentasDonjavier = () => {
           calcularTotalVenta={calcularTotalVenta}
           obtenerProductosMasVendidos={obtenerProductosMasVendidos}
           formatDate={formatDate}
-        />
+        /> */}
 
         {/* Gráfico de Ventas */}
-        <Card className="p-4 w-full">
+        {/* <Card className="p-4 w-full">
           <CardHeader className="pb-2">
             <h4 className="text-lg font-semibold">
               Gráfico de Ventas {repartidorSeleccionado !== 'todos' && 
@@ -435,7 +525,7 @@ const VentasDonjavier = () => {
               )}
             </div>
           </CardBody>
-        </Card>
+        </Card> */}
       </div>
 
       <ModalCierreProceso
@@ -446,6 +536,7 @@ const VentasDonjavier = () => {
         }}
         proceso={procesoSeleccionado}
         obtenerPrecioProducto={obtenerPrecioProducto}
+        onProcesoGuardado={actualizarDatos}
       />
     </div>
   );

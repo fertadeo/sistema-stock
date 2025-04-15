@@ -1,7 +1,7 @@
 'use client';
 import '../../../styles/globals.css'; 
 import React, { useState, useEffect } from 'react';
-import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem } from "@heroui/react";
+import {Button, Input, Card, CardBody, CardHeader, Divider, Popover, PopoverTrigger, PopoverContent, Select, SelectItem, Alert } from "@heroui/react";
 import { CalendarIcon } from "@heroicons/react/24/outline";
 import { Calendar } from "@heroui/calendar";
 import Link from "next/link";
@@ -11,8 +11,8 @@ import revendedoresData from '../../../components/soderia-data/revendedores.json
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import BudgetResume from '@/components/budgetResume';
-import Alert from '@/components/shared/alert';
 import PDFContent from '@/components/PDFContent';
+import CustomSelect from '@/components/shared/CustomSelect';
 
 interface Product {
   nombreProducto: any;
@@ -54,7 +54,7 @@ export default function NuevaVenta() {
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [selectedRevendedor, setSelectedRevendedor] = useState("");
+  const [selectedRevendedor, setSelectedRevendedor] = useState<string>("");
   const [budgetResume, setBudgetResume] = useState<BudgetResume>({
     totalCajones: 0,
     totalUnidades: 0,
@@ -74,6 +74,7 @@ export default function NuevaVenta() {
   });
   const [showPDF, setShowPDF] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -147,6 +148,17 @@ export default function NuevaVenta() {
   };
 
   const handleQuantityChange = (productId: number, value: number) => {
+    // Validar que el valor no sea negativo
+    if (value < 0) {
+      setAlertInfo({
+        show: true,
+        type: 'error',
+        title: 'Error',
+        message: 'No se permiten valores negativos'
+      });
+      return;
+    }
+
     setProducts(products.map(product => 
       product.id === productId 
         ? { ...product, quantity: value }
@@ -168,10 +180,27 @@ export default function NuevaVenta() {
     setBudgetResume(newResume);
   };
 
-  // Agregar función para resetear el formulario
+  // Agregar useEffect para manejar la limpieza del revendedor
+  useEffect(() => {
+    if (alertInfo.show && alertInfo.type === 'success') {
+      // Forzar la limpieza del revendedor
+      setSelectedRevendedor("");
+      // También limpiar el select
+      const selectElement = document.getElementById('revendedor') as HTMLSelectElement;
+      if (selectElement) {
+        selectElement.value = "";
+        // Disparar el evento change para forzar la actualización
+        const event = new Event('change', { bubbles: true });
+        selectElement.dispatchEvent(event);
+      }
+    }
+  }, [alertInfo]);
+
   const resetForm = () => {
+    setIsResetting(true);
     setSelectedDate(defaultDate);
-    setSelectedRevendedor("");
+    setSelectedRevendedor(""); // Limpiar el estado
+    // Mantener los productos pero resetear sus cantidades a cero
     setProducts(prevProducts => 
       prevProducts.map(product => ({
         ...product,
@@ -183,10 +212,53 @@ export default function NuevaVenta() {
       totalUnidades: 0,
       totalGeneral: 0
     });
+    setShowPDF(false);
+    setAlertInfo({
+      show: false,
+      type: 'error',
+      title: '',
+      message: ''
+    });
+    setTimeout(() => {
+      setIsResetting(false);
+    }, 100);
   };
 
   const handleGenerateVenta = async () => {
     if (isGeneratingPDF) return; // Prevenir múltiples clicks
+
+    // Validar campos requeridos
+    if (!selectedRevendedor) {
+      setAlertInfo({
+        show: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Debes seleccionar un revendedor'
+      });
+      return;
+    }
+
+    if (!selectedDate) {
+      setAlertInfo({
+        show: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Debes seleccionar una fecha'
+      });
+      return;
+    }
+
+    // Verificar si hay productos con cantidad mayor a 0
+    const productosConCantidad = products.filter(p => p.quantity > 0);
+    if (productosConCantidad.length === 0) {
+      setAlertInfo({
+        show: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Debes agregar al menos un producto.'
+      });
+      return;
+    }
 
     try {
       setIsGeneratingPDF(true);
@@ -222,9 +294,6 @@ export default function NuevaVenta() {
       };
 
       const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-resumen`;
-      // console.log('Llamando a la API en:', apiUrl);
-      // console.log('Datos enviados:', JSON.stringify(ventaData, null, 2));
-
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -235,11 +304,6 @@ export default function NuevaVenta() {
 
       if (!response.ok) {
         const errorData = await response.text();
-        // console.error('Respuesta del servidor:', {
-        //   status: response.status,
-        //   statusText: response.statusText,
-        //   data: errorData
-        // });
         throw new Error(`Error al guardar la venta en la base de datos: ${response.status} ${response.statusText}`);
       }
 
@@ -277,20 +341,22 @@ export default function NuevaVenta() {
 
       // Guardar el PDF
       pdf.save(`Venta-Revendedor-${revendedorNombre}-${formatDate(selectedDate)}.pdf`);
-      // console.log('PDF guardado correctamente'); // Debug
+      console.log("PDF generado");
 
+      // Mostrar alerta de éxito
       setAlertInfo({
         show: true,
         type: 'success',
-        title: 'Éxito',
-        message: `Venta guardada y PDF generado exitosamente\nTotal: $${ventaData.monto_total}`
+        title: 'Venta Exitosa',
+        message: `La venta se ha registrado correctamente y el PDF ha sido generado.\nTotal: $${ventaData.monto_total}`
       });
 
-      // Resetear el formulario después de una venta exitosa
-      resetForm();
+      // Esperar 3 segundos antes de resetear el formulario
+      setTimeout(() => {
+        resetForm();
+      }, 3000);
 
     } catch (error) {
-      // console.error('Error completo:', error);
       setAlertInfo({
         show: true,
         type: 'error',
@@ -385,23 +451,20 @@ export default function NuevaVenta() {
                 {/* Revendedor */}
                 <div className="flex items-center">
                   <label htmlFor="revendedor" className="mr-2 text-xl font-bold">Revendedor:</label>
-                  <Select
-                    id="revendedor"
-                    color="secondary"
-                    placeholder="Selecciona un revendedor"
+                  <CustomSelect
                     value={selectedRevendedor}
-                    onChange={(e) => {
-                      setSelectedRevendedor(e.target.value);
-                      // console.log('Revendedor seleccionado:', e.target.value);
-                    }}
+                    onChange={(value) => setSelectedRevendedor(value)}
+                    options={[
+                      { value: "", label: "Elegir un revendedor" },
+                      ...revendedoresData.revendedores.map((revendedor, index) => ({
+                        value: index.toString(),
+                        label: revendedor
+                      }))
+                    ]}
+                    placeholder="Selecciona un revendedor"
                     className="w-[200px]"
-                  >
-                    {revendedoresData.revendedores.map((revendedor, index) => (
-                      <SelectItem key={index} value={index.toString()}>
-                        {revendedor}
-                      </SelectItem>
-                    ))}
-                  </Select>
+                    color="secondary"
+                  />
                 </div>
               </div>
 
@@ -433,7 +496,7 @@ export default function NuevaVenta() {
                     <div className="flex gap-4 items-center">
                       {product.name && product.name.toLowerCase().includes('soda') ? (
                         <>
-                          <div>
+                          <div className="flex flex-col h-[85px] justify-end">
                             <label htmlFor={`cajones-${product.id}`} className="block mb-2 text-gray-700">
                               Cajones
                             </label>
@@ -444,15 +507,18 @@ export default function NuevaVenta() {
                               value={Math.floor(product.quantity / 6).toString()}
                               onChange={(e) => {
                                 const cajones = parseInt(e.target.value) || 0;
-                                const unidadesSueltas = product.quantity % 6;
-                                handleQuantityChange(product.id, (cajones * 6) + unidadesSueltas);
+                                if (cajones >= 0) {
+                                  const unidadesSueltas = product.quantity % 6;
+                                  handleQuantityChange(product.id, (cajones * 6) + unidadesSueltas);
+                                }
                               }}
                               className="w-24"
                               variant="bordered"
                               color="secondary"
+                              min="0"
                             />
                           </div>
-                          <div>
+                          <div className="flex flex-col h-[85px] justify-end">
                             <label htmlFor={`sueltas-${product.id}`} className="block mb-2 text-gray-700">
                               Unidades Sueltas
                             </label>
@@ -463,12 +529,15 @@ export default function NuevaVenta() {
                               value={Math.floor(product.quantity % 6).toString()}
                               onChange={(e) => {
                                 const unidadesSueltas = parseInt(e.target.value) || 0;
-                                const cajones = Math.floor(product.quantity / 6);
-                                handleQuantityChange(product.id, (cajones * 6) + unidadesSueltas);
+                                if (unidadesSueltas >= 0) {
+                                  const cajones = Math.floor(product.quantity / 6);
+                                  handleQuantityChange(product.id, (cajones * 6) + unidadesSueltas);
+                                }
                               }}
                               className="w-24"
                               variant="bordered"
                               color="secondary"
+                              min="0"
                             />
                           </div>
                         </>
@@ -482,11 +551,17 @@ export default function NuevaVenta() {
                           type="number"
                           placeholder="0"
                           value={product.quantity.toString()}
-                          onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value))}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 0;
+                            if (value >= 0) {
+                              handleQuantityChange(product.id, value);
+                            }
+                          }}
                           className="w-24"
                           variant="bordered"
                           color="secondary"
                           isReadOnly={product.name?.toLowerCase().includes('soda') || false}
+                          min="0"
                         />
                       </div>
                       <div className="flex justify-end mt-2 mr-12 min-w-36">
@@ -566,7 +641,6 @@ export default function NuevaVenta() {
                   className="w-full"
                   size="lg"
                   onClick={() => {
-                    // console.log('Botón clickeado'); // Debug
                     handleGenerateVenta();
                   }}
                   disabled={isGeneratingPDF}
@@ -594,15 +668,6 @@ export default function NuevaVenta() {
                     'Generar Venta'
                   )}
                 </Button>
-
-                {alertInfo.show && (
-                  <Alert
-                    type={alertInfo.type}
-                    title={alertInfo.title}
-                    message={alertInfo.message}
-                    onClose={() => setAlertInfo(prev => ({ ...prev, show: false }))}
-                  />
-                )}
               </div>
             </div>
           </CardBody>
@@ -618,6 +683,19 @@ export default function NuevaVenta() {
           formatDate={formatDate}
           invoiceRef={invoiceRef}
         />
+      )}
+
+      {/* Mensaje de alerta flotante */}
+      {alertInfo.show && (
+        <div className="fixed top-4 right-4 z-50">
+          <Alert 
+            color={alertInfo.type === 'success' ? 'success' : 'danger'}
+            title={alertInfo.title}
+            className="w-[400px]"
+          >
+            {alertInfo.message}
+          </Alert>
+        </div>
       )}
     </div>
   );

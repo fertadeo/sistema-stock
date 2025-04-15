@@ -60,7 +60,7 @@ export default function VentasPage() {
 
 
           {/* Balance e historial */}
-          <div className="mt-4 w-64 h-60">
+          {/* <div className="mt-4 w-64 h-60">
             <Link href="/ventas/balance">
               <Card className="p-6 transition-shadow duration-300 hover:shadow-lg">
                 <div className="flex flex-col space-y-4">
@@ -79,7 +79,7 @@ export default function VentasPage() {
                 </div>
               </Card>
             </Link>
-          </div>
+          </div> */}
 
 
 

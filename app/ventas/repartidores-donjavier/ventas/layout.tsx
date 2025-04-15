@@ -4,10 +4,10 @@ export default function VentasDonjavierLayout({
     children: React.ReactNode;
   }) {
     return (
-      <section className="flex  ">
+      <section className="flex">
        
   
-        <main className="flex flex-col  p-4 w-screen translate-x-[-20%]">
+        <main className="flex flex-col  p-4 w-screen translate-x-[-10%]">
                 {children}
               </main>
       </section>

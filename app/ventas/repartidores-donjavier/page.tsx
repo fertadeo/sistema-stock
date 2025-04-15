@@ -1,8 +1,18 @@
 'use client';
 import Link from 'next/link';
 import { Card, CardBody } from "@heroui/react";
+import React, { useState, useEffect } from 'react';
+import VentasTabs from '@/components/ventas/repartidores/ventasTabs';
+import ModalCierreProceso from '@/components/ventas/repartidores/modalcierreproceso';
+import { Proceso } from '@/types/ventas';
 
 export default function RepartidoresPage() {
+  const [procesosPendientes, setProcesosPendientes] = useState<Proceso[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [procesoSeleccionado, setProcesoSeleccionado] = useState<Proceso | null>(null);
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [repartidorSeleccionado, setRepartidorSeleccionado] = useState<string>("");
+
   return (
     <div className="flex flex-col items-center pt-8 min-h-screen bg-gray-100">
       <div className="text-center">

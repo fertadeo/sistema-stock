@@ -78,7 +78,7 @@ export default function Home() {
   return (
     <div className="flex relative flex-col min-h-full" style={{ backgroundColor: '#F5F5F5' }}>
       {/* Métricas Cards */}
-      <div className="grid grid-cols-1 gap-6 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* <div className="grid grid-cols-1 gap-6 px-4 py-6 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Balance Total"
           amount="15,700.00"
@@ -126,7 +126,7 @@ export default function Home() {
             </svg>
           }
         />
-      </div>
+      </div> */}
 
       {/* Título responsivo */}
       <div className="px-4 py-2 w-full">
