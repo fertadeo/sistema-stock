@@ -29,7 +29,10 @@ const PDFContent = ({ selectedRevendedorName, selectedDate, products, formatDate
                 priority
               />
             </div>
-            <p className="font-bold">Revendedor: {selectedRevendedorName}</p>
+            <p className="font-bold"></p>
+              Revendedor&nbsp;&nbsp;:&nbsp;&nbsp;
+              <span style={{ whiteSpace: 'pre' }}>{selectedRevendedorName}</span>
+      
           </div>
           <div className="text-right">
             <div className="text-sm text-gray-600">

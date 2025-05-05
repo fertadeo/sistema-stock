@@ -24,6 +24,7 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   const [showFloatingAlert, setShowFloatingAlert] = useState<boolean>(false);
+  const [showInput, setShowInput] = useState<boolean>(true);
 
   // Limpiar mensajes cuando se cierra el modal
   useEffect(() => {
@@ -94,7 +95,8 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
         body: JSON.stringify({
           ids: ventasSeleccionadas.map(venta => venta.id),
           comision_porcentaje: porcentajeGanancia,
-          observaciones: observaciones || `Cierre de cuentas del ${new Date().toLocaleDateString()}`
+          observaciones: observaciones || `Cierre de cuentas del ${new Date().toLocaleDateString()}`,
+          grupo_cierre: new Date().toISOString() // Identificador único para el grupo
         })
       });
 
@@ -125,16 +127,14 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
 
     try {
       setIsLoading(true);
-      
+      setShowInput(false);
       // Ocultar elementos específicos
       const footer = modalContentRef.current.querySelector('.modal-footer');
-      const alert = modalContentRef.current.querySelector('.alert-warning');
+      const alertFinalizadas = modalContentRef.current.querySelector('.alert-finalizadas');
       const buttons = modalContentRef.current.querySelectorAll('button');
-      const gananciaFabrica = modalContentRef.current.querySelector('.ganancia-fabrica');
       
       if (footer) (footer as HTMLElement).style.display = 'none';
-      if (alert) (alert as HTMLElement).style.display = 'none';
-      if (gananciaFabrica) (gananciaFabrica as HTMLElement).style.display = 'none';
+      if (alertFinalizadas) (alertFinalizadas as HTMLElement).style.display = 'none';
       buttons.forEach(button => {
         (button as HTMLElement).style.display = 'none';
       });
@@ -161,14 +161,15 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
 
       // Restaurar la visibilidad
       if (footer) (footer as HTMLElement).style.display = '';
-      if (alert) (alert as HTMLElement).style.display = '';
-      if (gananciaFabrica) (gananciaFabrica as HTMLElement).style.display = '';
+      if (alertFinalizadas) (alertFinalizadas as HTMLElement).style.display = '';
       buttons.forEach(button => {
         (button as HTMLElement).style.display = '';
       });
+      setShowInput(true);
     } catch (error) {
       setError('Error al generar el PDF');
       console.error('Error al generar PDF:', error);
+      setShowInput(true);
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +203,7 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                 <div className="px-6">
                   <Alert 
                     color="warning"
-                    className="mb-4"
+                    className="mb-4 alert-finalizadas"
                   >
                     Estas ventas ya están finalizadas y no pueden modificarse
                   </Alert>
@@ -288,23 +289,28 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                           max="100"
                           value={porcentajeGanancia}
                           onChange={(e) => setPorcentajeGanancia(Number(e.target.value))}
-                          className={`block w-20 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm ${
+                          className={`block w-24 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm px-4 text-center ${
                             todasFinalizadas ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                           disabled={todasFinalizadas}
+                          style={{ display: showInput ? 'block' : 'none' }}
                         />
-                        <span className="ml-2">%</span>
+                        <span
+                          style={{ display: showInput ? 'none' : 'inline-block', minWidth: 40, textAlign: 'center' }}
+                        >
+                          {porcentajeGanancia} %
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm font-bold text-gray-600">Ganancia Repartidor ({porcentajeGanancia}%)</p>
+                      <p className="text-sm font-bold text-gray-600">Ganancia Repartidor:&nbsp;&nbsp;({porcentajeGanancia}%)</p>
                       <div className="space-y-1">
                         <p className="text-sm text-gray-500">Ganancia bruta: ${ganancias.gananciaOriginal.toFixed(2)}</p>
                         <p className="text-sm text-gray-500">Descuento por balance: -${ganancias.descuentoBalance.toFixed(2)}</p>
                         <p className="text-xl font-bold text-green-600">
-                          Ganancia final: ${ganancias.gananciaRepartidor.toFixed(2)}
+                          Ganancia final:&nbsp;&nbsp;${ganancias.gananciaRepartidor.toFixed(2)}
                         </p>  
                       </div>
                     </div>

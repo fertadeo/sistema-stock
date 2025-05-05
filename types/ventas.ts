@@ -28,6 +28,7 @@ export interface VentaCerrada {
   id: number;
   proceso_id: number;
   fecha_cierre: string;
+  fecha_carga?: string;
   total_venta: string;
   comision_porcentaje: number;
   ganancia_repartidor: string;
@@ -42,4 +43,5 @@ export interface VentaCerrada {
   };
   observaciones: string;
   created_at: string;
+  grupo_cierre?: string;
 } 

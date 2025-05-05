@@ -64,7 +64,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         throw new Error(`Error al obtener productos: ${errorMessage}`);
       }
       const data = await response.json();
-      console.log('API Response:', data); // Log the response to check its structure
+      // console.log('API Response:', data); // Log the response to check its structure
 
       const updatedData = data.map((product: Product) => {
         const precioPublico = product.precioPublico;
@@ -84,7 +84,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       setFilteredProducts(updatedData);
       setError(null);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      // console.error("Error fetching products:", error);
       setError('Error al cargar los productos. Por favor, intente más tarde.');
     } finally {
       setLoading(false);
@@ -196,7 +196,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       setEditingCell(null);
 
     } catch (error) {
-      console.error('Error updating price:', error);
+      // console.error('Error updating price:', error);
       showNotification({ type: 'error', message: (error as Error).message });
       fetchProducts();
     }

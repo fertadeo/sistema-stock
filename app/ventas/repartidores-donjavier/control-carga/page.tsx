@@ -102,8 +102,11 @@ const ControlCargaPage = () => {
   const [cargaSeleccionada, setCargaSeleccionada] = useState<CargaRepartidor | null>(null);
   const [repartidorSeleccionado, setRepartidorSeleccionado] = useState<string>('');
   const [productosAdicionales, setProductosAdicionales] = useState<Producto[]>([]);
-  const [productosSeleccionados, setProductosSeleccionados] = useState<number[]>([1, 2, 3, 4]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState<number[]>([8, 9, 10, 11, 12]);
   const [isModalCambioModoOpen, setIsModalCambioModoOpen] = useState(false);
+  const [cargaAEliminar, setCargaAEliminar] = useState<CargaRepartidor | null>(null);
+  const [isModalEliminarCargaOpen, setIsModalEliminarCargaOpen] = useState(false);
+  const [mostrarListaEliminar, setMostrarListaEliminar] = useState(false);
 
   useEffect(() => {
     const fetchRepartidores = async () => {
@@ -175,21 +178,21 @@ const ControlCargaPage = () => {
       }
       const data = await response.json();
       
-      console.log('=== CARGAS PENDIENTES RECIBIDAS ===');
-      console.log('Datos completos:', data);
-      console.log('Cantidad de cargas:', data.length);
-      data.forEach((carga: CargaRepartidor, index: number) => {
-        console.log(`\nCarga #${index + 1}:`);
-        console.log('ID:', carga.id);
-        console.log('Fecha:', new Date(carga.fecha_carga).toLocaleString());
-        console.log('Repartidor:', carga.repartidor.nombre);
-        console.log('Items:', carga.items.length);
-        console.log('Detalle de items:');
-        carga.items.forEach(item => {
-          console.log(`  - Producto ID: ${item.producto_id}, Cantidad: ${item.cantidad}`);
-        });
-      });
-      console.log('===============================');
+      // console.log('=== CARGAS PENDIENTES RECIBIDAS ===');
+      // console.log('Datos completos:', data);
+      // console.log('Cantidad de cargas:', data.length);
+      // data.forEach((carga: CargaRepartidor, index: number) => {
+      //   console.log(`\nCarga #${index + 1}:`);
+      //   console.log('ID:', carga.id);
+      //   console.log('Fecha:', new Date(carga.fecha_carga).toLocaleString());
+      //   console.log('Repartidor:', carga.repartidor.nombre);
+      //   console.log('Items:', carga.items.length);
+      //   console.log('Detalle de items:');
+      //   carga.items.forEach(item => {
+      //     console.log(`  - Producto ID: ${item.producto_id}, Cantidad: ${item.cantidad}`);
+      //   });
+      // });
+      // console.log('===============================');
 
       setCargasPendientes(data);
     } catch (error) {
@@ -267,7 +270,7 @@ const ControlCargaPage = () => {
     setCargaSeleccionada(null);
     setRepartidorSeleccionado('');
     // Restablecer los productos seleccionados a los iniciales
-    setProductosSeleccionados([1, 2, 3, 4]);
+    setProductosSeleccionados([8, 9, 10, 11, 12]);
     setIsModalCambioModoOpen(false);
   };
 
@@ -375,23 +378,26 @@ const ControlCargaPage = () => {
       if (isCarga) {
         const repartidorId = parseInt(formData.repartidor);
         
-        console.log('=== DEBUGGING INFORMACIÓN ===');
-        console.log('Estado del formulario:', formData);
-        console.log('Lista de repartidores:', repartidores);
-        console.log('ID del repartidor seleccionado:', repartidorId);
-        console.log('Repartidor encontrado:', repartidores.find(r => r.id === repartidorId)?.nombre);
-        console.log('========================');
+        // console.log('=== DEBUGGING INFORMACIÓN ===');
+        // console.log('Estado del formulario:', formData);
+        // console.log('Lista de repartidores:', repartidores);
+        // console.log('ID del repartidor seleccionado:', repartidorId);
+        // console.log('Repartidor encontrado:', repartidores.find(r => r.id === repartidorId)?.nombre);
+        // console.log('========================');
 
         // Validar que existe el repartidor_id
         if (!repartidorId || !repartidores.some(r => r.id === repartidorId)) {
           console.error('Error: ID del repartidor inválido');
-          console.log('ID del repartidor buscado:', repartidorId);
-          console.log('Lista de repartidores disponibles:', repartidores.map(r => ({ id: r.id, nombre: r.nombre })));
+          // console.log('ID del repartidor buscado:', repartidorId);
+          // console.log('Lista de repartidores disponibles:', repartidores.map(r => ({ id: r.id, nombre: r.nombre })));
           throw new Error('Por favor selecciona un repartidor válido');
         }
 
         // Guardar nueva carga
         const nuevaCarga = {
+          fecha: formData.fecha === today ? 
+            `${formData.fecha}T${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00` : 
+            formData.fecha,
           repartidor_id: repartidorId,
           items: formData.productos
             .filter(p => p.cantidadCarga && p.cantidadCarga > 0)
@@ -402,13 +408,12 @@ const ControlCargaPage = () => {
           estado: "pendiente"
         };
 
-        // Log de los datos que se envían
-        console.log('=== DATOS DE LA CARGA A ENVIAR ===');
-        console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/cargas`);
-        console.log('Método:', 'POST');
-        console.log('Headers:', { 'Content-Type': 'application/json' });
-        console.log('Datos:', JSON.stringify(nuevaCarga, null, 2));
-        console.log('===============================');
+        // console.log('=== DATOS DE LA CARGA A ENVIAR ===');
+        // console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/cargas`);
+        // console.log('Método:', 'POST');
+        // console.log('Headers:', { 'Content-Type': 'application/json' });
+        // console.log('Datos:', JSON.stringify(nuevaCarga, null, 2));
+        // console.log('===============================');
 
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas`, {
@@ -419,13 +424,13 @@ const ControlCargaPage = () => {
             body: JSON.stringify(nuevaCarga)
           });
 
-          console.log('=== RESPUESTA DEL SERVIDOR ===');
-          console.log('Status:', response.status);
-          console.log('Status Text:', response.statusText);
-          console.log('Headers:', Object.fromEntries(response.headers.entries()));
+          // console.log('=== RESPUESTA DEL SERVIDOR ===');
+          // console.log('Status:', response.status);
+          // console.log('Status Text:', response.statusText);
+          // console.log('Headers:', Object.fromEntries(response.headers.entries()));
 
           const responseText = await response.text();
-          console.log('Respuesta completa:', responseText);
+          // console.log('Respuesta completa:', responseText);
 
           if (!response.ok) {
             let errorMessage = `Error ${response.status}: ${response.statusText}`;
@@ -440,9 +445,9 @@ const ControlCargaPage = () => {
             throw new Error(errorMessage);
           }
 
-          console.log('=== OPERACIÓN EXITOSA ===');
-          console.log('La carga se guardó correctamente');
-      console.log('========================');
+          // console.log('=== OPERACIÓN EXITOSA ===');
+          // console.log('La carga se guardó correctamente');
+          // console.log('========================');
 
         } catch (fetchError) {
           console.error('=== ERROR EN LA PETICIÓN ===');
@@ -472,7 +477,7 @@ const ControlCargaPage = () => {
 
         // Obtener los productos de la carga original para validación
         const productosCarga = cargaSeleccionada.items || [];
-        console.log('Productos en la carga original:', productosCarga);
+        // console.log('Productos en la carga original:', productosCarga);
         
         // Preparar los arrays de productos para la descarga
         const productosDevueltos = formData.productos
@@ -519,12 +524,12 @@ const ControlCargaPage = () => {
           throw new Error("No hay productos ni envases para descargar. Debe ingresar al menos un valor.");
         }
 
-        console.log('=== DATOS DE LA DESCARGA A ENVIAR ===');
-        console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/descargas`);
-        console.log('Método:', 'POST');
-        console.log('Headers:', { 'Content-Type': 'application/json' });
-        console.log('Datos:', JSON.stringify(descarga, null, 2));
-        console.log('===============================');
+        // console.log('=== DATOS DE LA DESCARGA A ENVIAR ===');
+        // console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/descargas`);
+        // console.log('Método:', 'POST');
+        // console.log('Headers:', { 'Content-Type': 'application/json' });
+        // console.log('Datos:', JSON.stringify(descarga, null, 2));
+        // console.log('===============================');
 
         try {
           const responseDescarga = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas`, {
@@ -533,37 +538,35 @@ const ControlCargaPage = () => {
             body: JSON.stringify(descarga)
           });
 
-          // Capturar la respuesta completa para diagnóstico
-          const responseText = await responseDescarga.text();
-          console.log('Respuesta del servidor:', responseText);
+          // console.log('Respuesta del servidor:', responseText);
           
-          let errorDetail = '';
-          try {
-            // Intentar parsear como JSON
-            const responseJson = JSON.parse(responseText);
-            errorDetail = responseJson.message || responseJson.error || responseText;
-          } catch (e) {
-            // Si no es JSON, usar el texto tal cual
-            errorDetail = responseText;
-          }
+          // let errorDetail = '';
+          // try {
+          //   // Intentar parsear como JSON
+          //   const responseJson = JSON.parse(responseText);
+          //   errorDetail = responseJson.message || responseJson.error || responseText;
+          // } catch (e) {
+          //   // Si no es JSON, usar el texto tal cual
+          //   errorDetail = responseText;
+          // }
 
-          if (!responseDescarga.ok) {
-            throw new Error(`Error al guardar la descarga: ${responseDescarga.status} ${responseDescarga.statusText} - ${errorDetail}`);
-          }
+          // if (!responseDescarga.ok) {
+          //   throw new Error(`Error al guardar la descarga: ${responseDescarga.status} ${responseDescarga.statusText} - ${errorDetail}`);
+          // }
 
-          console.log('Descarga guardada correctamente');
+          // console.log('Descarga guardada correctamente');
 
           // Después de guardar la descarga, necesitamos actualizar el estado de la carga a 'completada'
           // Esto es necesario porque una carga con descarga ya registrada debe marcarse como completada
-          console.log(`Actualizando estado de carga ${cargaSeleccionada?.id} a completada`);
+          // console.log(`Actualizando estado de carga ${cargaSeleccionada?.id} a completada`);
           
           // Intentar actualizar el estado de la carga usando la ruta principal de cargas
           try {
             // La ruta para actualizar una carga completa
             const rutaActualizacionCarga = `${process.env.NEXT_PUBLIC_API_URL}/api/cargas/${cargaSeleccionada.id}`;
-            console.log('URL para actualización de carga:', rutaActualizacionCarga);
-            console.log('Método:', 'PUT');
-            console.log('Datos:', JSON.stringify({ estado: 'completada' }));
+            // console.log('URL para actualización de carga:', rutaActualizacionCarga);
+            // console.log('Método:', 'PUT');
+            // console.log('Datos:', JSON.stringify({ estado: 'completada' }));
             
             const responseCarga = await fetch(rutaActualizacionCarga, {
               method: 'PUT',
@@ -572,18 +575,18 @@ const ControlCargaPage = () => {
             });
 
             const responseText = await responseCarga.text();
-            console.log('Respuesta de actualización de carga:', responseText);
+            // console.log('Respuesta de actualización de carga:', responseText);
 
             if (!responseCarga.ok) {
               console.error(`Error al actualizar estado de la carga: ${responseCarga.status} ${responseCarga.statusText}`);
               console.error('Detalles del error:', responseText);
               // No lanzamos error aquí para que al menos la descarga se guarde
             } else {
-              console.log('Estado de carga actualizado correctamente a "completada"');
+              // console.log('Estado de carga actualizado correctamente a "completada"');
             }
           } catch (error) {
             console.error('Error al actualizar el estado de la carga:', error);
-            console.log('La descarga se guardó correctamente, pero no se pudo actualizar el estado de la carga');
+            // console.log('La descarga se guardó correctamente, pero no se pudo actualizar el estado de la carga');
             // No propagamos este error para que no afecte al flujo principal
           }
         } catch (error) {
@@ -592,21 +595,20 @@ const ControlCargaPage = () => {
         }
       }
 
-      // Mostrar el resumen en consola
-      console.log('=== RESUMEN DE OPERACIÓN ===');
-      console.log(`Repartidor: ${formData.repartidor}`);
-      console.log(`Fecha: ${formData.fecha}`);
-      console.log('\nDiferencias por producto:');
-      reporteTemp.productos.forEach((producto: ProductoReporte): void => {
-        const cantidadLlenos = typeof producto.llenos === 'number' ? producto.llenos : producto.llenos?.total || 0;
-        const cantidadVacios = typeof producto.vacios === 'number' ? producto.vacios : producto.vacios?.total || 0;
-        
-        console.log(`\nProducto: ${producto.producto}`);
-        console.log(`Carga inicial: ${producto.total || producto.cantidad || 0} unidades`);
-        console.log(`Descarga total: ${cantidadLlenos + cantidadVacios} unidades`);
-        console.log(`Ventas realizadas: ${cantidadLlenos} unidades`);
-      });
-      console.log('\n=========================');
+      // console.log('=== RESUMEN DE OPERACIÓN ===');
+      // console.log(`Repartidor: ${formData.repartidor}`);
+      // console.log(`Fecha: ${formData.fecha}`);
+      // console.log('\nDiferencias por producto:');
+      // reporteTemp.productos.forEach((producto: ProductoReporte): void => {
+      //   const cantidadLlenos = typeof producto.llenos === 'number' ? producto.llenos : producto.llenos?.total || 0;
+      //   const cantidadVacios = typeof producto.vacios === 'number' ? producto.vacios : producto.vacios?.total || 0;
+      //   
+      //   console.log(`\nProducto: ${producto.producto}`);
+      //   console.log(`Carga inicial: ${producto.total || producto.cantidad || 0} unidades`);
+      //   console.log(`Descarga total: ${cantidadLlenos + cantidadVacios} unidades`);
+      //   console.log(`Ventas realizadas: ${cantidadLlenos} unidades`);
+      // });
+      // console.log('\n=========================');
 
       // Limpiar el formulario después de una operación exitosa
         setFormData({
@@ -632,6 +634,11 @@ const ControlCargaPage = () => {
       // Mostrar mensaje de éxito
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      
+      // Actualizar cargas pendientes en tiempo real después de una descarga
+      if (!isCarga && repartidorSeleccionado) {
+        fetchCargasPendientes(repartidorSeleccionado);
+      }
       
       setIsLoadingRepartidores(false);
       setIsModalOpen(false);
@@ -721,9 +728,35 @@ const ControlCargaPage = () => {
     }));
   };
 
+  const handleEliminarCarga = (carga: CargaRepartidor) => {
+    setCargaAEliminar(carga);
+    setIsModalEliminarCargaOpen(true);
+  };
+
+  const confirmarEliminarCarga = async () => {
+    if (!cargaAEliminar) return;
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/${cargaAEliminar.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Error al eliminar la carga');
+      }
+      setIsModalEliminarCargaOpen(false);
+      setCargaAEliminar(null);
+      if (repartidorSeleccionado) {
+        fetchCargasPendientes(repartidorSeleccionado);
+      }
+    } catch (error) {
+      setIsModalEliminarCargaOpen(false);
+      setCargaAEliminar(null);
+      handleError('No se pudo eliminar la carga.');
+    }
+  };
+
   return (
     <>
-      <div className="flex justify-center w-full min-h-screen bg-blue-500 bg-gradient-to-b from-background to-default-100">
+      <div className="flex justify-center items-start w-full min-h-screen bg-blue-500 bg-gradient-to-b from-background to-default-100">
         <div className="w-full min-w-[300px] max-w-[900px] px-4 bg-none ">
 
           <Card className={`w-full ${
@@ -757,13 +790,25 @@ const ControlCargaPage = () => {
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8">
                   {/* Fecha */}
-                  <Input
-                    type="date"
-                    label="Fecha"
-                    value={formData.fecha}
-                    onChange={(e) => setFormData({...formData, fecha: e.target.value})}
-                    className="w-full text-base md:text-lg"
-                  />
+                  {isCarga ? (
+                    <Input
+                      type="date"
+                      label="Fecha"
+                      value={formData.fecha}
+                      onChange={(e) => setFormData({...formData, fecha: e.target.value})}
+                      className="w-full text-base md:text-lg"
+                    />
+                  ) : (
+                    cargaSeleccionada && (
+                      <Input
+                        type="date"
+                        label="Fecha de la carga"
+                        value={cargaSeleccionada.fecha_carga.split('T')[0]}
+                        disabled
+                        className="w-full text-base md:text-lg"
+                      />
+                    )
+                  )}
 
                   {/* Selector de Repartidor */}
                   {!isCarga ? (
@@ -790,28 +835,67 @@ const ControlCargaPage = () => {
                       </Select>
 
                       {repartidorSeleccionado && (
-                        <Select
-                          label="Seleccionar Carga Pendiente"
-                          placeholder={cargasPendientes.length === 0 ? "No hay cargas pendientes" : "Selecciona una carga"}
-                          value={cargaSeleccionada?.id.toString() || ""}
-                          onChange={(e) => {
-                            const carga = cargasPendientes.find(c => c.id.toString() === e.target.value);
-                            if (carga) {
-                              handleCargaSelection(carga);
-                            }
-                          }}
-                        >
-                          {cargasPendientes.map(carga => {
-                            const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
-                            const fecha = new Date(carga.fecha_carga);
-                            
-                            return (
-                              <SelectItem key={carga.id} value={carga.id.toString()}>
-                                {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
-                              </SelectItem>
-                            );
-                          })}
-                        </Select>
+                        <>
+                          <div className="flex gap-2 items-center">
+                            <Select
+                              label="Seleccionar Carga Pendiente"
+                              placeholder={cargasPendientes.length === 0 ? "No hay cargas pendientes" : "Selecciona una carga"}
+                              value={cargaSeleccionada?.id.toString() || ""}
+                              onChange={(e) => {
+                                const carga = cargasPendientes.find(c => c.id.toString() === e.target.value);
+                                if (carga) {
+                                  handleCargaSelection(carga);
+                                }
+                              }}
+                              className="flex-1"
+                            >
+                              {cargasPendientes.map(carga => {
+                                const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
+                                const fecha = new Date(carga.fecha_carga);
+                                return (
+                                  <SelectItem key={carga.id} value={carga.id.toString()}>
+                                    {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
+                                  </SelectItem>
+                                );
+                              })}
+                            </Select>
+                            <Button
+                              color="danger"
+                              isIconOnly
+                              className="ml-2"
+                              onClick={() => setMostrarListaEliminar(v => !v)}
+                              title="Eliminar cargas pendientes"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                              </svg>
+                            </Button>
+                          </div>
+                          {/* Lista de cargas pendientes con botón de eliminar, solo si mostrarListaEliminar es true */}
+                          {mostrarListaEliminar && cargasPendientes.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {cargasPendientes.map(carga => {
+                                const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
+                                const fecha = new Date(carga.fecha_carga);
+                                return (
+                                  <div key={carga.id} className="flex justify-between items-center px-2 py-1 text-sm bg-gray-50 rounded">
+                                    <span>
+                                      {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEliminarCarga(carga)}
+                                      className="ml-2 text-lg font-bold text-red-500 transition-colors duration-150 hover:text-red-700 focus:outline-none"
+                                      title="Eliminar carga"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ) : (
@@ -831,311 +915,361 @@ const ControlCargaPage = () => {
                 </div>
 
                 {/* Tabla de Productos */}
-                <div className="overflow-x-auto mt-6">
-                  <table className="w-full table-auto">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="p-2 text-left">Producto</th>
-                        {isCarga ? (
-                          <th className="p-2 w-32 text-center">
-                            Cantidad
-                          </th>
-                        ) : (
-                          <>
-                            <th className="p-2 w-1/4 text-center">
-                              <div className="flex flex-col items-center">
-                                <span className="font-semibold text-green-600">Llenos</span>
-                              </div>
+                {isCarga || cargaSeleccionada ? (
+                  <div className="overflow-x-auto mt-6">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="p-2 text-left">Producto</th>
+                          {isCarga ? (
+                            <th className="p-2 w-32 text-center">
+                              Cantidad
                             </th>
-                            <th className="p-2 w-1/4 text-center">
-                              <div className="flex flex-col items-center">
-                                <span className="font-semibold text-blue-600">Vacíos</span>
-                              </div>
-                            </th>
-                            <th className="p-2 w-1/4 text-center">
-                              <div className="flex flex-col items-center">
-                                <span className="font-semibold text-red-600">Faltantes</span>
-                                <span className="text-xs text-gray-500">(Diferencia)</span>
-                              </div>
-                            </th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {isLoadingProductos ? (
-                        <tr>
-                          <td colSpan={isCarga ? 2 : 4} className="p-4 text-center">
-                            Cargando productos...
-                          </td>
+                          ) : (
+                            <>
+                              <th className="p-2 w-1/4 text-center">
+                                <div className="flex flex-col items-center">
+                                  <span className="font-semibold text-green-600">Llenos</span>
+                                </div>
+                              </th>
+                              <th className="p-2 w-1/4 text-center">
+                                <div className="flex flex-col items-center">
+                                  <span className="font-semibold text-blue-600">Vacíos</span>
+                                </div>
+                              </th>
+                              <th className="p-2 w-1/4 text-center">
+                                <div className="flex flex-col items-center">
+                                  <span className="font-semibold text-red-600">Faltantes</span>
+                                  <span className="text-xs text-gray-500">(Diferencia)</span>
+                                </div>
+                              </th>
+                            </>
+                          )}
                         </tr>
-                      ) : (
-                        productos
-                          .filter(producto => productosSeleccionados.includes(producto.id))
-                          .map((producto) => {
-                            const formProduct = formData.productos.find(p => p.id === producto.id) || {
-                              id: producto.id,
-                              cantidadCarga: 0,
-                              cajonesLlenos: 0,
-                              unidadesLlenas: 0,
-                              cajonesVacios: 0,
-                              unidadesVacias: 0,
-                              cantidadLlenos: 0,
-                              cantidadVacios: 0
-                            };
+                      </thead>
+                      <tbody>
+                        {isLoadingProductos ? (
+                          <tr>
+                            <td colSpan={isCarga ? 2 : 4} className="p-4 text-center">
+                              Cargando productos...
+                            </td>
+                          </tr>
+                        ) : (
+                          productos
+                            .filter(producto => productosSeleccionados.includes(producto.id))
+                            .map((producto) => {
+                              const formProduct = formData.productos.find(p => p.id === producto.id) || {
+                                id: producto.id,
+                                cantidadCarga: 0,
+                                cajonesLlenos: 0,
+                                unidadesLlenas: 0,
+                                cajonesVacios: 0,
+                                unidadesVacias: 0,
+                                cantidadLlenos: 0,
+                                cantidadVacios: 0
+                              };
 
-                            const isSoda = producto?.nombreProducto?.toLowerCase().includes('sifon') || false;
-                            const faltantes = isCarga ? 0 : 
-                              (formProduct.cantidadCarga || 0) - 
-                              ((formProduct.cantidadLlenos || 0) + (formProduct.cantidadVacios || 0));
+                              const isSoda = producto?.nombreProducto?.toLowerCase().includes('sifon') || false;
+                              const faltantes = isCarga ? 0 : 
+                                (formProduct.cantidadCarga || 0) - 
+                                ((formProduct.cantidadLlenos || 0) + (formProduct.cantidadVacios || 0));
 
-                            return (
-                              <tr key={producto.id} className="border-b hover:bg-gray-50">
-                                <td className="p-2">
-                                  <div className="flex justify-between items-center">
-                                    <div>
-                                      <div className="font-medium">{producto.nombreProducto}</div>
-                                      {!isCarga && (
-                                        <div className="text-sm font-bold text-gray-500">
-                                          Carga inicial: {formProduct.cantidadCarga}
-                                        </div>
+                              return (
+                                <tr key={producto.id} className="border-b hover:bg-gray-50">
+                                  <td className="p-2">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <div className="font-medium">{producto.nombreProducto}</div>
+                                        {!isCarga && (
+                                          <div className="text-sm font-bold text-gray-500">
+                                            Carga inicial: {formProduct.cantidadCarga}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {producto.id > 4 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveProduct(producto.id)}
+                                          className="p-1 text-gray-500 transition-colors hover:text-red-500"
+                                        >
+                                          <svg 
+                                            className="w-5 h-5" 
+                                            fill="none" 
+                                            viewBox="0 0 24 24" 
+                                            stroke="currentColor"
+                                          >
+                                            <path 
+                                              strokeLinecap="round" 
+                                              strokeLinejoin="round" 
+                                              strokeWidth={2} 
+                                              d="M6 18L18 6M6 6l12 12" 
+                                            />
+                                          </svg>
+                                        </button>
                                       )}
                                     </div>
-                                    {producto.id > 4 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveProduct(producto.id)}
-                                        className="p-1 text-gray-500 transition-colors hover:text-red-500"
-                                      >
-                                        <svg 
-                                          className="w-5 h-5" 
-                                          fill="none" 
-                                          viewBox="0 0 24 24" 
-                                          stroke="currentColor"
-                                        >
-                                          <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2} 
-                                            d="M6 18L18 6M6 6l12 12" 
-                                          />
-                                        </svg>
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                                {isCarga ? (
-                                  <td className="p-2">
-                                    {isSoda ? (
-                                      <div className="flex flex-col gap-2">
-                                        <div className="flex flex-col">
-                                          <div className="flex-1">
-                                            <label htmlFor={`cajones-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
-                                              Cajones (x6):
-                                            </label>
-                                            <Input
-                                              id={`cajones-carga-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              value={Math.floor((formProduct.cantidadCarga || 0) / 6).toString()}
-                                              onChange={(e) => {
-                                                const cajones = parseInt(e.target.value) || 0;
-                                                const unidades = formProduct.cantidadCarga ? formProduct.cantidadCarga % 6 : 0;
-                                                handleProductChange(
-                                                  producto.id,
-                                                  'cantidadCarga',
-                                                  (cajones * 6) + unidades
-                                                );
-                                              }}
-                                              className="w-full"
-                                              size="sm"
-                                            />
-                                          </div>
-                                          <div className="flex-1">
-                                            <label htmlFor={`unidades-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
-                                              Unidades:
-                                            </label>
-                                            <Input
-                                              id={`unidades-carga-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              max="5"
-                                              value={((formProduct.cantidadCarga || 0) % 6).toString()}
-                                              onChange={(e) => {
-                                                const unidades = parseInt(e.target.value) || 0;
-                                                const cajones = formProduct.cantidadCarga ? Math.floor(formProduct.cantidadCarga / 6) : 0;
-                                                handleProductChange(
-                                                  producto.id,
-                                                  'cantidadCarga',
-                                                  (cajones * 6) + unidades
-                                                );
-                                              }}
-                                              className="w-full"
-                                              size="sm"
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="font-medium text-center text-gray-600 text-m">
-                                          Total: {formProduct.cantidadCarga || 0} unidades
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        value={formProduct.cantidadCarga?.toString() || "0"}
-                                        onChange={(e) => handleProductChange(producto.id, 'cantidadCarga', parseInt(e.target.value) || 0)}
-                                        className="w-full"
-                                        size="sm"
-                                      />
-                                    )}
                                   </td>
-                                ) : (
-                                  <>
+                                  {isCarga ? (
                                     <td className="p-2">
                                       {isSoda ? (
                                         <div className="flex flex-col gap-2">
                                           <div className="flex flex-col">
-                                            <label htmlFor={`cajones-llenos-${producto.id}`} className="text-xs font-medium text-green-600">
-                                              Cajones Llenos (x6):
-                                            </label>
-                                            <Input
-                                              id={`cajones-llenos-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              value={formProduct.cajonesLlenos?.toString() || "0"}
-                                              onChange={(e) => handleProductChange(
-                                                producto.id, 
-                                                'cajonesLlenos', 
-                                                parseInt(e.target.value) || 0, 
-                                                true
-                                              )}
-                                              className="w-full border-green-200 focus:border-green-500"
-                                            />
+                                            <div className="flex-1">
+                                              <label htmlFor={`cajones-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
+                                                Cajones (x6):
+                                              </label>
+                                              <Input
+                                                id={`cajones-carga-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                value={(formProduct.cajonesLlenos ?? 0) === 0 ? "" : (formProduct.cajonesLlenos ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'cajonesLlenos',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full"
+                                                size="sm"
+                                              />
+                                            </div>
+                                            <div className="flex-1">
+                                              <label htmlFor={`unidades-carga-${producto.id}`} className="text-xs font-medium text-gray-600">
+                                                Unidades:
+                                              </label>
+                                              <Input
+                                                id={`unidades-carga-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                max="5"
+                                                placeholder="0"
+                                                value={(formProduct.unidadesLlenas ?? 0) === 0 ? "" : (formProduct.unidadesLlenas ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'unidadesLlenas',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full"
+                                                size="sm"
+                                              />
+                                            </div>
                                           </div>
-                                          <div className="flex flex-col">
-                                            <label htmlFor={`unidades-llenas-${producto.id}`} className="text-xs font-medium text-green-600">
-                                              Unidades Llenas:
-                                            </label>
-                                            <Input
-                                              id={`unidades-llenas-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              value={formProduct.unidadesLlenas?.toString() || "0"}
-                                              onChange={(e) => handleProductChange(
-                                                producto.id, 
-                                                'unidadesLlenas', 
-                                                parseInt(e.target.value) || 0, 
-                                                true
-                                              )}
-                                              className="w-full border-green-200 focus:border-green-500"
-                                            />
+                                          <div className="font-medium text-center text-gray-600 text-m">
+                                            Total: {(formProduct.cajonesLlenos || 0) * 6 + (formProduct.unidadesLlenas || 0)} unidades
                                           </div>
                                         </div>
                                       ) : (
                                         <Input
                                           type="number"
                                           min="0"
-                                          value={formProduct.cantidadLlenos?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(producto.id, 'cantidadLlenos', parseInt(e.target.value) || 0)}
+                                          placeholder="0"
+                                          value={(formProduct.cantidadCarga ?? 0) === 0 ? "" : (formProduct.cantidadCarga ?? 0).toString()}
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            handleProductChange(
+                                              producto.id,
+                                              'cantidadCarga',
+                                              value === "" ? 0 : parseInt(value) || 0
+                                            );
+                                          }}
                                           className="w-full"
                                           size="sm"
                                         />
                                       )}
                                     </td>
-                                    <td className="p-2">
-                                      {isSoda ? (
-                                        <div className="flex flex-col gap-2">
-                                          <div className="flex flex-col">
-                                            <label htmlFor={`cajones-vacios-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                              Cajones Vacios:
-                                            </label>
-                                            <Input
-                                              id={`cajones-vacios-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              value={formProduct.cajonesVacios?.toString() || "0"}
-                                              onChange={(e) => handleProductChange(
-                                                producto.id, 
-                                                'cajonesVacios', 
-                                                parseInt(e.target.value) || 0, 
-                                                true
-                                              )}
-                                              className="w-full border-blue-200 focus:border-blue-500"
-                                            />
+                                  ) : (
+                                    <>
+                                      <td className="p-2">
+                                        {isSoda ? (
+                                          <div className="flex flex-col gap-2">
+                                            <div className="flex flex-col">
+                                              <label htmlFor={`cajones-llenos-${producto.id}`} className="text-xs font-medium text-green-600">
+                                                Cajones Llenos (x6):
+                                              </label>
+                                              <Input
+                                                id={`cajones-llenos-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                value={(formProduct.cajonesLlenos ?? 0) === 0 ? "" : (formProduct.cajonesLlenos ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'cajonesLlenos',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full border-green-200 focus:border-green-500"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label htmlFor={`unidades-llenas-${producto.id}`} className="text-xs font-medium text-green-600">
+                                                Unidades Llenas:
+                                              </label>
+                                              <Input
+                                                id={`unidades-llenas-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                value={(formProduct.unidadesLlenas ?? 0) === 0 ? "" : (formProduct.unidadesLlenas ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'unidadesLlenas',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full border-green-200 focus:border-green-500"
+                                              />
+                                            </div>
                                           </div>
-                                          <div className="flex flex-col">
-                                            <label htmlFor={`unidades-vacias-${producto.id}`} className="text-xs font-medium text-blue-600">
-                                              Unidades Vacias:
-                                            </label>
-                                            <Input
-                                              id={`unidades-vacias-${producto.id}`}
-                                              type="number"
-                                              min="0"
-                                              value={formProduct.unidadesVacias?.toString() || "0"}
-                                              onChange={(e) => handleProductChange(
-                                                producto.id, 
-                                                'unidadesVacias', 
-                                                parseInt(e.target.value) || 0, 
-                                                true
-                                              )}
-                                              className="w-full border-blue-200 focus:border-blue-500"
-                                            />
+                                        ) : (
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            value={(formProduct.cantidadLlenos ?? 0) === 0 ? "" : (formProduct.cantidadLlenos ?? 0).toString()}
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              handleProductChange(
+                                                producto.id,
+                                                'cantidadLlenos',
+                                                value === "" ? 0 : parseInt(value) || 0
+                                              );
+                                            }}
+                                            className="w-full"
+                                            size="sm"
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="p-2">
+                                        {isSoda ? (
+                                          <div className="flex flex-col gap-2">
+                                            <div className="flex flex-col">
+                                              <label htmlFor={`cajones-vacios-${producto.id}`} className="text-xs font-medium text-blue-600">
+                                                Cajones Vacios:
+                                              </label>
+                                              <Input
+                                                id={`cajones-vacios-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                value={(formProduct.cajonesVacios ?? 0) === 0 ? "" : (formProduct.cajonesVacios ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'cajonesVacios',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full border-blue-200 focus:border-blue-500"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label htmlFor={`unidades-vacias-${producto.id}`} className="text-xs font-medium text-blue-600">
+                                                Unidades Vacias:
+                                              </label>
+                                              <Input
+                                                id={`unidades-vacias-${producto.id}`}
+                                                type="number"
+                                                min="0"
+                                                placeholder="0"
+                                                value={(formProduct.unidadesVacias ?? 0) === 0 ? "" : (formProduct.unidadesVacias ?? 0).toString()}
+                                                onChange={(e) => {
+                                                  const value = e.target.value;
+                                                  handleProductChange(
+                                                    producto.id,
+                                                    'unidadesVacias',
+                                                    value === "" ? 0 : parseInt(value) || 0,
+                                                    true
+                                                  );
+                                                }}
+                                                className="w-full border-blue-200 focus:border-blue-500"
+                                              />
+                                            </div>
                                           </div>
+                                        ) : (
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            value={(formProduct.cantidadVacios ?? 0) === 0 ? "" : (formProduct.cantidadVacios ?? 0).toString()}
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              handleProductChange(
+                                                producto.id,
+                                                'cantidadVacios',
+                                                value === "" ? 0 : parseInt(value) || 0
+                                              );
+                                            }}
+                                            className="w-full"
+                                            size="sm"
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="p-2">
+                                        {faltantes > 0 ? (
+                                          <div className="text-red-600">
+                                            {faltantes} unidades
                                         </div>
-                                      ) : (
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={formProduct.cantidadVacios?.toString() || "0"}
-                                          onChange={(e) => handleProductChange(producto.id, 'cantidadVacios', parseInt(e.target.value) || 0)}
-                                          className="w-full"
-                                          size="sm"
-                                        />
-                                      )}
-                                    </td>
-                                    <td className="p-2">
-                                      {faltantes > 0 ? (
-                                        <div className="text-red-600">
-                                          {faltantes} unidades
-                                      </div>
-                                      ) : (
-                                        <div className="text-gray-500">
-                                          {faltantes} unidades
-                                        </div>
-                                      )}
-                                    </td>
-                                  </>
-                                )}
-                              </tr>
-                            );
-                          })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                                        ) : (
+                                          <div className="text-gray-500">
+                                            {faltantes} unidades
+                                          </div>
+                                        )}
+                                      </td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="mt-6 text-center text-gray-500">
+                    Selecciona una carga pendiente para ver los productos.
+                  </div>
+                )}
 
-                <div className="mb-4">
-                  <Select
-                    label="Agregar otro producto"
-                    placeholder={productos.filter(p => !productosSeleccionados.includes(p.id)).length === 0 
-                      ? "No hay productos para agregar" 
-                      : "Seleccionar producto adicional"}
-                    onChange={(e) => handleAgregarProducto(e.target.value)}
-                  >
-                    {(!isCarga ? productos : productosAdicionales)
-                      .filter(producto => !productosSeleccionados.includes(producto.id))
-                      .map((producto) => (
-                        <SelectItem 
-                          key={producto.id} 
-                          value={producto.id.toString()}
-                        >
-                          {producto.nombreProducto}
-                        </SelectItem>
-                      ))
-                    }
-                  </Select>
-                </div>
+                {isCarga || cargaSeleccionada ? (
+                  <div className="mb-4">
+                    <Select
+                      label="Agregar otro producto"
+                      placeholder={productos.filter(p => !productosSeleccionados.includes(p.id)).length === 0 
+                        ? "No hay productos para agregar" 
+                        : "Seleccionar producto adicional"}
+                      onChange={(e) => handleAgregarProducto(e.target.value)}
+                    >
+                      {(!isCarga ? productos : productosAdicionales)
+                        .filter(producto => !productosSeleccionados.includes(producto.id))
+                        .map((producto) => (
+                          <SelectItem 
+                            key={producto.id} 
+                            value={producto.id.toString()}
+                          >
+                            {producto.nombreProducto}
+                          </SelectItem>
+                        ))
+                      }
+                    </Select>
+                  </div>
+                ) : null}
 
                 <div className="mt-6">
                   <Button type="submit" className="w-full">
@@ -1196,9 +1330,11 @@ const ControlCargaPage = () => {
                 <p className="text-sm text-gray-600">
                     Fecha: <span className="font-medium">{formatearFecha(formData.fecha)}</span>
                 </p>
-                <p className="text-sm text-gray-600">
-                    Hora: <span className="font-medium">{formatearHora(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
-                </p>
+                {formData.fecha === today && (
+                  <p className="text-sm text-gray-600">
+                      Hora: <span className="font-medium">{formatearHora(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
+                  </p>
+                )}
               </ModalBody>
               <ModalFooter>
                 <Button color="danger" variant="light" onPress={onClose}>
@@ -1342,6 +1478,33 @@ const ControlCargaPage = () => {
                 </Button>
                 <Button color="primary" onPress={cambiarModo}>
                   Confirmar
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal 
+        isOpen={isModalEliminarCargaOpen} 
+        onOpenChange={setIsModalEliminarCargaOpen}
+        size="sm"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                Confirmar eliminación
+              </ModalHeader>
+              <ModalBody>
+                <p>¿Estás seguro que deseas eliminar esta carga pendiente?</p>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>
+                  Cancelar
+                </Button>
+                <Button color="primary" onPress={confirmarEliminarCarga}>
+                  Eliminar
                 </Button>
               </ModalFooter>
             </>

@@ -56,7 +56,12 @@ export const SideBar = () => {
           <div id="menu" className="flex flex-col self-end space-y-2">
             <Link
               href="/home"
-              className="justify-center px-2 py-2 text-gray-700 align-middle rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:text-base"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/home"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
             >
               <svg
                 className="inline-block w-6 h-6 fill-current"
@@ -72,7 +77,12 @@ export const SideBar = () => {
             </Link>
             <Link
               href="/clientes"
-              className="px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/clientes"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
             >
               <svg
                 className="inline-block w-6 h-6 fill-current"
@@ -88,7 +98,12 @@ export const SideBar = () => {
             </Link>
             <Link
               href="/productos"
-              className="px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/productos"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="inline-block w-6 h-6 fill-current">
                 <path d="M12.378 1.602a.75.75 0 0 0-.756 0L3 6.632l9 5.25 9-5.25-8.622-5.03ZM21.75 7.93l-9 5.25v9l8.628-5.032a.75.75 0 0 0 .372-.648V7.93ZM11.25 22.18v-9l-9-5.25v8.57a.75.75 0 0 0 .372.648l8.628 5.033Z" />
@@ -99,11 +114,15 @@ export const SideBar = () => {
 
             <Link
               href="/ventas"
-              className="px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out  hover:bg-teal-500 hover:text-white hover:scale-105"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/ventas"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
             >
               <svg
                 className="inline-block w-6 h-6 fill-current"
-
                 fill="currentColor"
                 viewBox="0 0 20 20"
                 xmlns="http://www.w3.org/2000/svg"
@@ -116,19 +135,24 @@ export const SideBar = () => {
             </Link>
 
             <Link
-              href="/ventas/repartidores-donjavier/control-carga"
-              className="flex hidden items-center px-2 py-2 text-sm font-medium text-gray-700 rounded-md transition duration-150 ease-in-out hover:bg-teal-500 hover:text-white hover:scale-105"
+              href="/metricas"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/metricas"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-6">
-                <path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25ZM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 1 1 6 0h3a.75.75 0 0 0 .75-.75V15Z" />
-                <path d="M8.25 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0ZM15.75 6.75a.75.75 0 0 0-.75.75v11.25c0 .087.015.17.042.248a3 3 0 0 1 5.958.464c.853-.175 1.522-.935 1.464-1.883a18.659 18.659 0 0 0-3.732-10.104 1.837 1.837 0 0 0-1.47-.725H15.75Z" />
-                <path d="M19.5 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z" />
+              <svg
+                className="inline-block w-6 h-6 fill-current"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zm6-4a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1h-2a1 1 0 01-1-1V7zm6-6a1 1 0 011-1h2a1 1 0 011 1v16a1 1 0 01-1 1h-2a1 1 0 01-1-1V1z" />
               </svg>
-
-
-              <span className="pl-2" style={{ fontSize: '1.1rem' }}>Carga - <br /> Descarga</span>
+              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Métricas</span>
             </Link>
-
 
             <Link
               href="https://api.whatsapp.com/send?phone=5493517552258"
@@ -151,10 +175,9 @@ export const SideBar = () => {
                   style={{ transition: 'fill 0.3s ease-in-out' }}
                 />
               </svg>
+
               <span className="pl-2 text-lg">Contactar a Soporte</span>
             </Link>
-
-
 
             <div className="mt-auto">
               <button

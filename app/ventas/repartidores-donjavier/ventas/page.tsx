@@ -105,12 +105,6 @@ const VentasDonjavier = () => {
       start.setFullYear(start.getFullYear() - 1); // Un año atrás
     }
 
-    console.log('Rango de fechas calculado:', {
-      days,
-      start: start.toISOString(),
-      end: end.toISOString()
-    });
-
     return {
       startDate: start,
       endDate: end,
@@ -152,7 +146,6 @@ const VentasDonjavier = () => {
       }
       
       const data = await response.json();
-      console.log('Datos de descargas obtenidos:', data);
       setProcesosFiltrados(data);
       
     } catch (error) {
@@ -175,7 +168,6 @@ const VentasDonjavier = () => {
       }
       
       const data = await response.json();
-      console.log('Datos de ventas cerradas obtenidos:', data);
       
       if (data.success && data.ventas_cerradas) {
         setVentasCerradas(data.ventas_cerradas);
@@ -234,8 +226,6 @@ const VentasDonjavier = () => {
     setFechaInicio(range.startDate);
     setFechaFin(range.endDate);
   }, [periodoSeleccionado]);
-
-  console.log('Valor seleccionado:', repartidorSeleccionado);
 
   // Función para calcular el total de ventas de todos los procesos
   const calcularTotalVenta = () => {
@@ -345,6 +335,31 @@ const VentasDonjavier = () => {
     }
   };
 
+  const getVentaGroupStyle = (venta: VentaCerrada, index: number, ventas: VentaCerrada[]) => {
+    if (!venta.grupo_cierre) return '';
+
+    const prevVenta = index > 0 ? ventas[index - 1] : null;
+    const nextVenta = index < ventas.length - 1 ? ventas[index + 1] : null;
+
+    const isFirstInGroup = !prevVenta || prevVenta.grupo_cierre !== venta.grupo_cierre;
+    const isLastInGroup = !nextVenta || nextVenta.grupo_cierre !== venta.grupo_cierre;
+
+    let borderClasses = 'border-2 border-green-500 ';
+
+    if (isFirstInGroup && isLastInGroup) {
+      // Solo una venta en el grupo
+      return borderClasses + 'rounded-lg';
+    } else if (isFirstInGroup) {
+      // Primera del grupo
+      return borderClasses + 'rounded-t-lg border-b-0';
+    } else if (isLastInGroup) {
+      // Última del grupo
+      return borderClasses + 'rounded-b-lg border-t-0';
+    }
+    // Intermedia
+    return borderClasses + 'border-t-0 border-b-0';
+  };
+
   return (
     <div className="p-4 mx-auto space-y-4 max-w-[1400px]">
         <Card className="p-4 w-full">
@@ -366,82 +381,6 @@ const VentasDonjavier = () => {
               ))}
             </Tabs>
           </div>
-{/* 
-            <div className="space-y-2">
-              <h5 className="text-sm font-medium text-gray-700">Período de tiempo</h5>
-              <div className="flex flex-wrap gap-2 items-center">
-                <div className="inline-flex items-center font-medium rounded-tremor-small text-tremor-default shadow-tremor-input dark:shadow-dark-tremor-input">
-                {options.map((item, index) => (
-                  <Tooltip.Provider key={index}>
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setPeriodoSeleccionado(item.days)}
-                          className={cx(
-                            index === 0
-                              ? 'rounded-l-tremor-small'
-                              : index === options.length - 1
-                                ? '-ml-px rounded-r-tremor-small'
-                                : '-ml-px',
-                            focusInput,
-                              'border border-tremor-border bg-tremor-background px-3 py-1.5 text-sm text-tremor-content-strong hover:bg-tremor-background-muted hover:text-tremor-content-strong focus:z-10 focus:outline-none dark:border-dark-tremor-border dark:bg-dark-tremor-background dark:text-dark-tremor-content-strong hover:dark:bg-dark-tremor-background/50',
-                              periodoSeleccionado === item.days && 'bg-tremor-background-muted text-primary border-primary'
-                          )}
-                        >
-                          {item.label}
-                        </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Portal>
-                        <Tooltip.Content
-                          side="top"
-                          sideOffset={8}
-                          className="z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded-md"
-                        >
-                            {getDateRange(item.days).formattedRange}
-                          <Tooltip.Arrow className="fill-gray-900" />
-                        </Tooltip.Content>
-                      </Tooltip.Portal>
-                    </Tooltip.Root>
-                  </Tooltip.Provider>
-                ))}
-              </div>
-                <Button 
-                  size="sm"
-                  variant="light"
-                  onClick={() => {
-                    setPeriodoSeleccionado(-1);
-                    setFechaInicio(new Date(0));
-                    setFechaFin(new Date());
-                  }}
-                >
-                  Mostrar Todo
-                </Button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="fechaInicio" className="block mb-1 text-sm font-medium text-gray-700">Fecha Inicio</label>
-                <input
-                  id="fechaInicio"
-                  type="date"
-                  value={fechaInicio.toISOString().split('T')[0]}
-                  onChange={(e) => setFechaInicio(new Date(e.target.value))}
-                  className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
-              <div>
-                <label htmlFor="fechaFin" className="block mb-1 text-sm font-medium text-gray-700">Fecha Fin</label>
-                <input
-                  id="fechaFin"
-                  type="date"
-                  value={fechaFin.toISOString().split('T')[0]}
-                  onChange={(e) => setFechaFin(new Date(e.target.value))}
-                  className="p-2 w-full text-sm rounded border focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
-            </div> */}
 
           {loading && (
             <div className="flex justify-center items-center py-2">

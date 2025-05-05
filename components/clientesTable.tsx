@@ -145,10 +145,10 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       }
 
       const data = await response.json();
-      console.log('Datos recibidos:', data);
+      // console.log('Datos recibidos:', data);
       // Verificar la estructura de los envases prestados
       if (data && data.length > 0) {
-        console.log('Estructura de envases prestados del primer cliente:', data[0].envases_prestados);
+        // console.log('Estructura de envases prestados del primer cliente:', data[0].envases_prestados);
       }
       setUsers(data);
     } catch (error) {

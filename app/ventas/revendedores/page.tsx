@@ -29,8 +29,8 @@ interface BudgetResume {
 }
 
 interface Revendedor {
-  id: string;
-  name: string;
+  id: number;
+  nombre: string;
 }
 
 interface VentaData {
@@ -75,6 +75,7 @@ export default function NuevaVenta() {
   const [showPDF, setShowPDF] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [revendedores, setRevendedores] = useState<Revendedor[]>([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -91,7 +92,7 @@ export default function NuevaVenta() {
         // console.log('Respuesta recibida del servidor:', data);
 
         const filteredProducts = data
-          .filter((producto: { id: number }) => [1, 2, 4].includes(producto.id))
+          .filter((producto: { id: number }) => [8, 9].includes(producto.id))
           .map((producto: {
             id: number;
             nombreProducto: string;
@@ -128,6 +129,17 @@ export default function NuevaVenta() {
     };
 
     fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+    fetch(`${API_URL}/api/revendedores`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setRevendedores(data.revendedores);
+        else setRevendedores([]);
+      })
+      .catch(() => setRevendedores([]));
   }, []);
 
   const handleAddProduct = (productId: string) => {
@@ -264,17 +276,17 @@ export default function NuevaVenta() {
       setIsGeneratingPDF(true);
 
       // Obtener el nombre del revendedor seleccionado
-      const revendedorNombre = revendedoresData.revendedores[parseInt(selectedRevendedor)];
+      const revendedorSeleccionado = revendedores.find(r => r.id === parseInt(selectedRevendedor));
       
-      if (!revendedorNombre) {
-        throw new Error('Revendedor no seleccionado');
+      if (!revendedorSeleccionado) {
+        throw new Error('Revendedor no encontrado');
       }
 
       // Preparar los productos en el formato requerido
       const productosFormateados = products
         .filter(p => p.quantity > 0)
         .map(p => ({
-          producto_id: `prod-${p.id}`,
+          producto_id: p.id.toString(),
           cantidad: p.quantity,
           precio_unitario: p.precioRevendedor.toFixed(2),
           subtotal: (p.precioRevendedor * p.quantity).toFixed(2)
@@ -282,7 +294,7 @@ export default function NuevaVenta() {
 
       // Preparar datos para la API
       const ventaData = {
-        revendedor_nombre: revendedorNombre,
+        revendedor_nombre: revendedorSeleccionado.nombre,
         repartidor_id: "",
         productos: productosFormateados,
         monto_total: products
@@ -303,8 +315,8 @@ export default function NuevaVenta() {
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Error al guardar la venta en la base de datos: ${response.status} ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al guardar la venta');
       }
 
       const savedVenta = await response.json();
@@ -340,7 +352,7 @@ export default function NuevaVenta() {
       pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight, undefined, 'FAST');
 
       // Guardar el PDF
-      pdf.save(`Venta-Revendedor-${revendedorNombre}-${formatDate(selectedDate)}.pdf`);
+      pdf.save(`Venta-Revendedor-${revendedorSeleccionado.nombre}-${formatDate(selectedDate)}.pdf`);
       console.log("PDF generado");
 
       // Mostrar alerta de éxito
@@ -456,9 +468,9 @@ export default function NuevaVenta() {
                     onChange={(value) => setSelectedRevendedor(value)}
                     options={[
                       { value: "", label: "Elegir un revendedor" },
-                      ...revendedoresData.revendedores.map((revendedor, index) => ({
-                        value: index.toString(),
-                        label: revendedor
+                      ...revendedores.map((rev) => ({
+                        value: rev.id.toString(),
+                        label: rev.nombre
                       }))
                     ]}
                     placeholder="Selecciona un revendedor"
@@ -677,7 +689,7 @@ export default function NuevaVenta() {
       {/* Asegurarnos de que PDFContent esté montado cuando isGeneratingPDF es true */}
       {(isGeneratingPDF || showPDF) && (
         <PDFContent
-          selectedRevendedorName={selectedRevendedorName}
+          selectedRevendedorName={revendedores.find(r => r.id === parseInt(selectedRevendedor))?.nombre || 'Revendedor no seleccionado'}
           selectedDate={selectedDate}
           products={products}
           formatDate={formatDate}

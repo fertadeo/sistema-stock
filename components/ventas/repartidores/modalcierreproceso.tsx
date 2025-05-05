@@ -293,7 +293,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                           <span>$</span>
                           <input
                             type="text"
-                            value={montoEfectivoRecaudado ? formatearNumero(montoEfectivoRecaudado) : '0'}
+                            value={montoEfectivoRecaudado === 0 ? '' : formatearNumero(montoEfectivoRecaudado)}
                             onChange={(e) => {
                               if (proceso?.estado_cuenta !== 'finalizado') {
                                 const valorLimpio = limpiarFormato(e.target.value);
@@ -303,6 +303,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             className={`p-2 w-full text-right rounded border ${
                               proceso?.estado_cuenta === 'finalizado' ? 'bg-gray-100 cursor-not-allowed' : ''
                             }`}
+                            placeholder="0"
                             readOnly={proceso?.estado_cuenta === 'finalizado'}
                           />
                         </div>
@@ -310,13 +311,14 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                           <span>$</span>
                           <input
                             type="text"
-                            value={montoTransferencia ? formatearNumero(montoTransferencia) : '0'}
+                            value={montoTransferencia === 0 ? '' : formatearNumero(montoTransferencia)}
                             onChange={(e) => {
                               if (proceso?.estado_cuenta !== 'finalizado') {
                                 const valorLimpio = limpiarFormato(e.target.value);
                                 setMontoTransferencia(valorLimpio);
                               }
                             }}
+                            placeholder="0"
                             className={`p-2 w-full text-right rounded border ${
                               proceso?.estado_cuenta === 'finalizado' ? 'bg-gray-100 cursor-not-allowed' : ''
                             }`}

@@ -90,11 +90,13 @@ const TableProcesos = ({ procesosFiltrados, loading, onSelectProceso, setModalAb
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className={`font-medium ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-500' : ''}`}>
-                      {formatearFecha(proceso.fecha_descarga)}
+                    <span className={`font-medium text-green-600`}>
+                      Carga: {formatearFecha(proceso.fecha_carga)}
+                      <span className="ml-1 text-xs">{formatearHora(proceso.fecha_carga)}</span>
                     </span>
-                    <span className={`text-sm ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {formatearHora(proceso.fecha_descarga)}
+                    <span className={`font-medium text-red-600`}>
+                      Descarga: {formatearFecha(proceso.fecha_descarga)}
+                      <span className="ml-1 text-xs">{formatearHora(proceso.fecha_descarga)}</span>
                     </span>
                   </div>
                 </TableCell>

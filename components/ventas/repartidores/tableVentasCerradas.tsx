@@ -64,30 +64,51 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   };
 
   useEffect(() => {
-    const ventasFiltradas = ventasCerradas.filter(venta => {
-      const fechaVenta = new Date(venta.fecha_cierre);
-      const cumpleFechaInicio = !filtros.fechaInicio || fechaVenta >= new Date(filtros.fechaInicio);
-      const cumpleFechaFin = !filtros.fechaFin || fechaVenta <= new Date(filtros.fechaFin);
-      const cumpleEstadoBalance = 
-        filtros.estadoBalance === 'todos' ||
-        (filtros.estadoBalance === 'alDia' && parseNumber(venta.balance_fiado) >= 0) ||
-        (filtros.estadoBalance === 'conDeuda' && parseNumber(venta.balance_fiado) < 0);
+    const ventasFiltradas = ventasCerradas
+      .filter(venta => {
+        const fechaVenta = new Date(venta.fecha_cierre);
+        // Ajustar las fechas de inicio y fin para incluir el día completo
+        const fechaInicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
+        const fechaFin = filtros.fechaFin ? new Date(filtros.fechaFin) : null;
+        
+        if (fechaFin) {
+          fechaFin.setHours(23, 59, 59, 999); // Establecer al final del día
+        }
+        if (fechaInicio) {
+          fechaInicio.setHours(0, 0, 0, 0); // Establecer al inicio del día
+        }
 
-      return cumpleFechaInicio && cumpleFechaFin && cumpleEstadoBalance;
-    });
+        const cumpleFechaInicio = !fechaInicio || fechaVenta >= fechaInicio;
+        const cumpleFechaFin = !fechaFin || fechaVenta <= fechaFin;
+        const cumpleEstadoBalance = 
+          filtros.estadoBalance === 'todos' ||
+          (filtros.estadoBalance === 'alDia' && parseNumber(venta.balance_fiado) >= 0) ||
+          (filtros.estadoBalance === 'conDeuda' && parseNumber(venta.balance_fiado) < 0);
+
+        return cumpleFechaInicio && cumpleFechaFin && cumpleEstadoBalance;
+      })
+      .sort((a, b) => {
+        if (a.grupo_cierre === b.grupo_cierre) {
+          return new Date(a.fecha_cierre).getTime() - new Date(b.fecha_cierre).getTime();
+        }
+        if (!a.grupo_cierre) return 1;
+        if (!b.grupo_cierre) return -1;
+        return a.grupo_cierre.localeCompare(b.grupo_cierre);
+      });
 
     setVentasFiltradas(ventasFiltradas);
 
-    // Calcular totales asegurando que trabajamos con números
     setTotales({
       ventasTotal: ventasFiltradas.reduce((sum, venta) => sum + parseNumber(venta.total_venta), 0),
-      balanceTotal: ventasFiltradas.reduce((sum, venta) => {
-        const totalVenta = parseNumber(venta.total_venta);
-        const montoEfectivo = parseNumber(venta.monto_efectivo);
-        const montoTransferencia = parseNumber(venta.monto_transferencia);
-        const totalRecaudado = montoEfectivo + montoTransferencia;
-        return sum + (totalRecaudado - totalVenta);
-      }, 0),
+      balanceTotal: ventasFiltradas
+        .filter(venta => venta.estado !== 'Finalizado')
+        .reduce((sum, venta) => {
+          const totalVenta = parseNumber(venta.total_venta);
+          const montoEfectivo = parseNumber(venta.monto_efectivo);
+          const montoTransferencia = parseNumber(venta.monto_transferencia);
+          const totalRecaudado = montoEfectivo + montoTransferencia;
+          return sum + (totalRecaudado - totalVenta);
+        }, 0),
       cantidadVentas: ventasFiltradas.length
     });
   }, [ventasCerradas, filtros]);
@@ -99,7 +120,38 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         .map(venta => venta.id.toString());
       setSelectedKeys(new Set(pendientesIds));
     } else if (selection instanceof Set) {
-      setSelectedKeys(selection as Set<string>);
+      // Obtener la última venta seleccionada o deseleccionada
+      const currentKeys = Array.from(selectedKeys).map(String);
+      const newKeys = Array.from(selection).map(String);
+      
+      // Encontrar qué ID cambió (fue añadido o removido)
+      const changedId = currentKeys.length > newKeys.length 
+        ? currentKeys.find(id => !newKeys.includes(id)) 
+        : newKeys.find(id => !currentKeys.includes(id));
+      
+      if (changedId) {
+        const venta = ventasFiltradas.find(v => v.id.toString() === changedId);
+        if (venta?.grupo_cierre) {
+          // Si la venta pertenece a un grupo
+          const ventasDelMismoGrupo = ventasFiltradas
+            .filter(v => v.grupo_cierre === venta.grupo_cierre)
+            .map(v => v.id.toString());
+          
+          if (currentKeys.length > newKeys.length) {
+            // Si estamos deseleccionando, quitamos todo el grupo
+            setSelectedKeys(new Set(Array.from(selectedKeys)
+              .filter(id => !ventasDelMismoGrupo.includes(id))));
+          } else {
+            // Si estamos seleccionando, añadimos todo el grupo
+            setSelectedKeys(new Set([...Array.from(selectedKeys), ...ventasDelMismoGrupo]));
+          }
+        } else {
+          // Si no pertenece a un grupo, mantener la selección normal
+          setSelectedKeys(selection as Set<string>);
+        }
+      } else {
+        setSelectedKeys(selection as Set<string>);
+      }
     } else {
       setSelectedKeys(new Set());
     }
@@ -112,11 +164,9 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   const handleFinalizarSeleccionados = async () => {
     try {
       const ventasSeleccionadas = getVentasSeleccionadas();
-      console.log('Ventas seleccionadas para finalizar:', ventasSeleccionadas);
       
       const promises = ventasSeleccionadas.map(venta => {
         const url = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/${venta.id}/finalizar`;
-        console.log('Enviando petición a:', url);
         
         return fetch(url, {
           method: 'PUT',
@@ -125,24 +175,20 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
           }
         }).then(async response => {
           const data = await response.json();
-          console.log(`Respuesta para venta ${venta.id}:`, data);
           return data;
         });
       });
 
       const resultados = await Promise.all(promises);
-      console.log('Resultados de todas las peticiones:', resultados);
       
       // Verificar si todas las peticiones fueron exitosas
       const todasExitosas = resultados.every(result => result.success);
       if (todasExitosas) {
         setSelectedKeys(new Set()); // Limpiar selección
         // Aquí podrías actualizar la lista de ventas o emitir un evento para recargar los datos
-      } else {
-        console.error('Algunas peticiones fallaron:', resultados.filter(result => !result.success));
       }
     } catch (error) {
-      console.error('Error al finalizar las rendiciones:', error);
+      // console.error('Error al finalizar las rendiciones:', error);
     }
   };
 
@@ -151,10 +197,39 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
     const ventas = ventasFiltradas.filter(venta => 
       selectedKeys.has(venta.id.toString())
     );
-    console.log('Ventas filtradas:', ventasFiltradas.map(v => ({ id: v.id, estado: v.estado })));
-    console.log('Keys seleccionadas:', selectedKeys);
-    console.log('Ventas seleccionadas:', ventas.map(v => ({ id: v.id, estado: v.estado })));
     return ventas;
+  };
+
+  // Función para determinar si una venta es la primera o última de su grupo
+  const getVentaGroupStyle = (venta: VentaCerrada, index: number, ventas: VentaCerrada[]) => {
+    if (!venta.grupo_cierre) return '';
+
+    const prevVenta = index > 0 ? ventas[index - 1] : null;
+    const nextVenta = index < ventas.length - 1 ? ventas[index + 1] : null;
+
+    const isFirstInGroup = !prevVenta || prevVenta.grupo_cierre !== venta.grupo_cierre;
+    const isLastInGroup = !nextVenta || nextVenta.grupo_cierre !== venta.grupo_cierre;
+
+    const classes = ['relative', 'border-l-2', 'border-r-2', 'border-green-500/30', 'bg-green-50/30'];
+
+    if (isFirstInGroup) {
+      classes.push('border-t-2', 'rounded-t-[15px]');
+    }
+    if (isLastInGroup) {
+      classes.push('border-b-2', 'rounded-b-[15px]');
+    }
+
+    return classes.join(' ');
+  };
+
+  const handleRowClick = (venta: VentaCerrada) => {
+    if (venta.grupo_cierre && venta.estado === 'Finalizado') {
+      const ventasDelMismoGrupo = ventasFiltradas.filter(v => 
+        v.grupo_cierre === venta.grupo_cierre
+      );
+      setSelectedKeys(new Set(ventasDelMismoGrupo.map(v => v.id.toString())));
+      setIsModalOpen(true);
+    }
   };
 
   return (
@@ -229,14 +304,13 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
             selectedKeys={selectedKeys}
             onSelectionChange={handleSelectionChange}
             disabledKeys={new Set(ventasFiltradas
-              .filter(venta => (venta as any).estado === 'Finalizado')
+              .filter(venta => venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === ''))
               .map(venta => venta.id.toString()))}
             classNames={{
               base: "min-w-full",
               th: "bg-default-100",
               td: "cursor-pointer",
-              tr: "transition-colors hover:bg-gray-50",
-              tbody: "divide-y divide-gray-200"
+              tr: "transition-colors hover:bg-gray-50"
             }}
           >
             <TableHeader>
@@ -254,55 +328,84 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
               items={ventasFiltradas}
               emptyContent={"No hay ventas por administrar en caja"}
             >
-              {(venta) => (
-                <TableRow key={venta.id.toString()}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">#{venta.proceso_id}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{new Date(venta.fecha_cierre).toLocaleDateString()}</TableCell>
-                  <TableCell>{venta.repartidor.nombre}</TableCell>
-                  <TableCell>
-                    ${parseNumber(venta.total_venta).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    ${parseNumber(venta.monto_efectivo).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    ${parseNumber(venta.monto_transferencia).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`${venta.estado === 'Finalizado' 
-                      ? 'text-gray-500' 
-                      : calcularBalance(venta) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${calcularBalance(venta).toFixed(2)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      venta.estado === 'Finalizado' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {venta.estado}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      color="primary"
-                      onClick={() => {
-                        setSelectedKeys(new Set([venta.id.toString()]));
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      Ver Detalle
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )}
+              {(venta) => {
+                const index = ventasFiltradas.indexOf(venta);
+                return (
+                  <TableRow 
+                    key={venta.id.toString()}
+                    className={getVentaGroupStyle(venta, index, ventasFiltradas)}
+                    onClick={() => handleRowClick(venta)}
+                  >
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">#{venta.proceso_id}</span>
+                        {venta.grupo_cierre && (
+                          <div className="flex gap-1 items-center text-xs text-gray-500">
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                            Grupo {new Date(venta.grupo_cierre).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        {venta.fecha_carga ? (
+                          <span className="font-medium text-green-600">
+                            Carga: {new Date(venta.fecha_carga).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_carga).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </span>
+                        ) : null}
+                        <span className="font-medium text-red-600">
+                          Descarga: {new Date(venta.fecha_cierre).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_cierre).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{venta.repartidor.nombre}</TableCell>
+                    <TableCell>
+                      ${parseNumber(venta.total_venta).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      ${parseNumber(venta.monto_efectivo).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      ${parseNumber(venta.monto_transferencia).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`${venta.estado === 'Finalizado' 
+                        ? 'text-gray-500' 
+                        : calcularBalance(venta) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${calcularBalance(venta).toFixed(2)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        venta.estado === 'Finalizado' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {venta.estado}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="primary"
+                        isIconOnly
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Aquí deberías llamar a la función para ver el PDF
+                          // Por ejemplo: verPDF(venta)
+                        }}
+                        title="Ver PDF"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
+                        </svg>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              }}
             </TableBody>
           </Table>
         )}
