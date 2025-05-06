@@ -66,7 +66,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   useEffect(() => {
     const ventasFiltradas = ventasCerradas
       .filter(venta => {
-        const fechaVenta = new Date(venta.fecha_cierre);
+        const fechaVenta = venta.fecha_carga ? new Date(venta.fecha_carga) : new Date(venta.fecha_cierre);
         // Ajustar las fechas de inicio y fin para incluir el día completo
         const fechaInicio = filtros.fechaInicio ? new Date(filtros.fechaInicio) : null;
         const fechaFin = filtros.fechaFin ? new Date(filtros.fechaFin) : null;

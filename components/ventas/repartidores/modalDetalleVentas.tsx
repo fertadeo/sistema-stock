@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Alert } from "@heroui/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Alert, Pagination } from "@heroui/react";
 import { VentaCerrada } from '@/types/ventas';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -25,6 +25,8 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   const [success, setSuccess] = useState<string>("");
   const [showFloatingAlert, setShowFloatingAlert] = useState<boolean>(false);
   const [showInput, setShowInput] = useState<boolean>(true);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 5;
 
   // Limpiar mensajes cuando se cierra el modal
   useEffect(() => {
@@ -81,6 +83,12 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
 
   const totales = calcularTotales();
   const ganancias = calcularGanancias();
+
+  // Calcular las ventas a mostrar en la página actual
+  const ventasPaginadas = ventasSeleccionadas.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
 
   const handleCerrarCaja = async () => {
     setIsLoading(true);
@@ -190,7 +198,12 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
       <Modal 
         isOpen={isOpen} 
         onClose={onClose}
-        size="2xl"
+        size="4xl"
+        classNames={{
+          wrapper: "mt-1",
+          base: "max-h-[90vh] overflow-y-auto",
+          body: "min-h-[800px]"
+        }}
       >
         <ModalContent>
           <div ref={modalContentRef}>
@@ -245,34 +258,47 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                 </div>
 
                 {/* Tabla de detalle */}
-                <Table aria-label="Detalle de Ventas">
-                  <TableHeader>
-                    <TableColumn>ID Proceso</TableColumn>
-                    <TableColumn>Fecha</TableColumn>
-                    <TableColumn>Repartidor</TableColumn>
-                    <TableColumn>Total Venta</TableColumn>
-                    <TableColumn>Efectivo</TableColumn>
-                    <TableColumn>Transferencia</TableColumn>
-                    <TableColumn>Balance</TableColumn>
-                  </TableHeader>
-                  <TableBody>
-                    {ventasSeleccionadas.map((venta) => (
-                      <TableRow key={venta.id}>
-                        <TableCell>#{venta.proceso_id}</TableCell>
-                        <TableCell>{new Date(venta.fecha_cierre).toLocaleDateString()}</TableCell>
-                        <TableCell>{venta.repartidor.nombre}</TableCell>
-                        <TableCell>${Number(venta.total_venta).toFixed(2)}</TableCell>
-                        <TableCell>${Number(venta.monto_efectivo).toFixed(2)}</TableCell>
-                        <TableCell>${Number(venta.monto_transferencia).toFixed(2)}</TableCell>
-                        <TableCell>
-                          <span className={Number(venta.balance_fiado) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            ${Number(venta.balance_fiado).toFixed(2)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="h-[270px] overflow-y-auto">
+                  <Table aria-label="Detalle de Ventas">
+                    <TableHeader>
+                      <TableColumn>ID Proceso</TableColumn>
+                      <TableColumn>Fecha</TableColumn>
+                      <TableColumn>Repartidor</TableColumn>
+                      <TableColumn>Total Venta</TableColumn>
+                      <TableColumn>Efectivo</TableColumn>
+                      <TableColumn>Transferencia</TableColumn>
+                      <TableColumn>Balance</TableColumn>
+                    </TableHeader>
+                    <TableBody>
+                      {ventasPaginadas.map((venta) => (
+                        <TableRow key={venta.id}>
+                          <TableCell>#{venta.proceso_id}</TableCell>
+                          <TableCell>{new Date(venta.fecha_cierre).toLocaleDateString()}</TableCell>
+                          <TableCell>{venta.repartidor.nombre}</TableCell>
+                          <TableCell>${Number(venta.total_venta).toFixed(2)}</TableCell>
+                          <TableCell>${Number(venta.monto_efectivo).toFixed(2)}</TableCell>
+                          <TableCell>${Number(venta.monto_transferencia).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <span className={Number(venta.balance_fiado) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              ${Number(venta.balance_fiado).toFixed(2)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginación */}
+                {ventasSeleccionadas.length > rowsPerPage && (
+                  <div className="flex justify-center mt-4">
+                    <Pagination
+                      total={Math.ceil(ventasSeleccionadas.length / rowsPerPage)}
+                      page={page}
+                      onChange={setPage}
+                    />
+                  </div>
+                )}
 
                 {/* Sección de ganancias */}
                 <div className="mt-6 space-y-4">
@@ -314,9 +340,9 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                         </p>  
                       </div>
                     </div>
-                    <div className="p-4 bg-gray-50 rounded-lg ganancia-fabrica">
+                    <div className="flex flex-col justify-between p-4 h-full bg-gray-50 rounded-lg ganancia-fabrica">
                       <p className="text-sm font-bold text-gray-600">Ganancia Fábrica</p>
-                      <p className="text-xl font-bold text-blue-600">
+                      <p className="mt-auto text-xl font-bold text-blue-600">
                         ${ganancias.gananciaFabrica.toFixed(2)}
                       </p>
                     </div>
@@ -342,24 +368,26 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
               </div>
             </ModalBody>
             <ModalFooter className="flex justify-between items-center">
-              {todasFinalizadas ? (
-                <Button 
-                  color="primary"
-                  onClick={handleDescargarPDF}
-                  isLoading={isLoading}
-                >
-                  {isLoading ? 'Generando PDF...' : 'Descargar PDF'}
-                </Button>
-              ) : (
-                <Button 
-                  color="success"
-                  className="text-white bg-green-600"
-                  onClick={handleCerrarCaja}
-                  isLoading={isLoading}
-                >
-                  {isLoading ? 'Procesando...' : 'Cerrar Caja'}
-                </Button>
-              )}
+              <div>
+                {todasFinalizadas ? (
+                  <Button 
+                    color="primary"
+                    onClick={handleDescargarPDF}
+                    isLoading={isLoading}
+                  >
+                    {isLoading ? 'Generando PDF...' : 'Descargar PDF'}
+                  </Button>
+                ) : (
+                  <Button 
+                    color="success"
+                    className="text-white bg-green-600"
+                    onClick={handleCerrarCaja}
+                    isLoading={isLoading}
+                  >
+                    {isLoading ? 'Procesando...' : 'Cerrar Caja'}
+                  </Button>
+                )}
+              </div>
               <Button 
                 color="danger"
                 variant="light"
