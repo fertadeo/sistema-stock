@@ -385,7 +385,15 @@ const ControlCargaPage = () => {
         }
 
         // Guardar nueva carga
-        const fechaCarga = `${formData.fecha}T${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00`;
+        let fechaCarga;
+        if (formData.fecha === localToday) {
+          // Si es hoy, agrega la hora actual
+          fechaCarga = `${formData.fecha} ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00`;
+        } else {
+          // Si no es hoy, solo la fecha y hora 00:00
+          fechaCarga = `${formData.fecha} 00:00:00`;
+        }
+
         const nuevaCarga = {
           fecha: fechaCarga,
           repartidor_id: repartidorId,
