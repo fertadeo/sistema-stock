@@ -90,6 +90,11 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
     page * rowsPerPage
   );
 
+  // Utilidad para formatear montos
+  const formatMonto = (valor: number) => {
+    return valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+
   const handleCerrarCaja = async () => {
     setIsLoading(true);
     setError("");
@@ -239,21 +244,19 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">Total Ventas</p>
-                    <p className="text-xl font-bold">${totales.totalVenta.toFixed(2)}</p>
+                    <p className="text-xl font-bold">${formatMonto(totales.totalVenta)}</p>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">Total Efectivo</p>
-                    <p className="text-xl font-bold">${totales.totalEfectivo.toFixed(2)}</p>
+                    <p className="text-xl font-bold">${formatMonto(totales.totalEfectivo)}</p>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">Total Transf.</p>
-                    <p className="text-xl font-bold">${totales.totalTransferencia.toFixed(2)}</p>
+                    <p className="text-xl font-bold">${formatMonto(totales.totalTransferencia)}</p>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">Balance Total</p>
-                    <p className={`text-xl font-bold ${totales.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${totales.totalBalance.toFixed(2)}
-                    </p>
+                    <p className={`text-xl font-bold ${totales.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>${formatMonto(totales.totalBalance)}</p>
                   </div>
                 </div>
 
@@ -275,12 +278,12 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                           <TableCell>#{venta.proceso_id}</TableCell>
                           <TableCell>{new Date(venta.fecha_cierre).toLocaleDateString()}</TableCell>
                           <TableCell>{venta.repartidor.nombre}</TableCell>
-                          <TableCell>${Number(venta.total_venta).toFixed(2)}</TableCell>
-                          <TableCell>${Number(venta.monto_efectivo).toFixed(2)}</TableCell>
-                          <TableCell>${Number(venta.monto_transferencia).toFixed(2)}</TableCell>
+                          <TableCell>${formatMonto(Number(venta.total_venta))}</TableCell>
+                          <TableCell>${formatMonto(Number(venta.monto_efectivo))}</TableCell>
+                          <TableCell>${formatMonto(Number(venta.monto_transferencia))}</TableCell>
                           <TableCell>
                             <span className={Number(venta.balance_fiado) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              ${Number(venta.balance_fiado).toFixed(2)}
+                              ${formatMonto(Number(venta.balance_fiado))}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -333,17 +336,17 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm font-bold text-gray-600">Ganancia Repartidor:&nbsp;&nbsp;({porcentajeGanancia}%)</p>
                       <div className="space-y-1">
-                        <p className="text-sm text-gray-500">Ganancia bruta: ${ganancias.gananciaOriginal.toFixed(2)}</p>
-                        <p className="text-sm text-gray-500">Descuento por balance: -${ganancias.descuentoBalance.toFixed(2)}</p>
+                        <p className="text-sm text-gray-500">Ganancia bruta: ${formatMonto(ganancias.gananciaOriginal)}</p>
+                        <p className="text-sm text-gray-500">Descuento por balance: -${formatMonto(ganancias.descuentoBalance)}</p>
                         <p className="text-xl font-bold text-green-600">
-                          Ganancia final:&nbsp;&nbsp;${ganancias.gananciaRepartidor.toFixed(2)}
+                          Ganancia final:&nbsp;&nbsp;${formatMonto(ganancias.gananciaRepartidor)}
                         </p>  
                       </div>
                     </div>
                     <div className="flex flex-col justify-between p-4 h-full bg-gray-50 rounded-lg ganancia-fabrica">
                       <p className="text-sm font-bold text-gray-600">Ganancia Fábrica</p>
                       <p className="mt-auto text-xl font-bold text-blue-600">
-                        ${ganancias.gananciaFabrica.toFixed(2)}
+                        ${formatMonto(ganancias.gananciaFabrica)}
                       </p>
                     </div>
                   </div>
