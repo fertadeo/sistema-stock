@@ -346,19 +346,21 @@ const ControlCargaPage = () => {
       })
     };
 
-    // Validar que haya al menos un producto con cantidad
-    const hayProductoCargado = formData.productos.some(producto => {
+    const palabrasClave = ['sifon', 'soda', 'agua', 'bidón'];
+    const hayProductoDescargado = formData.productos.some(producto => {
       const productoInfo = productos.find(p => p.id === producto.id);
-      const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
-      if (isSifon) {
-        const totalSifon = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
-        return totalSifon > 0;
+      const nombre = productoInfo?.nombreProducto?.toLowerCase() || '';
+      const esPorCajonUnidad = palabrasClave.some(palabra => nombre.includes(palabra));
+      if (esPorCajonUnidad) {
+        const totalLlenos = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
+        const totalVacios = (producto.cajonesVacios || 0) * 6 + (producto.unidadesVacias || 0);
+        return totalLlenos > 0 || totalVacios > 0;
       } else {
-        return (producto.cantidadCarga || 0) > 0;
+        return (producto.cantidadLlenos || 0) > 0 || (producto.cantidadVacios || 0) > 0;
       }
     });
-    if (!hayProductoCargado) {
-      showAlert('Debes cargar al menos un producto');
+    if (!hayProductoDescargado) {
+      showAlert('Debes descargar al menos un producto');
       return;
     }
 
