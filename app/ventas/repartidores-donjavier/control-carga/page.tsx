@@ -80,13 +80,17 @@ interface CargaRepartidor {
 
 const ControlCargaPage = () => {
   const [isCarga, setIsCarga] = useState(true);
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const localToday = `${yyyy}-${mm}-${dd}`;
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [isLoadingRepartidores, setIsLoadingRepartidores] = useState(true);
   const [isLoadingProductos, setIsLoadingProductos] = useState(true);
   const [formData, setFormData] = useState<OrderForm>({
-    fecha: today,
+    fecha: localToday,
     repartidor: '',
     productos: []
   });
@@ -177,23 +181,10 @@ const ControlCargaPage = () => {
         throw new Error(`Error al obtener cargas pendientes: ${response.status}`);
       }
       const data = await response.json();
+      console.log('=== DATOS RECIBIDOS DEL GET DE CARGAS PENDIENTES ===');
+      console.log(data);
+      console.log('==============================================');
       
-      // console.log('=== CARGAS PENDIENTES RECIBIDAS ===');
-      // console.log('Datos completos:', data);
-      // console.log('Cantidad de cargas:', data.length);
-      // data.forEach((carga: CargaRepartidor, index: number) => {
-      //   console.log(`\nCarga #${index + 1}:`);
-      //   console.log('ID:', carga.id);
-      //   console.log('Fecha:', new Date(carga.fecha_carga).toLocaleString());
-      //   console.log('Repartidor:', carga.repartidor.nombre);
-      //   console.log('Items:', carga.items.length);
-      //   console.log('Detalle de items:');
-      //   carga.items.forEach(item => {
-      //     console.log(`  - Producto ID: ${item.producto_id}, Cantidad: ${item.cantidad}`);
-      //   });
-      // });
-      // console.log('===============================');
-
       setCargasPendientes(data);
     } catch (error) {
       console.error('Error al cargar las cargas pendientes:', error);
@@ -253,7 +244,7 @@ const ControlCargaPage = () => {
     setIsCarga(!isCarga);
     // Limpiar el formulario
     setFormData({
-      fecha: today,
+      fecha: localToday,
       repartidor: '',
       productos: productos.map(p => ({
         id: p.id,
@@ -394,26 +385,52 @@ const ControlCargaPage = () => {
         }
 
         // Guardar nueva carga
+        const fechaCarga = `${formData.fecha}T${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00`;
         const nuevaCarga = {
-          fecha: formData.fecha === today ? 
-            `${formData.fecha}T${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00` : 
-            formData.fecha,
+          fecha: fechaCarga,
           repartidor_id: repartidorId,
           items: formData.productos
-            .filter(p => p.cantidadCarga && p.cantidadCarga > 0)
-            .map(p => ({
-              producto_id: p.id,
-              cantidad: p.cantidadCarga
-            })),
+            .filter(p => {
+              const productoInfo = productos.find(prod => prod.id === p.id);
+              const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
+              
+              if (isSifon) {
+                // Para sifones, sumamos cajones y unidades
+                const totalUnidades = (p.cajonesLlenos || 0) * 6 + (p.unidadesLlenas || 0);
+                return totalUnidades > 0;
+              } else {
+                // Para otros productos, usamos cantidadCarga
+                return (p.cantidadCarga || 0) > 0;
+              }
+            })
+            .map(p => {
+              const productoInfo = productos.find(prod => prod.id === p.id);
+              const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
+              
+              if (isSifon) {
+                // Para sifones, calculamos el total de unidades
+                const totalUnidades = (p.cajonesLlenos || 0) * 6 + (p.unidadesLlenas || 0);
+                return {
+                  producto_id: p.id,
+                  cantidad: totalUnidades
+                };
+              } else {
+                // Para otros productos, usamos cantidadCarga
+                return {
+                  producto_id: p.id,
+                  cantidad: p.cantidadCarga || 0
+                };
+              }
+            }),
           estado: "pendiente"
         };
 
-        // console.log('=== DATOS DE LA CARGA A ENVIAR ===');
-        // console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/cargas`);
-        // console.log('Método:', 'POST');
-        // console.log('Headers:', { 'Content-Type': 'application/json' });
-        // console.log('Datos:', JSON.stringify(nuevaCarga, null, 2));
-        // console.log('===============================');
+        console.log('=== DATOS DE LA CARGA A ENVIAR ===');
+        console.log('URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/cargas`);
+        console.log('Método:', 'POST');
+        console.log('Headers:', { 'Content-Type': 'application/json' });
+        console.log('Datos:', JSON.stringify(nuevaCarga, null, 2));
+        console.log('===============================');
 
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas`, {
@@ -612,7 +629,7 @@ const ControlCargaPage = () => {
 
       // Limpiar el formulario después de una operación exitosa
         setFormData({
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: localToday,
           repartidor: '',
           productos: productos.map(p => ({
             id: p.id,
@@ -850,11 +867,15 @@ const ControlCargaPage = () => {
                               className="flex-1"
                             >
                               {cargasPendientes.map(carga => {
+                                const [fechaStr, horaStr] = carga.fecha_carga.split(' ');
+                                // fechaStr: "2025-04-24", horaStr: "23:30:00"
+                                const [anio, mes, dia] = fechaStr.split('-');
+                                const horaFormateada = horaStr ? horaStr.slice(0,5) : '';
+                                const fechaFormateada = `${dia}-${mes}-${anio}`;
                                 const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
-                                const fecha = new Date(carga.fecha_carga);
                                 return (
                                   <SelectItem key={carga.id} value={carga.id.toString()}>
-                                    {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
+                                    {`Carga del ${fechaFormateada} a las ${horaFormateada} - ${totalUnidades} unidades`}
                                   </SelectItem>
                                 );
                               })}
@@ -876,11 +897,13 @@ const ControlCargaPage = () => {
                             <div className="mt-2 space-y-1">
                               {cargasPendientes.map(carga => {
                                 const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
-                                const fecha = new Date(carga.fecha_carga);
+                                const [fechaStr, horaStr] = carga.fecha_carga.split('T');
+                                const fechaFormateada = formatearFecha(fechaStr);
+                                const horaFormateada = horaStr ? horaStr.slice(0,5) : '';
                                 return (
                                   <div key={carga.id} className="flex justify-between items-center px-2 py-1 text-sm bg-gray-50 rounded">
                                     <span>
-                                      {`Carga del ${formatearFecha(fecha.toISOString().split('T')[0])} a las ${formatearHora(fecha.toTimeString())} - ${totalUnidades} unidades`}
+                                      {`Carga del ${fechaFormateada} a las ${horaFormateada} - ${totalUnidades} unidades`}
                                     </span>
                                     <button
                                       type="button"
@@ -1045,7 +1068,6 @@ const ControlCargaPage = () => {
                                                 id={`unidades-carga-${producto.id}`}
                                                 type="number"
                                                 min="0"
-                                                max="5"
                                                 placeholder="0"
                                                 value={(formProduct.unidadesLlenas ?? 0) === 0 ? "" : (formProduct.unidadesLlenas ?? 0).toString()}
                                                 onChange={(e) => {
@@ -1330,7 +1352,7 @@ const ControlCargaPage = () => {
                 <p className="text-sm text-gray-600">
                     Fecha: <span className="font-medium">{formatearFecha(formData.fecha)}</span>
                 </p>
-                {formData.fecha === today && (
+                {formData.fecha === localToday && (
                   <p className="text-sm text-gray-600">
                       Hora: <span className="font-medium">{formatearHora(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}</span>
                   </p>
