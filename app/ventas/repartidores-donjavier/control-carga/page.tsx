@@ -347,7 +347,17 @@ const ControlCargaPage = () => {
     };
 
     // Validar que haya al menos un producto con cantidad
-    if (reporte.productos.length === 0) {
+    const hayProductoCargado = formData.productos.some(producto => {
+      const productoInfo = productos.find(p => p.id === producto.id);
+      const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
+      if (isSifon) {
+        const totalSifon = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
+        return totalSifon > 0;
+      } else {
+        return (producto.cantidadCarga || 0) > 0;
+      }
+    });
+    if (!hayProductoCargado) {
       showAlert('Debes cargar al menos un producto');
       return;
     }
@@ -388,10 +398,11 @@ const ControlCargaPage = () => {
         let fechaCarga;
         if (formData.fecha === localToday) {
           // Si es hoy, agrega la hora actual
-          fechaCarga = `${formData.fecha} ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:00`;
+          const horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          fechaCarga = `${formData.fecha}T${horaActual}:00`;
         } else {
           // Si no es hoy, solo la fecha y hora 00:00
-          fechaCarga = `${formData.fecha} 00:00:00`;
+          fechaCarga = `${formData.fecha}T00:00:00`;
         }
 
         const nuevaCarga = {
