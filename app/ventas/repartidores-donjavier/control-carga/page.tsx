@@ -889,10 +889,9 @@ const ControlCargaPage = () => {
                             >
                               {cargasPendientes.map(carga => {
                                 const [fechaStr, horaStr] = carga.fecha_carga.split(' ');
-                                // fechaStr: "2025-04-24", horaStr: "23:30:00"
                                 const [anio, mes, dia] = fechaStr.split('-');
-                                const horaFormateada = horaStr ? horaStr.slice(0,5) : '';
                                 const fechaFormateada = `${dia}-${mes}-${anio}`;
+                                const horaFormateada = horaStr ? horaStr.slice(0,5) : '';
                                 const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
                                 return (
                                   <SelectItem key={carga.id} value={carga.id.toString()}>
@@ -917,10 +916,11 @@ const ControlCargaPage = () => {
                           {mostrarListaEliminar && cargasPendientes.length > 0 && (
                             <div className="mt-2 space-y-1">
                               {cargasPendientes.map(carga => {
-                                const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
-                                const [fechaStr, horaStr] = carga.fecha_carga.split('T');
-                                const fechaFormateada = formatearFecha(fechaStr);
+                                const [fechaStr, horaStr] = carga.fecha_carga.split(' ');
+                                const [anio, mes, dia] = fechaStr.split('-');
+                                const fechaFormateada = `${dia}-${mes}-${anio}`;
                                 const horaFormateada = horaStr ? horaStr.slice(0,5) : '';
+                                const totalUnidades = carga.items.reduce((sum, item) => sum + item.cantidad, 0);
                                 return (
                                   <div key={carga.id} className="flex justify-between items-center px-2 py-1 text-sm bg-gray-50 rounded">
                                     <span>
