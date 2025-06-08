@@ -419,8 +419,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             onBlur={() => setEditandoPrecioIndex(null)}
                             onKeyDown={async (e) => {
                               if (e.key === 'Enter' &&
-                                  proceso?.estado_cuenta !== 'finalizado' &&
-                                  item.precio_unitario !== preciosOriginales[index]
+                                proceso?.estado_cuenta !== 'finalizado' &&
+                                item.precio_unitario !== preciosOriginales[index]
                               ) {
                                 await actualizarPrecioUnitarioFila(index);
                                 setEditandoPrecioIndex(null);

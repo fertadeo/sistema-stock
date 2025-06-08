@@ -306,7 +306,7 @@ const VentasDonjavier = () => {
     setLoading(true);
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`);
     const data = await response.json();
-    setProcesosFiltrados(data);
+          setProcesosFiltrados(data);
     setLoading(false);
   };
 
