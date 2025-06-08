@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import dynamic from 'next/dynamic';
 
 interface Cliente {
   id: number;
@@ -975,4 +976,7 @@ const PageZonasyRepartos = () => {
   );
 };
 
-export default PageZonasyRepartos;
+// Exportar el componente como dinámico con ssr deshabilitado
+export default dynamic(() => Promise.resolve(PageZonasyRepartos), {
+  ssr: false
+});
