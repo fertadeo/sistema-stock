@@ -25,6 +25,8 @@ interface MapComponentProps {
   onToggleOmitirCliente: (clienteId: number) => void;
   onGenerarRuta: (clientesPersonalizados?: Cliente[]) => Promise<void>;
   onLimpiarRuta: () => void;
+  repartidorSeleccionado?: string;
+  rutaDetallada: [number, number][];
 }
 
 // Coordenadas de la empresa
@@ -58,6 +60,15 @@ const iconDavid = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const iconGris = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
 const center: [number, number] = [-33.1235, -64.3493]; // Río Cuarto
 
 // Fix para los íconos de Leaflet en React
@@ -68,6 +79,10 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const MapComponent: React.FC<MapComponentProps> = ({
   clientes,
   mostrarRuta,
@@ -75,7 +90,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   clientesOmitidos,
   onToggleOmitirCliente,
   onGenerarRuta,
-  onLimpiarRuta
+  onLimpiarRuta,
+  repartidorSeleccionado,
+  rutaDetallada: rutaDetalladaProp
 }) => {
   // Referencia al mapa
   const mapRef = useRef<any>(null);
@@ -84,35 +101,72 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [tempPosition, setTempPosition] = useState<[number, number] | null>(null);
 
+  // Filtrar clientes y rutaOptimizada por repartidor si se pasa la prop
+  const clientesFiltrados = repartidorSeleccionado
+    ? clientes.filter(c => c.repartidor === repartidorSeleccionado || !c.repartidor || c.repartidor.trim() === "")
+    : clientes;
+  const rutaOptimizadaFiltrada = repartidorSeleccionado
+    ? rutaOptimizada.filter(c => c.repartidor === repartidorSeleccionado || !c.repartidor || c.repartidor.trim() === "")
+    : rutaOptimizada;
+
   // Estado para la ruta detallada (siguiendo calles)
-  const [rutaDetallada, setRutaDetallada] = useState<[number, number][]>([]);
+  // const [rutaDetallada, setRutaDetallada] = useState<[number, number][]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Función para obtener la ruta real desde OSRM
-  async function obtenerRutaDetallada(puntos: [number, number][]) {
-    const coords = puntos.map(p => `${p[1]},${p[0]}`).join(';');
-    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.code === 'Ok' && data.routes.length > 0) {
-      // Devuelve un array de [lat, lng]
-      return data.routes[0].geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng]);
+  const obtenerRutaDetallada = async (origen: [number, number], destino: [number, number]) => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${origen[1]},${origen[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      if (response.status === 429) {
+        alert('Has superado el límite de peticiones de rutas de OSRM. Intenta de nuevo en unos segundos o reduce la cantidad de clientes.');
+        return null;
+      }
+      const data = await response.json();
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        return {
+          coordenadas: data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]),
+          distancia: data.routes[0].distance,
+          duracion: data.routes[0].duration
+        };
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error('Error al obtener la ruta detallada:', error);
+      return null;
     }
-    return [];
-  }
+  };
 
   // Actualizar la ruta detallada cuando cambia la ruta optimizada
   useEffect(() => {
-    if (mostrarRuta && rutaOptimizada.length > 1) {
+    if (mostrarRuta && rutaOptimizadaFiltrada.length >= 1) {
       const puntos = [
         EMPRESA_COORDENADAS,
-        ...rutaOptimizada.map(c => [c.latitud, c.longitud] as [number, number]),
+        ...rutaOptimizadaFiltrada.map(c => [c.latitud, c.longitud] as [number, number]),
         EMPRESA_COORDENADAS
       ];
-      obtenerRutaDetallada(puntos).then(setRutaDetallada);
+      obtenerRutaDetallada(puntos[0], puntos[puntos.length - 1]).then((ruta) => {
+        if (ruta) {
+          // setRutaDetallada(ruta.coordenadas);
+        }
+      });
     } else {
-      setRutaDetallada([]);
+      // setRutaDetallada([]);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     }
-  }, [mostrarRuta, rutaOptimizada]);
+  }, [mostrarRuta, rutaOptimizadaFiltrada]);
+
+  // Envolver onLimpiarRuta para limpiar también la rutaDetallada y cancelar fetch
+  const handleLimpiarRuta = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    // setRutaDetallada([]);
+    onLimpiarRuta();
+  };
 
   // Componente para eventos del mapa
   const MapEvents = () => {
@@ -123,6 +177,41 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
     });
     return null;
+  };
+
+  const obtenerRutaCompleta = async (clientes: Cliente[]) => {
+    if (clientes.length === 0) return { coordenadas: [], distancia: 0, tiempo: 0 };
+
+    // Construir el array de puntos: empresa, clientes..., empresa
+    const puntos = [
+      EMPRESA_COORDENADAS,
+      ...clientes.map(c => [c.latitud, c.longitud]),
+      EMPRESA_COORDENADAS
+    ];
+
+    // Construir la URL para OSRM con todos los puntos
+    const coords = puntos.map(p => `${p[1]},${p[0]}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+    try {
+      const response = await fetch(url);
+      if (response.status === 429) {
+        alert('Has superado el límite de peticiones de rutas de OSRM. Intenta de nuevo en unos segundos o reduce la cantidad de clientes.');
+        return { coordenadas: [], distancia: 0, tiempo: 0 };
+      }
+      const data = await response.json();
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        return {
+          coordenadas: data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]),
+          distancia: data.routes[0].distance,
+          tiempo: data.routes[0].duration
+        };
+      }
+      return { coordenadas: [], distancia: 0, tiempo: 0 };
+    } catch (error) {
+      console.error('Error al obtener la ruta completa:', error);
+      return { coordenadas: [], distancia: 0, tiempo: 0 };
+    }
   };
 
   return (
@@ -138,8 +227,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {/* Polyline de la ruta recomendada siguiendo calles */}
-      {mostrarRuta && rutaDetallada.length > 1 && (
-        <Polyline positions={rutaDetallada} color="#FF0000" weight={3} opacity={0.7} />
+      {mostrarRuta && rutaDetalladaProp.length > 1 && (
+        <Polyline positions={rutaDetalladaProp} color="#FF0000" weight={3} opacity={0.7} />
       )}
       {/* Marcador de la empresa */}
       <Marker 
@@ -165,10 +254,34 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const estaOmitido = clientesOmitidos.includes(cliente.id);
         // Determinar el ícono a usar
         let icono = iconAxel; // default
-        if (cliente.repartidor === 'Gustavo Careaga') {
-          icono = iconGustavo;
-        } else if (cliente.repartidor && cliente.repartidor.toLowerCase().includes('david')) {
-          icono = iconDavid;
+        if (repartidorSeleccionado) {
+          // Si hay repartidor seleccionado, solo los de ese repartidor tienen color, el resto gris
+          if (cliente.repartidor === repartidorSeleccionado) {
+            if (cliente.repartidor === 'Axel Torres') {
+              icono = iconAxel;
+            } else if (cliente.repartidor === 'Gustavo Careaga') {
+              icono = iconGustavo;
+            } else if (cliente.repartidor && cliente.repartidor.toLowerCase().includes('david')) {
+              icono = iconDavid;
+            } else {
+              icono = iconAxel; // fallback
+            }
+          } else {
+            icono = iconGris;
+          }
+        } else {
+          // Si no hay repartidor seleccionado, usar color según repartidor
+          if (!cliente.repartidor || cliente.repartidor.trim() === "") {
+            icono = iconGris;
+          } else if (cliente.repartidor === 'Gustavo Careaga') {
+            icono = iconGustavo;
+          } else if (cliente.repartidor && cliente.repartidor.toLowerCase().includes('david')) {
+            icono = iconDavid;
+          } else if (cliente.repartidor === 'Axel Torres') {
+            icono = iconAxel;
+          } else {
+            icono = iconAxel; // fallback
+          }
         }
         // Si el cliente está en edición, el marcador es draggable
         const isEditing = editingClienteId === cliente.id;
@@ -229,6 +342,31 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </Marker>
         );
       })}
+      <div className="p-3 mt-4 bg-gray-50 rounded-lg">
+        <h3 className="mb-2 text-sm font-semibold">Leyenda de repartidores:</h3>
+        <ul className="space-y-2 text-sm">
+          <li className="flex gap-2 items-center">
+            <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+            <span>Axel</span>
+          </li>
+          <li className="flex gap-2 items-center">
+            <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+            <span>Gustavo Careaga</span>
+          </li>
+          <li className="flex gap-2 items-center">
+            <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+            <span>David Schenatti</span>
+          </li>
+          <li className="flex gap-2 items-center">
+            <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
+            <span>Clientes filtrados</span>
+          </li>
+          <li className="flex gap-2 items-center">
+            <div className="w-4 h-4 bg-gray-500 rounded-full"></div>
+            <span>Clientes sin repartidor asignado</span>
+          </li>
+        </ul>
+      </div>
     </MapContainer>
   );
 };

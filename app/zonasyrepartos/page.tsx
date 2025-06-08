@@ -300,7 +300,7 @@ const PageZonasyRepartos = () => {
       if (cliente) {
         const coincideConFiltros = (
           (filtroDia === 'todos' || cliente.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-          (filtroRepartidor === 'todos' || cliente.repartidor === filtroRepartidor) &&
+          (filtroRepartidor === 'todos' || coincideRepartidor(cliente.repartidor, filtroRepartidor)) &&
           (filtroZona === 'todos' || cliente.zona === filtroZona)
         );
         
@@ -324,7 +324,7 @@ const PageZonasyRepartos = () => {
           clientesIncluidos.includes(c.id) ||
           (
             (filtroDia === 'todos' || c.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-            (filtroRepartidor === 'todos' || c.repartidor === filtroRepartidor) &&
+            (filtroRepartidor === 'todos' || coincideRepartidor(c.repartidor, filtroRepartidor)) &&
             (filtroZona === 'todos' || c.zona === filtroZona)
           )
         )
@@ -437,7 +437,7 @@ const PageZonasyRepartos = () => {
           // O cumplen todos los filtros
           || (
             (filtroDia === 'todos' || c.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-            (filtroRepartidor === 'todos' || c.repartidor === filtroRepartidor) &&
+            (filtroRepartidor === 'todos' || coincideRepartidor(c.repartidor, filtroRepartidor)) &&
             (filtroZona === 'todos' || c.zona === filtroZona)
           )
         )
@@ -549,6 +549,17 @@ const PageZonasyRepartos = () => {
     setRutaLista(false);
     setCargandoRuta(false);
   };
+
+  function coincideRepartidor(clienteRepartidor: string, filtroRepartidor: string) {
+    if (!filtroRepartidor || filtroRepartidor === 'todos') return true;
+    if (!clienteRepartidor || clienteRepartidor.trim() === "") return false;
+    // Normalizar para David Schenatti
+    if (
+      filtroRepartidor.toLowerCase().includes('david') &&
+      clienteRepartidor.toLowerCase().includes('david')
+    ) return true;
+    return clienteRepartidor.trim().toLowerCase() === filtroRepartidor.trim().toLowerCase();
+  }
 
   return (
     <>
@@ -667,6 +678,10 @@ const PageZonasyRepartos = () => {
                   <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
                   <span>Clientes filtrados</span>
                 </li>
+                <li className="flex gap-2 items-center">
+                  <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
+                  <span>Clientes sin repartidor asignado</span>
+                </li>
               </ul>
             </div>
           </div>
@@ -690,6 +705,8 @@ const PageZonasyRepartos = () => {
             onToggleOmitirCliente={toggleOmitirCliente}
             onGenerarRuta={generarRutaEnMapa}
             onLimpiarRuta={limpiarRuta}
+            repartidorSeleccionado={filtroRepartidor !== 'todos' ? filtroRepartidor : undefined}
+            rutaDetallada={rutaDetallada}
           />
         </div>
       </div>
