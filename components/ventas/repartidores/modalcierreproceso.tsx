@@ -294,10 +294,12 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
 
       // Cerrar el modal y actualizar los datos
       onClose();
-      // Pequeño retraso para asegurar que el backend haya procesado los cambios
+      if (onProcesoGuardado) {
+        onProcesoGuardado();
+      }
+      // Si quieres, puedes dejar el refetch local para actualizar el modal si se reabre
       setTimeout(async () => {
         await refetchProceso();
-        onProcesoGuardado();
       }, 500);
     } catch (error) {
       console.error('Error:', error);
