@@ -49,14 +49,6 @@ const iconDavid = new L.Icon({
 
 const center: [number, number] = [-33.1235, -64.3493]; // Río Cuarto
 
-// Fix para los íconos de Leaflet en React (por defecto no se ven)
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
-
 // Agrega esta interfaz para el estado de edición
 interface EditingState {
   isEditing: boolean;
@@ -101,6 +93,41 @@ const ConfirmModal = ({ open, onConfirm, onCancel }: { open: boolean, onConfirm:
 };
 
 const PageZonasyRepartos = () => {
+  const [isClient, setIsClient] = useState(false);
+  const [L, setL] = useState<any>(null);
+  const [MapContainer, setMapContainer] = useState<any>(null);
+  const [TileLayer, setTileLayer] = useState<any>(null);
+  const [Marker, setMarker] = useState<any>(null);
+  const [Popup, setPopup] = useState<any>(null);
+  const [useMapEvents, setUseMapEvents] = useState<any>(null);
+  const [Polyline, setPolyline] = useState<any>(null);
+
+  useEffect(() => {
+    // Importar Leaflet solo en el cliente
+    import('leaflet').then((leaflet) => {
+      setL(leaflet.default);
+      // Fix para los íconos de Leaflet en React
+      delete (leaflet.default.Icon.Default.prototype as any)._getIconUrl;
+      leaflet.default.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+    });
+
+    // Importar react-leaflet solo en el cliente
+    import('react-leaflet').then((reactLeaflet) => {
+      setMapContainer(reactLeaflet.MapContainer);
+      setTileLayer(reactLeaflet.TileLayer);
+      setMarker(reactLeaflet.Marker);
+      setPopup(reactLeaflet.Popup);
+      setUseMapEvents(reactLeaflet.useMapEvents);
+      setPolyline(reactLeaflet.Polyline);
+    });
+
+    setIsClient(true);
+  }, []);
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -602,6 +629,17 @@ const PageZonasyRepartos = () => {
     setCargandoRuta(false);
   };
 
+  if (!isClient || !L || !MapContainer) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 rounded-full border-4 border-blue-500 animate-spin border-t-transparent"></div>
+          <p className="mt-4 text-lg text-gray-600">Cargando mapa...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex items-stretch min-h-[95vh] w-full bg-gray-100 rounded-xl p-4">
@@ -813,7 +851,7 @@ const PageZonasyRepartos = () => {
                   position={[cliente.latitud, cliente.longitud]}
                   icon={icono}
                   eventHandlers={{
-                    click: (e) => {
+                    click: (e: any) => {
                       if (!cargandoRuta) {
                         // Cerrar cualquier popup abierto
                         if (mapRef.current) {
@@ -896,7 +934,7 @@ const PageZonasyRepartos = () => {
                 position={selectedPosition}
                 draggable={!cargandoRuta && !mostrarRuta}
                 eventHandlers={{
-                  dragend: async (e) => {
+                  dragend: async (e: any) => {
                     const marker = e.target;
                     const position = marker.getLatLng();
                     setTempPosition([position.lat, position.lng]);
@@ -978,5 +1016,13 @@ const PageZonasyRepartos = () => {
 
 // Exportar el componente como dinámico con ssr deshabilitado
 export default dynamic(() => Promise.resolve(PageZonasyRepartos), {
-  ssr: false
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center min-h-screen">
+      <div className="text-center">
+        <div className="mx-auto w-16 h-16 rounded-full border-4 border-blue-500 animate-spin border-t-transparent"></div>
+        <p className="mt-4 text-lg text-gray-600">Cargando mapa...</p>
+      </div>
+    </div>
+  )
 });
