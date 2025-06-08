@@ -21,34 +21,6 @@ interface Cliente {
 // Coordenadas de la empresa
 const EMPRESA_COORDENADAS: [number, number] = [-33.141709, -64.3634274];
 
-// Íconos personalizados para cada repartidor
-const iconAxel = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-const iconGustavo = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-const iconDavid = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-const center: [number, number] = [-33.1235, -64.3493]; // Río Cuarto
-
 // Agrega esta interfaz para el estado de edición
 interface EditingState {
   isEditing: boolean;
@@ -102,6 +74,11 @@ const PageZonasyRepartos = () => {
   const [useMapEvents, setUseMapEvents] = useState<any>(null);
   const [Polyline, setPolyline] = useState<any>(null);
 
+  // Mover la creación de íconos dentro del useEffect
+  const [iconAxel, setIconAxel] = useState<any>(null);
+  const [iconGustavo, setIconGustavo] = useState<any>(null);
+  const [iconDavid, setIconDavid] = useState<any>(null);
+
   useEffect(() => {
     // Importar Leaflet solo en el cliente
     import('leaflet').then((leaflet) => {
@@ -113,6 +90,34 @@ const PageZonasyRepartos = () => {
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
+
+      // Crear los íconos personalizados
+      setIconAxel(new leaflet.default.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }));
+
+      setIconGustavo(new leaflet.default.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }));
+
+      setIconDavid(new leaflet.default.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }));
     });
 
     // Importar react-leaflet solo en el cliente
@@ -545,6 +550,9 @@ const PageZonasyRepartos = () => {
       alert('Primero debes generar la ruta en el mapa.');
       return;
     }
+
+    if (typeof window === 'undefined') return;
+
     const distancia = distanciaTotal;
     const tiempo = tiempoEstimado;
     const ruta = rutaOptimizada;
@@ -564,17 +572,16 @@ const PageZonasyRepartos = () => {
            Zona: ${cliente.zona}
       `).join('\n')}
     `;
-    if (typeof window !== "undefined") {
-      const blob = new Blob([contenido], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `hoja_ruta_${filtroDia}_${filtroRepartidor}_${new Date().toLocaleDateString()}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }
+
+    const blob = new Blob([contenido], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hoja_ruta_${filtroDia}_${filtroRepartidor}_${new Date().toLocaleDateString()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -629,7 +636,7 @@ const PageZonasyRepartos = () => {
     setCargandoRuta(false);
   };
 
-  if (!isClient || !L || !MapContainer) {
+  if (!isClient || !L || !MapContainer || !iconAxel || !iconGustavo || !iconDavid) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -774,7 +781,7 @@ const PageZonasyRepartos = () => {
         <div className="overflow-hidden flex-1 h-full bg-white rounded-r-xl shadow-lg">
           <MapContainer
             ref={mapRef}
-            center={center}
+            center={EMPRESA_COORDENADAS}
             zoom={13}
             style={{ width: '100%', height: '100%' }}
           >
