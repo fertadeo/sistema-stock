@@ -1,9 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 interface Cliente {
@@ -64,75 +61,12 @@ const ConfirmModal = ({ open, onConfirm, onCancel }: { open: boolean, onConfirm:
   );
 };
 
+const MapComponent = dynamic(() => import('@/components/MapComponent'), {
+  ssr: false
+});
+
 const PageZonasyRepartos = () => {
-  const [isClient, setIsClient] = useState(false);
-  const [L, setL] = useState<any>(null);
-  const [MapContainer, setMapContainer] = useState<any>(null);
-  const [TileLayer, setTileLayer] = useState<any>(null);
-  const [Marker, setMarker] = useState<any>(null);
-  const [Popup, setPopup] = useState<any>(null);
-  const [useMapEvents, setUseMapEvents] = useState<any>(null);
-  const [Polyline, setPolyline] = useState<any>(null);
-
-  // Mover la creación de íconos dentro del useEffect
-  const [iconAxel, setIconAxel] = useState<any>(null);
-  const [iconGustavo, setIconGustavo] = useState<any>(null);
-  const [iconDavid, setIconDavid] = useState<any>(null);
-
-  useEffect(() => {
-    // Importar Leaflet solo en el cliente
-    import('leaflet').then((leaflet) => {
-      setL(leaflet.default);
-      // Fix para los íconos de Leaflet en React
-      delete (leaflet.default.Icon.Default.prototype as any)._getIconUrl;
-      leaflet.default.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      });
-
-      // Crear los íconos personalizados
-      setIconAxel(new leaflet.default.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      }));
-
-      setIconGustavo(new leaflet.default.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      }));
-
-      setIconDavid(new leaflet.default.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      }));
-    });
-
-    // Importar react-leaflet solo en el cliente
-    import('react-leaflet').then((reactLeaflet) => {
-      setMapContainer(reactLeaflet.MapContainer);
-      setTileLayer(reactLeaflet.TileLayer);
-      setMarker(reactLeaflet.Marker);
-      setPopup(reactLeaflet.Popup);
-      setUseMapEvents(reactLeaflet.useMapEvents);
-      setPolyline(reactLeaflet.Polyline);
-    });
-
-    setIsClient(true);
-  }, []);
-
+  // Estados de negocio
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -168,8 +102,6 @@ const PageZonasyRepartos = () => {
 
   // Agregar nuevo estado para clientes incluidos manualmente
   const [clientesIncluidos, setClientesIncluidos] = useState<number[]>([]);
-
-  const mapRef = useRef<any>(null);
 
   // Función para obtener los clientes
   const fetchClientes = async () => {
@@ -537,10 +469,6 @@ const PageZonasyRepartos = () => {
       setClienteAfectado(null);
     }
 
-    if (mapRef.current) {
-      mapRef.current.closePopup();
-    }
-
     setCargandoRuta(false);
   };
 
@@ -604,25 +532,11 @@ const PageZonasyRepartos = () => {
         // Limpiar el estado de edición y cerrar el popup
         setEditingState({ isEditing: false, clienteId: null });
         setSelectedPosition(null);
-        if (mapRef.current) {
-          mapRef.current.closePopup();
-        }
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [mostrarRuta]);
-
-  // Agregar este componente dentro del MapContainer
-  const MapEvents = () => {
-    useMapEvents({
-      click: () => {
-        setEditingState({ isEditing: false, clienteId: null });
-        setSelectedPosition(null);
-      }
-    });
-    return null;
-  };
 
   // Función para limpiar todo el estado de la ruta
   const limpiarRuta = () => {
@@ -635,17 +549,6 @@ const PageZonasyRepartos = () => {
     setRutaLista(false);
     setCargandoRuta(false);
   };
-
-  if (!isClient || !L || !MapContainer || !iconAxel || !iconGustavo || !iconDavid) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 rounded-full border-4 border-blue-500 animate-spin border-t-transparent"></div>
-          <p className="mt-4 text-lg text-gray-600">Cargando mapa...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -779,221 +682,15 @@ const PageZonasyRepartos = () => {
 
         {/* Mapa */}
         <div className="overflow-hidden flex-1 h-full bg-white rounded-r-xl shadow-lg">
-          <MapContainer
-            ref={mapRef}
-            center={EMPRESA_COORDENADAS}
-            zoom={13}
-            style={{ width: '100%', height: '100%' }}
-          >
-            <MapEvents />
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            
-            {/* Línea de la ruta detallada */}
-            {mostrarRuta && rutaDetallada.length > 0 && (
-              <Polyline
-                positions={rutaDetallada}
-                color="#FF0000"
-                weight={3}
-                opacity={0.7}
-              />
-            )}
-            
-            {/* Marcador de la empresa */}
-            <Marker 
-              position={EMPRESA_COORDENADAS}
-              icon={new L.Icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png',
-                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-              })}
-            >
-              <Popup>
-                <div>
-                  <h2 className="font-bold">Soderia</h2>
-                  <p>Punto de partida</p>
-                </div>
-              </Popup>
-            </Marker>
-
-            {/* Marcadores de clientes */}
-            {clientes.map((cliente) => {
-              const coincideConFiltros = (
-                (filtroDia === 'todos' || cliente.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-                (filtroRepartidor === 'todos' || cliente.repartidor === filtroRepartidor) &&
-                (filtroZona === 'todos' || cliente.zona === filtroZona)
-              );
-              
-              const estaIncluido = clientesIncluidos.includes(cliente.id);
-              const estaOmitido = clientesOmitidos.includes(cliente.id);
-              
-              // Determinar el ícono a usar
-              let icono = iconAxel; // default
-              if (cliente.repartidor === 'Gustavo Careaga') {
-                icono = iconGustavo;
-              } else if (cliente.repartidor && cliente.repartidor.toLowerCase().includes('david')) {
-                icono = iconDavid;
-              }
-              
-              // Si no coincide con filtros y no está incluido, usar ícono gris
-              if (!coincideConFiltros && !estaIncluido) {
-                icono = new L.Icon({
-                  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-grey.png',
-                  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-                  iconSize: [25, 41],
-                  iconAnchor: [12, 41],
-                  popupAnchor: [1, -34],
-                  shadowSize: [41, 41]
-                });
-              }
-              
-              return (
-                <Marker 
-                  key={cliente.id} 
-                  position={[cliente.latitud, cliente.longitud]}
-                  icon={icono}
-                  eventHandlers={{
-                    click: (e: any) => {
-                      if (!cargandoRuta) {
-                        // Cerrar cualquier popup abierto
-                        if (mapRef.current) {
-                          mapRef.current.closePopup();
-                        }
-                        setEditingState({ isEditing: true, clienteId: cliente.id });
-                        setSelectedPosition([cliente.latitud, cliente.longitud]);
-                        // Abrir el popup del marcador actual
-                        e.target.openPopup();
-                      }
-                    }
-                  }}
-                >
-                  <Popup>
-                    <div>
-                      <h2 className="font-bold">{cliente.nombre}</h2>
-                      <p><span className="font-semibold">Dirección:</span> {cliente.direccion}</p>
-                      <p><span className="font-semibold">Teléfono:</span> {cliente.telefono}</p>
-                      <p><span className="font-semibold">Zona:</span> {cliente.zona}</p>
-                      <p><span className="font-semibold">Repartidor:</span> {cliente.repartidor}</p>
-                      <p><span className="font-semibold">Día de reparto:</span> {cliente.dia_reparto}</p>
-                      {mostrarRuta && (
-                        <>
-                          <p>
-                            <span className="font-semibold">Orden en ruta:</span>{" "}
-                            {rutaOptimizada.findIndex((c) => c.id === cliente.id) + 1}
-                          </p>
-                          <button
-                            className={`px-3 py-1 mt-2 text-white rounded ${
-                              (!coincideConFiltros && !estaIncluido) ? "bg-green-500 hover:bg-green-600"
-                              : estaOmitido ? "bg-green-500 hover:bg-green-600"
-                              : "bg-red-500 hover:bg-red-600"
-                            }`}
-                            onClick={() => {
-                              if (!coincideConFiltros && !estaIncluido) {
-                                // Incluir directamente, sin alternar omitido
-                                setClientesIncluidos(prev => [...prev, cliente.id]);
-                                setClientesOmitidos(prev => prev.filter(id => id !== cliente.id));
-                              } else if (estaIncluido && !coincideConFiltros && !estaOmitido) {
-                                // Si está incluido manualmente y no omitido, al omitirlo lo quitamos de incluidos y lo agregamos a omitidos
-                                setClientesIncluidos(prev => prev.filter(id => id !== cliente.id));
-                                setClientesOmitidos(prev => [...prev, cliente.id]);
-                              } else {
-                                setClienteAfectado(cliente.id);
-                                toggleOmitirCliente(cliente.id);
-                              }
-                            }}
-                          >
-                            {(!coincideConFiltros && !estaIncluido) ? "Incluir en ruta"
-                              : estaOmitido ? "Incluir en ruta"
-                              : "Omitir de ruta"}
-                          </button>
-                        </>
-                      )}
-                      <button 
-                        className={`px-3 py-1 mt-2 text-white rounded ${
-                          cargandoRuta || mostrarRuta
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-blue-500 hover:bg-blue-600'
-                        }`}
-                        onClick={() => {
-                          if (!(cargandoRuta || mostrarRuta)) {
-                            setEditingState({ isEditing: true, clienteId: cliente.id });
-                            setSelectedPosition([cliente.latitud, cliente.longitud]);
-                          }
-                        }}
-                        disabled={cargandoRuta || mostrarRuta}
-                      >
-                        Editar ubicación
-                      </button>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-            
-            {/* Marcador de edición */}
-            {editingState.isEditing && selectedPosition && (
-              <Marker
-                position={selectedPosition}
-                draggable={!cargandoRuta && !mostrarRuta}
-                eventHandlers={{
-                  dragend: async (e: any) => {
-                    const marker = e.target;
-                    const position = marker.getLatLng();
-                    setTempPosition([position.lat, position.lng]);
-                    // Obtener la dirección al soltar el marcador
-                    const direccion = await obtenerDireccion(position.lat, position.lng);
-                    setTempDireccion(direccion);
-                    setShowConfirmDialog(true);
-                    marker.openPopup();
-                  }
-                }}
-              >
-                <Popup>
-                  <div>
-                    {(!cargandoRuta && !mostrarRuta) && (
-                      <div>
-                        <p className="font-semibold">¿Quieres modificar la ubicación de este cliente?</p>
-                        <p className="mt-2 text-sm text-gray-600">
-                          Nueva ubicación: {tempDireccion}
-                        </p>
-                        <div className="flex gap-2 mt-2">
-                          <button 
-                            className="px-3 py-1 text-white bg-green-500 rounded hover:bg-green-600"
-                            onClick={() => {
-                              if (editingState.clienteId && tempPosition) {
-                                actualizarCoordenadas(editingState.clienteId, tempPosition[0], tempPosition[1]);
-                                setSelectedPosition(tempPosition);
-                                setShowConfirmDialog(false);
-                                setTempPosition(null);
-                                setTempDireccion('');
-                              }
-                            }}
-                          >
-                            Sí, actualizar
-                          </button>
-                          <button 
-                            className="px-3 py-1 text-white bg-red-500 rounded hover:bg-red-600"
-                            onClick={() => {
-                              setShowConfirmDialog(false);
-                              setTempPosition(null);
-                              setTempDireccion('');
-                            }}
-                          >
-                            No, cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-          </MapContainer>
+          <MapComponent
+            clientes={clientes}
+            mostrarRuta={mostrarRuta}
+            rutaOptimizada={rutaOptimizada}
+            clientesOmitidos={clientesOmitidos}
+            onToggleOmitirCliente={toggleOmitirCliente}
+            onGenerarRuta={generarRutaEnMapa}
+            onLimpiarRuta={limpiarRuta}
+          />
         </div>
       </div>
       {/* Footer fijo con datos de la ruta */}
@@ -1021,15 +718,4 @@ const PageZonasyRepartos = () => {
   );
 };
 
-// Exportar el componente como dinámico con ssr deshabilitado
-export default dynamic(() => Promise.resolve(PageZonasyRepartos), {
-  ssr: false,
-  loading: () => (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="text-center">
-        <div className="mx-auto w-16 h-16 rounded-full border-4 border-blue-500 animate-spin border-t-transparent"></div>
-        <p className="mt-4 text-lg text-gray-600">Cargando mapa...</p>
-      </div>
-    </div>
-  )
-});
+export default PageZonasyRepartos;
