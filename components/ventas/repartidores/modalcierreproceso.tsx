@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Checkbox, Alert } from "@heroui/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Checkbox, Alert, Input } from "@heroui/react";
 import { Proceso } from '@/types/ventas';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { UserOptions } from 'jspdf-autotable';
+import { PencilSquareIcon } from '@heroicons/react/24/outline';
+import Notification from "@/components/notification";
 
 // Agregar la declaración de tipos para autoTable
 declare module 'jspdf' {
@@ -31,6 +33,18 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const [montoTransferencia, setMontoTransferencia] = useState<number>(0);
   const [montoEfectivoRecaudado, setMontoEfectivoRecaudado] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [productosDetalle, setProductosDetalle] = useState<any[]>([]);
+  const [editandoPrecioIndex, setEditandoPrecioIndex] = useState<number | null>(null);
+  const [preciosOriginales, setPreciosOriginales] = useState<number[]>([]);
+  const [resultadoGuardado, setResultadoGuardado] = useState<{[index: number]: {success: boolean, message: string}}>(
+    {}
+  );
+  const [notification, setNotification] = useState({
+    isVisible: false,
+    message: '',
+    description: '',
+    type: 'success' as 'success' | 'error'
+  });
 
   // Cargar los montos cuando se abre el modal y el proceso está cerrado
   useEffect(() => {
@@ -66,6 +80,17 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     }
   }, [proceso?.id, proceso?.estado_cuenta, isOpen]);
 
+  // Inicializar los productos detalle y precios originales cuando se abre el modal
+  useEffect(() => {
+    if (proceso?.productos_detalle) {
+      setProductosDetalle(proceso.productos_detalle.map(item => ({
+        ...item,
+        precio_unitario: item.precio_unitario || 0
+      })));
+      setPreciosOriginales(proceso.productos_detalle.map(item => item.precio_unitario || 0));
+    }
+  }, [proceso?.productos_detalle]);
+
   // Función para formatear números con separadores de miles
   const formatearNumero = (numero: number): string => {
     return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -78,8 +103,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
 
   // Función para calcular el total de la venta
   const calcularTotalVenta = () => {
-    if (!proceso?.productos_detalle) return 0;
-    return proceso.totales.monto_total || 0;
+    if (!productosDetalle || productosDetalle.length === 0) return 0;
+    return productosDetalle.reduce((acc, item) => acc + (item.subtotal || 0), 0);
   };
 
   // Calcular valores
@@ -87,14 +112,133 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const totalRecaudado = montoEfectivoRecaudado + montoTransferencia;
   const balanceFiado = totalRecaudado - totalVenta;
 
+  // Función para actualizar el precio unitario de un producto
+  const handlePrecioUnitarioChange = (index: number, nuevoPrecio: number) => {
+    const nuevosProductos = [...productosDetalle];
+    nuevosProductos[index] = {
+      ...nuevosProductos[index],
+      precio_unitario: nuevoPrecio,
+      subtotal: nuevoPrecio * nuevosProductos[index].cantidad_vendida
+    };
+    setProductosDetalle(nuevosProductos);
+  };
+
+  // PUT individual por producto
+  const actualizarPrecioUnitarioFila = async (index: number) => {
+    if (!proceso?.id) return;
+    const item = productosDetalle[index];
+    try {
+      const body = {
+        precios_unitarios: [
+          { producto_id: item.producto_id, precio_unitario: item.precio_unitario }
+        ]
+      };
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) throw new Error('Error al actualizar el precio unitario');
+      setPreciosOriginales(prev => prev.map((p, i) => i === index ? item.precio_unitario : p));
+      setResultadoGuardado(prev => ({
+        ...prev,
+        [index]: { success: true, message: '¡Precio actualizado correctamente!' }
+      }));
+
+      // Refetch para actualizar datos en tiempo real
+      await refetchProceso();
+
+    } catch (error) {
+      setResultadoGuardado(prev => ({
+        ...prev,
+        [index]: { success: false, message: 'Error al actualizar el precio en la base de datos.' }
+      }));
+    } finally {
+      setTimeout(() => {
+        setResultadoGuardado(prev => {
+          const nuevo = { ...prev };
+          delete nuevo[index];
+          return nuevo;
+        });
+      }, 2500);
+    }
+  };
+
+  // Función para actualizar los precios unitarios en la API
+  const actualizarPreciosUnitarios = async () => {
+    if (!proceso?.id) return;
+
+    try {
+      const preciosUnitarios = productosDetalle.map(item => ({
+        producto_id: item.producto_id,
+        precio_unitario: item.precio_unitario
+      }));
+
+      console.log('PUT /api/descargas/' + proceso.id + '/precios-unitarios', {
+        precios_unitarios: preciosUnitarios
+      });
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          precios_unitarios: preciosUnitarios
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar los precios unitarios');
+      }
+
+      // Actualizar el proceso local con los nuevos precios
+      if (proceso.productos_detalle) {
+        proceso.productos_detalle = productosDetalle;
+      }
+    } catch (error) {
+      console.error('Error al actualizar precios unitarios:', error);
+    }
+  };
+
+  // Nueva función para recargar el proceso
+  const refetchProceso = async () => {
+    if (!proceso?.id) return;
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/procesos/${proceso.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Actualiza el estado local con los datos nuevos
+        if (data && data.proceso) {
+          setProductosDetalle(data.proceso.productos_detalle.map((item: any) => ({
+            ...item,
+            precio_unitario: item.precio_unitario || 0
+          })));
+          setPreciosOriginales(data.proceso.productos_detalle.map((item: any) => item.precio_unitario || 0));
+        }
+      }
+    } catch (error) {
+      console.error('Error al recargar el proceso:', error);
+    }
+  };
+
   const handleGuardarProceso = async () => {
     if (!proceso?.id || !proceso.repartidor?.id) {
       console.error('Faltan datos del proceso o repartidor');
       return;
     }
 
+    // Si hay una edición pendiente, la cerramos y nos aseguramos de tomar el valor actual
+    if (editandoPrecioIndex !== null) {
+      setEditandoPrecioIndex(null);
+      // No hace falta esperar, porque productosDetalle ya tiene el valor actualizado
+    }
+
     setIsLoading(true);
     try {
+      // Primero actualizar los precios unitarios
+      await actualizarPreciosUnitarios();
+
       const datosProceso = {
         proceso_id: proceso.id,
         monto_efectivo: montoEfectivoRecaudado,
@@ -151,7 +295,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       // Cerrar el modal y actualizar los datos
       onClose();
       // Pequeño retraso para asegurar que el backend haya procesado los cambios
-      setTimeout(() => {
+      setTimeout(async () => {
+        await refetchProceso();
         onProcesoGuardado();
       }, 500);
     } catch (error) {
@@ -249,18 +394,91 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
               <TableHeader>
                 <TableColumn>Producto</TableColumn>
                 <TableColumn>Cantidad</TableColumn>
-                <TableColumn>Precio Unit.</TableColumn>
+                <TableColumn>Precio Unitario</TableColumn>
                 <TableColumn>Subtotal</TableColumn>
               </TableHeader>
               <TableBody>
-                {proceso?.productos_detalle?.map((item, index) => (
+                {productosDetalle.map((item, index) => (
                   <TableRow key={index}>
                     <TableCell>{item.nombre}</TableCell>
                     <TableCell>{item.cantidad_vendida}</TableCell>
-                    <TableCell>${item.precio_unitario.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <div className="flex relative flex-col gap-1 items-start">
+                        <div className="flex gap-2 items-center">
+                          <span>$</span>
+                          <input
+                            type="number"
+                            value={item.precio_unitario}
+                            onChange={(e) => {
+                              if (proceso?.estado_cuenta !== 'finalizado') {
+                                const nuevoPrecio = parseFloat(e.target.value) || 0;
+                                handlePrecioUnitarioChange(index, nuevoPrecio);
+                              }
+                            }}
+                            onFocus={() => setEditandoPrecioIndex(index)}
+                            onBlur={() => setEditandoPrecioIndex(null)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' &&
+                                  proceso?.estado_cuenta !== 'finalizado' &&
+                                  item.precio_unitario !== preciosOriginales[index]
+                              ) {
+                                await actualizarPrecioUnitarioFila(index);
+                                setEditandoPrecioIndex(null);
+                              } else if (e.key === 'Escape') {
+                                setEditandoPrecioIndex(null);
+                              }
+                            }}
+                            className={`w-24 text-right rounded border transition-colors duration-200 ${
+                              proceso?.estado_cuenta === 'finalizado'
+                                ? 'bg-gray-100 cursor-not-allowed'
+                                : editandoPrecioIndex === index
+                                  ? 'bg-yellow-100 border-yellow-400'
+                                  : 'bg-white'
+                            }`}
+                            disabled={proceso?.estado_cuenta === 'finalizado'}
+                            min="0"
+                            step="0.01"
+                          />
+                          {proceso?.estado_cuenta !== 'finalizado' && (
+                            <>
+                              <button
+                                type="button"
+                                className="p-0.5 text-blue-500 hover:text-blue-700 focus:outline-none"
+                                tabIndex={-1}
+                                onClick={() => setEditandoPrecioIndex(index)}
+                              >
+                                <PencilSquareIcon className="w-5 h-5" />
+                              </button>
+                              <button
+                                type="button"
+                                className={`ml-1 p-0.5 text-green-600 hover:text-green-800 focus:outline-none ${item.precio_unitario === preciosOriginales[index] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                disabled={item.precio_unitario === preciosOriginales[index]}
+                                onClick={async () => await actualizarPrecioUnitarioFila(index)}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {editandoPrecioIndex === index && (
+                          <span className="mt-1 text-xs text-blue-600">Presione enter para guardar cambios</span>
+                        )}
+                        {resultadoGuardado[index] && (
+                          <Alert
+                            color={resultadoGuardado[index].success ? 'success' : 'danger'}
+                            variant="flat"
+                            className="mt-1"
+                          >
+                            {resultadoGuardado[index].message}
+                          </Alert>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>${item.subtotal.toFixed(2)}</TableCell>
                   </TableRow>
-                )) || []}
+                ))}
               </TableBody>
             </Table>
 
@@ -372,6 +590,13 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
           )}
         </ModalFooter>
       </ModalContent>
+      <Notification
+        message={notification.message}
+        description={notification.description}
+        isVisible={notification.isVisible}
+        onClose={() => setNotification(prev => ({ ...prev, isVisible: false }))}
+        type={notification.type}
+      />
     </Modal>
   );
 };

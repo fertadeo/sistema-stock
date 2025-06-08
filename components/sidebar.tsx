@@ -75,6 +75,27 @@ export const SideBar = () => {
               </svg>
               <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Inicio</span>
             </Link>
+            {/*
+            <Link
+              href="/metricas"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/metricas"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
+            >
+              <svg
+                className="inline-block w-6 h-6 fill-current"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zm6-4a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1h-2a1 1 0 01-1-1V7zm6-6a1 1 0 011-1h2a1 1 0 011 1v16a1 1 0 01-1 1h-2a1 1 0 01-1-1V1z" />
+              </svg>
+              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Métricas</span>
+            </Link>
+            */}
             <Link
               href="/clientes"
               className={`
@@ -95,6 +116,20 @@ export const SideBar = () => {
                 ></path>
               </svg>
               <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }} >Clientes</span>
+            </Link>
+            <Link
+              href="/zonasyrepartos"
+              className={`
+                px-2 py-2 text-sm font-medium rounded-md
+                ${pathname === "/zonasyrepartos"
+                  ? "bg-teal-500 text-white"
+                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
+              `}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="inline-block w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
+              </svg>
+              <span className="inline-flex items-center pl-2" style={{ fontSize: '1.1rem' }} >Zonas y Repartos</span>
             </Link>
             <Link
               href="/productos"
@@ -134,25 +169,7 @@ export const SideBar = () => {
               <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Ventas</span>
             </Link>
 
-            <Link
-              href="/metricas"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/metricas"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg
-                className="inline-block w-6 h-6 fill-current"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zm6-4a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1h-2a1 1 0 01-1-1V7zm6-6a1 1 0 011-1h2a1 1 0 011 1v16a1 1 0 01-1 1h-2a1 1 0 01-1-1V1z" />
-              </svg>
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Métricas</span>
-            </Link>
+           
 
             <Link
               href="https://api.whatsapp.com/send?phone=5493517552258"

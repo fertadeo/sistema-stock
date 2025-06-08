@@ -279,6 +279,44 @@ const ControlCargaPage = () => {
       return;
     }
 
+    if (isCarga) {
+      // Validar que al menos un producto tenga cantidad > 0
+      const hayProductoCargado = formData.productos.some(producto => {
+        const productoInfo = productos.find(p => p.id === producto.id);
+        const isSifon = productoInfo?.nombreProducto?.toLowerCase().includes('sifon') || false;
+        if (isSifon) {
+          // Para sifones, suma cajones y unidades
+          const totalUnidades = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
+          return totalUnidades > 0;
+        } else {
+          return (producto.cantidadCarga || 0) > 0;
+        }
+      });
+      if (!hayProductoCargado) {
+        showAlert('Debes cargar al menos un producto');
+        return;
+      }
+    } else {
+      // Validación de descarga (como ya tienes)
+      const palabrasClave = ['sifon', 'soda', 'agua', 'bidón'];
+      const hayProductoDescargado = formData.productos.some(producto => {
+        const productoInfo = productos.find(p => p.id === producto.id);
+        const nombre = productoInfo?.nombreProducto?.toLowerCase() || '';
+        const esPorCajonUnidad = palabrasClave.some(palabra => nombre.includes(palabra));
+        if (esPorCajonUnidad) {
+          const totalLlenos = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
+          const totalVacios = (producto.cajonesVacios || 0) * 6 + (producto.unidadesVacias || 0);
+          return totalLlenos > 0 || totalVacios > 0;
+        } else {
+          return (producto.cantidadLlenos || 0) > 0 || (producto.cantidadVacios || 0) > 0;
+        }
+      });
+      if (!hayProductoDescargado) {
+        showAlert('Debes descargar al menos un producto');
+        return;
+      }
+    }
+
     const reporte = {
       tipo: isCarga ? 'CARGA' : 'DESCARGA',
       fecha: formData.fecha,
@@ -345,24 +383,6 @@ const ControlCargaPage = () => {
         }
       })
     };
-
-    const palabrasClave = ['sifon', 'soda', 'agua', 'bidón'];
-    const hayProductoDescargado = formData.productos.some(producto => {
-      const productoInfo = productos.find(p => p.id === producto.id);
-      const nombre = productoInfo?.nombreProducto?.toLowerCase() || '';
-      const esPorCajonUnidad = palabrasClave.some(palabra => nombre.includes(palabra));
-      if (esPorCajonUnidad) {
-        const totalLlenos = (producto.cajonesLlenos || 0) * 6 + (producto.unidadesLlenas || 0);
-        const totalVacios = (producto.cajonesVacios || 0) * 6 + (producto.unidadesVacias || 0);
-        return totalLlenos > 0 || totalVacios > 0;
-      } else {
-        return (producto.cantidadLlenos || 0) > 0 || (producto.cantidadVacios || 0) > 0;
-      }
-    });
-    if (!hayProductoDescargado) {
-      showAlert('Debes descargar al menos un producto');
-      return;
-    }
 
     setReporteTemp(reporte);
     setIsModalOpen(true);

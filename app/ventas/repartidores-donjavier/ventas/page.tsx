@@ -303,29 +303,11 @@ const VentasDonjavier = () => {
 
   // Función para actualizar los datos
   const actualizarDatos = async () => {
-    if (repartidorSeleccionado) {
-      try {
-        // Actualizar procesos pendientes y ventas cerradas en paralelo
-        const [procesosResponse, ventasResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/repartidor/${repartidorSeleccionado}`)
-        ]);
-
-        if (procesosResponse.ok) {
-          const data = await procesosResponse.json();
-          setProcesosFiltrados(data);
-        }
-
-        if (ventasResponse.ok) {
-          const data = await ventasResponse.json();
-          if (data.success && data.ventas_cerradas) {
-            setVentasCerradas(data.ventas_cerradas);
-          }
-        }
-      } catch (error) {
-        console.error('Error al actualizar datos:', error);
-      }
-    }
+    setLoading(true);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`);
+    const data = await response.json();
+    setProcesosFiltrados(data);
+    setLoading(false);
   };
 
   // Función para actualizar las ventas cerradas
@@ -410,6 +392,7 @@ const VentasDonjavier = () => {
                     loading={loading}
                     onSelectProceso={setProcesoSeleccionado}
                     setModalAbierto={setModalAbierto}
+                    onProcesosActualizados={actualizarDatos}
                   />
                 </Tab>
                 <Tab key="cerradas" title="Ventas Cerradas">

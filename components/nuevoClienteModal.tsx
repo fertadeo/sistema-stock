@@ -15,6 +15,7 @@ import Notification from "./notification"; // Importa el componente de notificac
 import zonas from "./soderia-data/zonas.json"; // Importamos el archivo de zonas
 import repartidoresData from "./soderia-data/repartidores.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 type EnvasePrestado = {
   productoId: number;
@@ -64,6 +65,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   });
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [cantidadSeleccionada, setCantidadSeleccionada] = useState(1);
+  const [latitud, setLatitud] = useState<string>('');
+  const [longitud, setLongitud] = useState<string>('');
 
   // Fetch para obtener los productos
   const fetchProductos = async () => {
@@ -155,6 +158,18 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
     }
   };
 
+  const handleAddressChange = (address: string, lat: string, lon: string) => {
+    console.log("=== CAMBIO DE DIRECCIÓN ===");
+    console.log("Dirección:", address);
+    console.log("Latitud:", lat);
+    console.log("Longitud:", lon);
+    console.log("========================");
+    
+    setDireccion(address);
+    setLatitud(lat);
+    setLongitud(lon);
+  };
+
   const validateForm = () => {
     return true; // Siempre retorna true ya que todos los campos son opcionales
   };
@@ -236,29 +251,15 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       }
     }
 
-    // Verificar que todos los envases tengan los campos requeridos
-    const envasesValidos = envasesPrestados.every(envase => 
-      envase.productoId && 
-      envase.cantidad && 
-      envase.nombreProducto && 
-      envase.capacidad
-    );
-
-    if (!envasesValidos) {
-      setNotificationMessage("Error en los datos");
-      setNotificationDescription("Todos los envases deben tener producto, cantidad y capacidad.");
-      setNotificationType("error");
-      setNotificationVisible(true);
-      return;
-    }
-
     const nuevoCliente = {
       dni: dni || null,
       nombre: nombre.trim(),
       email: email || null,
       telefono: telefono.trim(),
       direccion: direccion || null,
-      zona: zonaId, // Enviamos el ID de la zona como número o null
+      latitud: latitud || null,
+      longitud: longitud || null,
+      zona: zonaId,
       repartidor: repartidor || null,
       dia_reparto: diaReparto || null,
       envases_prestados: envasesPrestados.length > 0 ? 
@@ -268,13 +269,15 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
           capacidad: envase.capacidad,
           cantidad: envase.cantidad
         })) : 
-        [] // Enviamos un array vacío en lugar de null
+        []
     };
 
-    // Logs detallados
+    // Logs detallados para debug
     console.log("=== DATOS DEL NUEVO CLIENTE ===");
     console.log("Datos completos:", nuevoCliente);
-    console.log("Estructura de envases:", envasesPrestados);
+    console.log("Dirección:", direccion);
+    console.log("Latitud:", latitud);
+    console.log("Longitud:", longitud);
     console.log("URL de la API:", `${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
     console.log("Datos a enviar (JSON):", JSON.stringify(nuevoCliente, null, 2));
     console.log("========================");
@@ -371,12 +374,12 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   value={nombre}
                   onChange={(e) => handleInputChange(e, "nombre")}
                 />
-                <Input
+                <AddressAutocomplete
                   className="flex-1"
                   label="Dirección"
                   placeholder="Ingrese la dirección"
                   value={direccion}
-                  onChange={(e) => handleInputChange(e, "direccion")}
+                  onChange={handleAddressChange}
                 />
               </div>
               <div className="flex gap-4 mb-4">

@@ -105,10 +105,16 @@ export default function SimpleTable() {
                 isCompact
                 showControls
                 showShadow
-                color="secondary"
+                color="success"
                 page={page}
                 total={pages}
                 onChange={setPage}
+                classNames={{
+                  cursor: "bg-[#18bca4] text-white",
+                  item: "text-[#18bca4]",
+                  next: "text-[#18bca4]",
+                  prev: "text-[#18bca4]",
+                }}
               />
             </div>
           ) : null

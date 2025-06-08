@@ -3,6 +3,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input
 import repartidoresData from "./soderia-data/repartidores.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 interface Producto {
   id: number;
@@ -34,6 +35,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [latitud, setLatitud] = useState("");
+  const [longitud, setLongitud] = useState("");
   const [zona, setZona] = useState("");
   const [repartidor, setRepartidor] = useState("");
   const [diaReparto, setDiaReparto] = useState("");
@@ -80,6 +83,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setTelefono(cliente.telefono || "");
       setEmail(cliente.email || "");
       setDireccion(cliente.direccion || "");
+      setLatitud(cliente.latitud || "");
+      setLongitud(cliente.longitud || "");
       setZona(cliente.zona?.toString() || "");
       setRepartidor(cliente.repartidor || "");
       setDiaReparto(cliente.dia_reparto || "");
@@ -112,6 +117,12 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
     setEnvasesPrestados(envasesPrestados.filter((_, i) => i !== index));
   };
 
+  const handleDireccionChange = (direccion: string, lat: string, lon: string) => {
+    setDireccion(direccion);
+    setLatitud(lat);
+    setLongitud(lon);
+  };
+
   const handleSave = async () => {
     if (cliente) {
       try {
@@ -124,7 +135,9 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
           email,
           telefono,
           direccion,
-          zona: zonaNumero, // Enviar como número
+          latitud,
+          longitud,
+          zona: zonaNumero,
           repartidor,
           dia_reparto: diaReparto,
           envases_prestados: envasesPrestados.map(envase => ({
@@ -185,10 +198,10 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Ingrese email"
             />
-            <Input
+            <AddressAutocomplete
               label="Dirección"
               value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
+              onChange={handleDireccionChange}
               placeholder="Ingrese dirección"
             />
             <Select

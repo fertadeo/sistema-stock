@@ -85,6 +85,28 @@ export default function VentasPage() {
             </Link>
           </div>
         </div>
+
+        {/* Sección Ventas en Local */}
+        <div className="mt-12">
+          <h2 className="mb-6 text-2xl font-semibold text-gray-800">Ventas en Local</h2>
+          <div className="grid grid-cols-1 gap-6 mx-auto max-w-4xl md:grid-cols-2">
+            <Link href="/ventas/ventas-local">
+              <Card className="flex flex-col justify-between p-6 max-w-xs h-64 transition-all duration-300 hover:shadow-lg hover:scale-105">
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-3 mb-4 bg-yellow-100 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-8 h-8 text-yellow-600">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v1.5M3 7.5h18m-18 0v10.5A2.25 2.25 0 0 0 5.25 20.25h13.5A2.25 2.25 0 0 0 21 18V7.5m-18 0h18" />
+                    </svg>
+                  </div>
+                  <h3 className="mb-2 text-xl font-bold">Ventas en Local</h3>
+                  <CardBody className="text-gray-600">
+                    Consulta y gestiona las ventas realizadas en el local
+                  </CardBody>
+                </div>
+              </Card>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
