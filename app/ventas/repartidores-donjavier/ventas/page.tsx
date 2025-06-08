@@ -11,6 +11,7 @@ import ModalCierreProceso from '@/components/ventas/repartidores/modalcierreproc
 import CardResumenVentas from '@/components/ventas/repartidores/cardResumenVentas';
 import TableVentasCerradas from '@/components/ventas/repartidores/tableVentasCerradas';
 import { Proceso, VentaCerrada } from '@/types/ventas';
+import dynamic from 'next/dynamic';
 
 // Agregar la función cx si no la tienes en utils
 const cx = (...args: any) => twMerge(clsx(...args));
@@ -464,4 +465,7 @@ const VentasDonjavier = () => {
   );
 };
 
-export default VentasDonjavier;
+// Exportar el componente como dinámico con ssr deshabilitado
+export default dynamic(() => Promise.resolve(VentasDonjavier), {
+  ssr: false
+});
