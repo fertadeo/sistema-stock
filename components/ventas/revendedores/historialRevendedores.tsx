@@ -25,6 +25,9 @@ import {
 import { DatePicker } from "@heroui/react";
 import { DateValue, parseDate } from "@internationalized/date";
 import { BarChart10 } from '@/components/charts/BarChart10';
+import jsPDF from 'jspdf';
+import PDFContent from '@/components/PDFContent';
+import html2canvas from 'html2canvas';
 
 interface VentaRevendedor {
   venta_id: string;
@@ -74,6 +77,8 @@ export default function HistorialRevendedores() {
   const [mensajeAlerta, setMensajeAlerta] = useState("");
   const [ventaAEliminar, setVentaAEliminar] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const [ventaParaPDF, setVentaParaPDF] = useState<VentaRevendedor | null>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   // Obtener ventas de revendedores
   useEffect(() => {
@@ -316,6 +321,34 @@ export default function HistorialRevendedores() {
     return producto ? producto.nombreProducto : `Producto ${productoId}`;
   };
 
+  // Si usas Next.js, la ruta sería '/soderialogo.png'
+  const LOGO_PATH = '/soderialogo.png';
+  const LOGO_WIDTH = 120; // mm
+  const LOGO_HEIGHT = 120; // mm (ajusta según la proporción real, aquí es aprox. 29.7)
+
+  const handleDescargarVenta = async (venta: VentaRevendedor) => {
+    setVentaParaPDF(venta);
+
+    // Esperar a que el DOM renderice el PDF oculto
+    setTimeout(async () => {
+      if (pdfRef.current) {
+        const canvas = await html2canvas(pdfRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#fff'
+        });
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        const pdf = new jsPDF({ format: 'a4', unit: 'mm' });
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
+        pdf.save(`Venta-Revendedor-${venta.revendedor_nombre}-${venta.fecha_venta}.pdf`);
+        setVentaParaPDF(null);
+      }
+    }, 100); // Espera corta para asegurar el render
+  };
+
   return (
     <div className="flex flex-col p-4 w-full h-screen bg-gray-50">
       <div className="space-y-4 w-full h-full">
@@ -475,6 +508,7 @@ export default function HistorialRevendedores() {
               <TableColumn>Productos</TableColumn>
               <TableColumn>Monto</TableColumn>
               <TableColumn>Opciones</TableColumn>
+              <TableColumn>Descargar</TableColumn>
             </TableHeader>
             <TableBody>
               {ventasPaginadas.map((venta) => (
@@ -515,6 +549,18 @@ export default function HistorialRevendedores() {
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-red-600">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="p-2 rounded transition hover:bg-blue-100"
+                      title="Descargar venta"
+                      onClick={() => handleDescargarVenta(venta)}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-blue-600">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-17.25c0-.621-.504-1.125-1.125-1.125H19.5z" />
                       </svg>
                     </button>
                   </TableCell>
@@ -650,6 +696,28 @@ export default function HistorialRevendedores() {
           >
             {mensajeAlerta}
           </Alert>
+        )}
+
+        {ventaParaPDF && (
+          <PDFContent
+            selectedRevendedorName={ventaParaPDF.revendedor_nombre}
+            selectedDate={ventaParaPDF.fecha_venta}
+            products={ventaParaPDF.productos.map(p => ({
+              id: p.producto_id,
+              name: obtenerNombreProducto(p.producto_id),
+              precioRevendedor: Number(p.precio_unitario),
+              quantity: Number(p.cantidad)
+            }))}
+            formatDate={date => {
+              // Si date es string tipo '2024-06-10', formatea a dd/mm/yyyy
+              if (typeof date === 'string') {
+                const d = new Date(date);
+                return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+              }
+              return '';
+            }}
+            invoiceRef={pdfRef}
+          />
         )}
       </div>
     </div>

@@ -294,6 +294,7 @@ export default function NuevaVenta() {
 
       // Preparar datos para la API
       const ventaData = {
+        tipo: "REVENDEDOR",
         revendedor_nombre: revendedorSeleccionado.nombre,
         repartidor_id: "",
         productos: productosFormateados,
@@ -305,7 +306,7 @@ export default function NuevaVenta() {
         saldo_monto: "0.00"
       };
 
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-resumen`;
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {

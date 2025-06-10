@@ -246,11 +246,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
           throw new Error('Error al actualizar las coordenadas');
         }
 
-        onActualizarCoordenadas(clienteId, lat, lng);
-        setShowConfirm(false);
-        setPendingCliente(null);
-        setPendingLatLng(null);
-        setPendingDireccion("");
+      onActualizarCoordenadas(clienteId, lat, lng);
+      setShowConfirm(false);
+      setPendingCliente(null);
+      setPendingLatLng(null);
+      setPendingDireccion("");
       } catch (error) {
         console.error('Error al actualizar las coordenadas:', error);
         alert('Error al actualizar las coordenadas. Por favor, intente nuevamente.');
