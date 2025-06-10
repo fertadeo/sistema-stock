@@ -707,6 +707,7 @@ const PageZonasyRepartos = () => {
             onLimpiarRuta={limpiarRuta}
             repartidorSeleccionado={filtroRepartidor !== 'todos' ? filtroRepartidor : undefined}
             rutaDetallada={rutaDetallada}
+            onActualizarCoordenadas={actualizarCoordenadas}
           />
         </div>
       </div>

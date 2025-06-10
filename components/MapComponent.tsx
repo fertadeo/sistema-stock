@@ -27,6 +27,7 @@ interface MapComponentProps {
   onLimpiarRuta: () => void;
   repartidorSeleccionado?: string;
   rutaDetallada: [number, number][];
+  onActualizarCoordenadas: (clienteId: number, lat: number, lon: number) => void;
 }
 
 // Coordenadas de la empresa
@@ -92,14 +93,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onGenerarRuta,
   onLimpiarRuta,
   repartidorSeleccionado,
-  rutaDetallada: rutaDetalladaProp
+  rutaDetallada: rutaDetalladaProp,
+  onActualizarCoordenadas
 }) => {
-  // Referencia al mapa
   const mapRef = useRef<any>(null);
-
-  // Estado para edición de ubicación
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [tempPosition, setTempPosition] = useState<[number, number] | null>(null);
+  const [originalPosition, setOriginalPosition] = useState<[number, number] | null>(null);
+  const [pendingCliente, setPendingCliente] = useState<Cliente | null>(null);
+  const [pendingLatLng, setPendingLatLng] = useState<[number, number] | null>(null);
+  const [pendingDireccion, setPendingDireccion] = useState<string>("");
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Filtrar clientes y rutaOptimizada por repartidor si se pasa la prop
   const clientesFiltrados = repartidorSeleccionado
@@ -108,10 +112,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const rutaOptimizadaFiltrada = repartidorSeleccionado
     ? rutaOptimizada.filter(c => c.repartidor === repartidorSeleccionado || !c.repartidor || c.repartidor.trim() === "")
     : rutaOptimizada;
-
-  // Estado para la ruta detallada (siguiendo calles)
-  // const [rutaDetallada, setRutaDetallada] = useState<[number, number][]>([]);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Función para obtener la ruta real desde OSRM
   const obtenerRutaDetallada = async (origen: [number, number], destino: [number, number]) => {
@@ -153,18 +153,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
       });
     } else {
       // setRutaDetallada([]);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     }
   }, [mostrarRuta, rutaOptimizadaFiltrada]);
 
   // Envolver onLimpiarRuta para limpiar también la rutaDetallada y cancelar fetch
   const handleLimpiarRuta = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    // setRutaDetallada([]);
     onLimpiarRuta();
   };
 
@@ -214,6 +207,109 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  // Reverse geocoding para obtener la dirección
+  const obtenerDireccion = async (lat: number, lon: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'SoderiaApp/1.0'
+          }
+        }
+      );
+      const data = await response.json();
+      return data.display_name;
+    } catch (error) {
+      return 'No se pudo obtener la dirección';
+    }
+  };
+
+  // Event listeners para los botones del popup
+  useEffect(() => {
+    const handleConfirmar = async (e: Event) => {
+      const customEvent = e as CustomEvent<{ clienteId: number; lat: number; lng: number }>;
+      const { clienteId, lat, lng } = customEvent.detail;
+      try {
+        const response = await fetch(`/api/clientes/${clienteId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            latitud: lat.toString(),
+            longitud: lng.toString()
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al actualizar las coordenadas');
+        }
+
+        onActualizarCoordenadas(clienteId, lat, lng);
+        setShowConfirm(false);
+        setPendingCliente(null);
+        setPendingLatLng(null);
+        setPendingDireccion("");
+      } catch (error) {
+        console.error('Error al actualizar las coordenadas:', error);
+        alert('Error al actualizar las coordenadas. Por favor, intente nuevamente.');
+      }
+    };
+    const handleCancelar = () => {
+      if (originalPosition) {
+        setTempPosition(originalPosition);
+      }
+      setShowConfirm(false);
+      setPendingCliente(null);
+      setPendingLatLng(null);
+      setPendingDireccion("");
+    };
+    document.addEventListener('confirmarCambioUbicacion', handleConfirmar);
+    document.addEventListener('cancelarCambioUbicacion', handleCancelar);
+    return () => {
+      document.removeEventListener('confirmarCambioUbicacion', handleConfirmar);
+      document.removeEventListener('cancelarCambioUbicacion', handleCancelar);
+    };
+  }, [originalPosition, onActualizarCoordenadas]);
+
+  // Mostrar el popup de confirmación cuando la dirección esté lista
+  useEffect(() => {
+    if (showConfirm && pendingCliente && pendingLatLng && pendingDireccion) {
+      const [lat, lng] = pendingLatLng;
+      const popup = L.popup()
+        .setLatLng([lat, lng])
+        .setContent(`
+          <div class="p-2">
+            <p class="mb-2 font-bold">¿Quieres cambiar la ubicación de:</p>
+            <p><b>Nombre:</b> ${pendingCliente.nombre}</p>
+            <p><b>Dirección:</b> ${pendingDireccion}</p>
+            <p><b>Teléfono:</b> ${pendingCliente.telefono}</p>
+            <p><b>Zona:</b> ${pendingCliente.zona}</p>
+            <p><b>Repartidor:</b> ${pendingCliente.repartidor}</p>
+            <p><b>Día de reparto:</b> ${pendingCliente.dia_reparto}</p>
+            <p><b>Lat:</b> ${lat.toFixed(6)}</p>
+            <p><b>Lng:</b> ${lng.toFixed(6)}</p>
+            <div class="flex gap-2 mt-2">
+              <button 
+                class="px-3 py-1 text-white bg-green-500 rounded hover:bg-green-600"
+                onclick="document.dispatchEvent(new CustomEvent('confirmarCambioUbicacion', { detail: { clienteId: ${pendingCliente.id}, lat: ${lat}, lng: ${lng} } }))"
+              >
+                Sí
+              </button>
+              <button 
+                class="px-3 py-1 text-white bg-red-500 rounded hover:bg-red-600"
+                onclick="document.dispatchEvent(new CustomEvent('cancelarCambioUbicacion'))"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        `)
+        .openOn(mapRef.current?.leafletElement || mapRef.current?._leaflet_map || mapRef.current);
+    }
+  }, [showConfirm, pendingCliente, pendingLatLng, pendingDireccion]);
+
   return (
     <MapContainer
       ref={mapRef}
@@ -255,7 +351,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         // Determinar el ícono a usar
         let icono = iconAxel; // default
         if (repartidorSeleccionado) {
-          // Si hay repartidor seleccionado, solo los de ese repartidor tienen color, el resto gris
           if (cliente.repartidor === repartidorSeleccionado) {
             if (cliente.repartidor === 'Axel Torres') {
               icono = iconAxel;
@@ -270,7 +365,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
             icono = iconGris;
           }
         } else {
-          // Si no hay repartidor seleccionado, usar color según repartidor
           if (!cliente.repartidor || cliente.repartidor.trim() === "") {
             icono = iconGris;
           } else if (cliente.repartidor === 'Gustavo Careaga') {
@@ -283,7 +377,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
             icono = iconAxel; // fallback
           }
         }
-        // Si el cliente está en edición, el marcador es draggable
         const isEditing = editingClienteId === cliente.id;
         return (
           <Marker 
@@ -294,11 +387,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
             eventHandlers={
               isEditing
                 ? {
-                    dragend: (e: any) => {
+                    dragstart: () => {
+                      setOriginalPosition([cliente.latitud, cliente.longitud]);
+                    },
+                    dragend: async (e: any) => {
                       const marker = e.target;
                       const position = marker.getLatLng();
                       setTempPosition([position.lat, position.lng]);
-                      // Aquí puedes llamar a una función para actualizar la ubicación en el backend
+                      setPendingCliente(cliente);
+                      setPendingLatLng([position.lat, position.lng]);
+                      setShowConfirm(false);
+                      setPendingDireccion("");
+                      // Obtener dirección y luego mostrar popup
+                      const direccion = await obtenerDireccion(position.lat, position.lng);
+                      setPendingDireccion(direccion);
+                      setShowConfirm(true);
                     }
                   }
                 : undefined

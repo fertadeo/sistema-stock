@@ -20,6 +20,7 @@ interface ModalCierreProcesoProps {
   proceso: Proceso | null;
   obtenerPrecioProducto: (producto_id: number) => number;
   onProcesoGuardado: () => void;
+  onPreciosActualizados?: () => void;
 }
 
 const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
@@ -27,7 +28,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   onClose,
   proceso,
   obtenerPrecioProducto,
-  onProcesoGuardado
+  onProcesoGuardado,
+  onPreciosActualizados
 }) => {
   const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20);
   const [montoTransferencia, setMontoTransferencia] = useState<number>(0);
@@ -36,6 +38,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const [productosDetalle, setProductosDetalle] = useState<any[]>([]);
   const [editandoPrecioIndex, setEditandoPrecioIndex] = useState<number | null>(null);
   const [preciosOriginales, setPreciosOriginales] = useState<number[]>([]);
+  const [preciosModificados, setPreciosModificados] = useState<{[key: number]: number}>({});
   const [resultadoGuardado, setResultadoGuardado] = useState<{[index: number]: {success: boolean, message: string}}>(
     {}
   );
@@ -121,83 +124,87 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       subtotal: nuevoPrecio * nuevosProductos[index].cantidad_vendida
     };
     setProductosDetalle(nuevosProductos);
+    
+    // Guardar el precio modificado en el estado de preciosModificados
+    setPreciosModificados(prev => ({
+      ...prev,
+      [index]: nuevoPrecio
+    }));
   };
 
-  // PUT individual por producto
-  const actualizarPrecioUnitarioFila = async (index: number) => {
-    if (!proceso?.id) return;
-    const item = productosDetalle[index];
+  // Función para guardar todos los precios modificados
+  const guardarPreciosModificados = async () => {
+    if (!proceso?.id || Object.keys(preciosModificados).length === 0) return;
+
     try {
-      const body = {
-        precios_unitarios: [
-          { producto_id: item.producto_id, precio_unitario: item.precio_unitario }
-        ]
-      };
+      const preciosUnitarios = Object.entries(preciosModificados).map(([index, precio]) => ({
+        producto_id: productosDetalle[parseInt(index)].producto_id,
+        precio_unitario: precio
+      }));
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!response.ok) throw new Error('Error al actualizar el precio unitario');
-      setPreciosOriginales(prev => prev.map((p, i) => i === index ? item.precio_unitario : p));
-      setResultadoGuardado(prev => ({
-        ...prev,
-        [index]: { success: true, message: '¡Precio actualizado correctamente!' }
-      }));
-
-      // Refetch para actualizar datos en tiempo real
-      await refetchProceso();
-
-    } catch (error) {
-      setResultadoGuardado(prev => ({
-        ...prev,
-        [index]: { success: false, message: 'Error al actualizar el precio en la base de datos.' }
-      }));
-    } finally {
-      setTimeout(() => {
-        setResultadoGuardado(prev => {
-          const nuevo = { ...prev };
-          delete nuevo[index];
-          return nuevo;
-        });
-      }, 2500);
-    }
-  };
-
-  // Función para actualizar los precios unitarios en la API
-  const actualizarPreciosUnitarios = async () => {
-    if (!proceso?.id) return;
-
-    try {
-      const preciosUnitarios = productosDetalle.map(item => ({
-        producto_id: item.producto_id,
-        precio_unitario: item.precio_unitario
-      }));
-
-      console.log('PUT /api/descargas/' + proceso.id + '/precios-unitarios', {
-        precios_unitarios: preciosUnitarios
-      });
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           precios_unitarios: preciosUnitarios
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Error al actualizar los precios unitarios');
+      if (!response.ok) throw new Error('Error al actualizar los precios unitarios');
+
+      // Actualizar precios originales con los nuevos valores
+      setPreciosOriginales(prev => {
+        const nuevos = [...prev];
+        Object.entries(preciosModificados).forEach(([index, precio]) => {
+          nuevos[parseInt(index)] = precio;
+        });
+        return nuevos;
+      });
+
+      // Mostrar mensaje de éxito
+      setResultadoGuardado(prev => ({
+        ...prev,
+        ...Object.keys(preciosModificados).reduce((acc, index) => ({
+          ...acc,
+          [index]: { success: true, message: '¡Precios actualizados correctamente!' }
+        }), {})
+      }));
+
+      // Limpiar precios modificados
+      setPreciosModificados({});
+
+      // Refetch para actualizar datos en tiempo real
+      await refetchProceso();
+
+      // Notificar a la página que los precios se actualizaron
+      if (onPreciosActualizados) {
+        onPreciosActualizados();
       }
 
-      // Actualizar el proceso local con los nuevos precios
-      if (proceso.productos_detalle) {
-        proceso.productos_detalle = productosDetalle;
-      }
     } catch (error) {
       console.error('Error al actualizar precios unitarios:', error);
+      setResultadoGuardado(prev => ({
+        ...prev,
+        ...Object.keys(preciosModificados).reduce((acc, index) => ({
+          ...acc,
+          [index]: { success: false, message: 'Error al actualizar los precios.' }
+        }), {})
+      }));
+    } finally {
+      // Limpiar mensajes después de 2.5 segundos
+      setTimeout(() => {
+        setResultadoGuardado({});
+      }, 2500);
+    }
+  };
+
+  // Modificar el manejador de teclas para usar la nueva función
+  const handleKeyDown = async (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Enter' && proceso?.estado_cuenta !== 'finalizado') {
+      await guardarPreciosModificados();
+      setEditandoPrecioIndex(null);
+    } else if (e.key === 'Escape') {
+      setEditandoPrecioIndex(null);
     }
   };
 
@@ -228,17 +235,24 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       return;
     }
 
+    // Verificar si hay precios modificados sin guardar
+    if (Object.keys(preciosModificados).length > 0) {
+      setNotification({
+        isVisible: true,
+        message: 'Precios sin confirmar',
+        description: 'Por favor, confirme los cambios en los precios unitarios antes de guardar el proceso.',
+        type: 'error'
+      });
+      return;
+    }
+
     // Si hay una edición pendiente, la cerramos y nos aseguramos de tomar el valor actual
     if (editandoPrecioIndex !== null) {
       setEditandoPrecioIndex(null);
-      // No hace falta esperar, porque productosDetalle ya tiene el valor actualizado
     }
 
     setIsLoading(true);
     try {
-      // Primero actualizar los precios unitarios
-      await actualizarPreciosUnitarios();
-
       const datosProceso = {
         proceso_id: proceso.id,
         monto_efectivo: montoEfectivoRecaudado,
@@ -303,6 +317,12 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       }, 500);
     } catch (error) {
       console.error('Error:', error);
+      setNotification({
+        isVisible: true,
+        message: 'Error al guardar el proceso',
+        description: 'Ha ocurrido un error al intentar guardar el proceso. Por favor, intente nuevamente.',
+        type: 'error'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -419,17 +439,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             }}
                             onFocus={() => setEditandoPrecioIndex(index)}
                             onBlur={() => setEditandoPrecioIndex(null)}
-                            onKeyDown={async (e) => {
-                              if (e.key === 'Enter' &&
-                                proceso?.estado_cuenta !== 'finalizado' &&
-                                item.precio_unitario !== preciosOriginales[index]
-                              ) {
-                                await actualizarPrecioUnitarioFila(index);
-                                setEditandoPrecioIndex(null);
-                              } else if (e.key === 'Escape') {
-                                setEditandoPrecioIndex(null);
-                              }
-                            }}
+                            onKeyDown={(e) => handleKeyDown(e, index)}
                             className={`w-24 text-right rounded border transition-colors duration-200 ${
                               proceso?.estado_cuenta === 'finalizado'
                                 ? 'bg-gray-100 cursor-not-allowed'
@@ -453,9 +463,9 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                               </button>
                               <button
                                 type="button"
-                                className={`ml-1 p-0.5 text-green-600 hover:text-green-800 focus:outline-none ${item.precio_unitario === preciosOriginales[index] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                disabled={item.precio_unitario === preciosOriginales[index]}
-                                onClick={async () => await actualizarPrecioUnitarioFila(index)}
+                                className={`ml-1 p-0.5 text-green-600 hover:text-green-800 focus:outline-none ${!preciosModificados[index] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                disabled={!preciosModificados[index]}
+                                onClick={async () => await guardarPreciosModificados()}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />

@@ -460,6 +460,7 @@ const VentasDonjavier = () => {
         proceso={procesoSeleccionado}
         obtenerPrecioProducto={obtenerPrecioProducto}
         onProcesoGuardado={actualizarDatos}
+        onPreciosActualizados={actualizarDatos}
       />
     </div>
   );
