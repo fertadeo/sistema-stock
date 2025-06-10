@@ -253,6 +253,32 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
 
     setIsLoading(true);
     try {
+      // SIEMPRE enviar todos los precios unitarios actuales antes de guardar el proceso
+      const preciosUnitarios = productosDetalle.map((item) => ({
+        producto_id: item.producto_id,
+        precio_unitario: item.precio_unitario
+      }));
+
+      const responsePrecios = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          precios_unitarios: preciosUnitarios
+        })
+      });
+
+      if (!responsePrecios.ok) {
+        throw new Error('Error al actualizar los precios unitarios');
+      }
+
+      // Actualizar precios originales
+      setPreciosOriginales(productosDetalle.map(item => item.precio_unitario));
+
+      // Notificar actualización de precios
+      if (onPreciosActualizados) {
+        onPreciosActualizados();
+      }
+
       const datosProceso = {
         proceso_id: proceso.id,
         monto_efectivo: montoEfectivoRecaudado,
