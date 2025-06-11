@@ -231,7 +231,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const customEvent = e as CustomEvent<{ clienteId: number; lat: number; lng: number }>;
       const { clienteId, lat, lng } = customEvent.detail;
       try {
-        const response = await fetch(`/api/clientes/${clienteId}`, {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.sistema.soderiadonjavier.com';
+        const response = await fetch(`${API_URL}/api/clientes/${clienteId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
