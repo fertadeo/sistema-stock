@@ -44,4 +44,11 @@ export interface VentaCerrada {
   observaciones: string;
   created_at: string;
   grupo_cierre?: string;
+  productos_detalle?: {
+    producto_id: number;
+    nombre: string;
+    cantidad_vendida: number;
+    precio_unitario: number;
+    subtotal: number;
+  }[];
 } 

@@ -18,7 +18,9 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   onVentasActualizadas
 }) => {
   const modalContentRef = useRef<HTMLDivElement>(null);
-  const [porcentajeGanancia, setPorcentajeGanancia] = useState<number>(20);
+  // Obtener el porcentaje de comisión de la primera venta si está cerrada
+  const comisionInicial = ventasSeleccionadas[0]?.comision_porcentaje || 20;
+  const [porcentajeGanancia, setPorcentajeGanancia] = useState<number>(comisionInicial);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [observaciones, setObservaciones] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -27,6 +29,14 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   const [showInput, setShowInput] = useState<boolean>(true);
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
+
+  // Actualizar el porcentaje cuando cambien las ventas seleccionadas
+  useEffect(() => {
+    if (ventasSeleccionadas.length > 0) {
+      const comisionActual = ventasSeleccionadas[0]?.comision_porcentaje || 20;
+      setPorcentajeGanancia(comisionActual);
+    }
+  }, [ventasSeleccionadas]);
 
   // Limpiar mensajes cuando se cierra el modal
   useEffect(() => {
@@ -276,7 +286,20 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                       {ventasPaginadas.map((venta) => (
                         <TableRow key={venta.id}>
                           <TableCell>#{venta.proceso_id}</TableCell>
-                          <TableCell>{new Date(venta.fecha_cierre).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {venta.fecha_carga ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium text-green-600">
+                                  {new Date(venta.fecha_carga).toLocaleDateString()}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(venta.fecha_carga).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-500">No disponible</span>
+                            )}
+                          </TableCell>
                           <TableCell>{venta.repartidor.nombre}</TableCell>
                           <TableCell>${formatMonto(Number(venta.total_venta))}</TableCell>
                           <TableCell>${formatMonto(Number(venta.monto_efectivo))}</TableCell>

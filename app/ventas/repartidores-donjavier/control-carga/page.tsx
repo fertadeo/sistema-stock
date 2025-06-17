@@ -298,7 +298,7 @@ const ControlCargaPage = () => {
       }
     } else {
       // Validación de descarga (como ya tienes)
-      const palabrasClave = ['sifon', 'soda', 'agua', 'bidón'];
+      const palabrasClave = ['sifon', 'soda'];
       const hayProductoDescargado = formData.productos.some(producto => {
         const productoInfo = productos.find(p => p.id === producto.id);
         const nombre = productoInfo?.nombreProducto?.toLowerCase() || '';

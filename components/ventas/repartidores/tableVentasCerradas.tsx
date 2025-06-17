@@ -63,6 +63,16 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
     return totalRecaudado - totalVenta;
   };
 
+  const calcularTotalVentaPorProductos = (venta: VentaCerrada): number => {
+    if (!venta.productos_detalle || !Array.isArray(venta.productos_detalle)) return 0;
+    // Calculamos el total sumando los subtotales de cada producto
+    // Cada subtotal ya está calculado como precio_unitario * cantidad_vendida
+    return venta.productos_detalle.reduce((sum, prod) => {
+      const subtotal = Number(prod.subtotal) || 0;
+      return sum + subtotal;
+    }, 0);
+  };
+
   useEffect(() => {
     const ventasFiltradas = ventasCerradas
       .filter(venta => {
@@ -361,7 +371,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                     </TableCell>
                     <TableCell>{venta.repartidor.nombre}</TableCell>
                     <TableCell>
-                      ${parseNumber(venta.total_venta).toFixed(2)}
+                      ${calcularTotalVentaPorProductos(venta).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       ${parseNumber(venta.monto_efectivo).toFixed(2)}
