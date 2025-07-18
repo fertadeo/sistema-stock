@@ -82,12 +82,17 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   const calcularGanancias = () => {
     const gananciaTotal = totales.totalVenta * (porcentajeGanancia / 100);
     const gananciaFabrica = totales.totalVenta - gananciaTotal;
-    const gananciaRepartidorFinal = gananciaTotal - Math.abs(totales.totalBalance);
+    
+    // Si el balance es positivo, se suma a la ganancia del repartidor
+    // Si el balance es negativo, se resta de la ganancia del repartidor
+    const gananciaRepartidorFinal = gananciaTotal + totales.totalBalance;
+    
     return { 
       gananciaRepartidor: gananciaRepartidorFinal,
       gananciaFabrica,
       gananciaOriginal: gananciaTotal,
-      descuentoBalance: Math.abs(totales.totalBalance)
+      descuentoBalance: totales.totalBalance < 0 ? Math.abs(totales.totalBalance) : 0,
+      ajusteBalance: totales.totalBalance > 0 ? totales.totalBalance : 0
     };
   };
 
@@ -360,7 +365,12 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                       <p className="text-sm font-bold text-gray-600">Ganancia Repartidor:&nbsp;&nbsp;({porcentajeGanancia}%)</p>
                       <div className="space-y-1">
                         <p className="text-sm text-gray-500">Ganancia bruta: ${formatMonto(ganancias.gananciaOriginal)}</p>
-                        <p className="text-sm text-gray-500">Descuento por balance: -${formatMonto(ganancias.descuentoBalance)}</p>
+                        {ganancias.descuentoBalance > 0 && (
+                          <p className="text-sm text-red-500">Descuento por balance: -${formatMonto(ganancias.descuentoBalance)}</p>
+                        )}
+                        {ganancias.ajusteBalance > 0 && (
+                          <p className="text-sm text-green-500">Ajuste por balance: +${formatMonto(ganancias.ajusteBalance)}</p>
+                        )}
                         <p className="text-xl font-bold text-green-600">
                           Ganancia final:&nbsp;&nbsp;${formatMonto(ganancias.gananciaRepartidor)}
                         </p>  
