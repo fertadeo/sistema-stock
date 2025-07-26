@@ -43,7 +43,8 @@ const mobileStyles = `
     .modal-body-mobile {
       flex: 1 !important;
       overflow-y: auto !important;
-      padding-bottom: 80px !important;
+      padding-bottom: 120px !important;
+      min-height: 0 !important;
     }
     
     .modal-footer-mobile {
@@ -55,6 +56,8 @@ const mobileStyles = `
       border-top: 1px solid #e5e7eb !important;
       padding: 1rem !important;
       z-index: 1000 !important;
+      height: auto !important;
+      min-height: 80px !important;
     }
   }
 `;
@@ -404,7 +407,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         classNames={{
           wrapper: "items-start pt-16 md:pt-0 modal-mobile-fix",
           base: "max-h-[85vh] md:max-h-[90vh] modal-mobile-fix",
-          body: "overflow-y-auto"
+          body: "overflow-y-auto flex flex-col"
         }}
         scrollBehavior="inside"
       >
@@ -414,7 +417,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
               <h2 className="text-xl md:text-2xl font-bold">Nuevo Cliente</h2>
             </ModalHeader>
 
-            <ModalBody className="space-y-4 pb-4 modal-body-mobile">
+            <ModalBody className="space-y-4 pb-4 modal-body-mobile flex-1">
               {/* Primera fila - ID y Nombre */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input
@@ -578,7 +581,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                       />
                       <Button 
                         color="primary" 
-                        onClick={handleAgregarEnvase}
+                        onPress={handleAgregarEnvase}
                         className="h-[56px] px-4"
                         size="sm"
                       >
@@ -598,8 +601,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                         <Button
                           color="danger"
                           size="sm"
-                          variant="light"
-                          onClick={() => handleQuitarEnvase(index)}
+                          variant="flat"
+                          onPress={() => handleQuitarEnvase(index)}
                         >
                           <span className="hidden md:inline">Quitar</span>
                           <span className="md:hidden">×</span>
@@ -614,10 +617,10 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 modal-footer-mobile">
+            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 modal-footer-mobile z-50">
               <Button 
                 color="danger" 
-                variant="light" 
+                variant="flat" 
                 onPress={onClose}
                 className="w-full sm:w-auto"
                 size="sm"
