@@ -107,6 +107,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   });
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [cantidadSeleccionada, setCantidadSeleccionada] = useState(1);
+  const [cantidadInput, setCantidadInput] = useState("1");
   const [latitud, setLatitud] = useState<string>('');
   const [longitud, setLongitud] = useState<string>('');
 
@@ -454,6 +455,9 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   value={dni}
                   onChange={(e) => handleInputChange(e, "dni")}
                   size="sm"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
                 <Input
                   className="w-full"
@@ -470,6 +474,9 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   value={telefono}
                   onChange={(e) => handleInputChange(e, "telefono")}
                   size="sm"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
               </div>
 
@@ -545,10 +552,29 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                         type="number"
                         min="1"
                         label="Cantidad"
-                        value={cantidadSeleccionada.toString()}
-                        onChange={(e) => setCantidadSeleccionada(parseInt(e.target.value) || 1)}
+                        value={cantidadInput}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCantidadInput(value);
+                          if (value === '') {
+                            setCantidadSeleccionada(1);
+                          } else {
+                            const numValue = parseInt(value);
+                            if (!isNaN(numValue) && numValue > 0) {
+                              setCantidadSeleccionada(numValue);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          if (cantidadInput === '' || parseInt(cantidadInput) <= 0) {
+                            setCantidadInput("1");
+                            setCantidadSeleccionada(1);
+                          }
+                        }}
                         className="w-20 md:w-24"
                         size="sm"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                       />
                       <Button 
                         color="primary" 
