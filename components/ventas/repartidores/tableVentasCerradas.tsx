@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Card, CardHeader, CardBody, Input, Select, SelectItem, Button, Checkbox, Selection } from "@heroui/react";
+import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Card, CardHeader, CardBody, Input, Select, SelectItem, Button, Checkbox, Selection, Alert } from "@heroui/react";
 import ModalDetalleVentas from './modalDetalleVentas';
 import { VentaCerrada } from '@/types/ventas';
 
@@ -303,122 +303,132 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       </CardHeader>
 
       <CardBody>
-        {ventasFiltradas.length === 0 ? (
-          <div className="py-8 text-center text-gray-500">
-            No hay ventas por administrar en caja
-          </div>
-        ) : (
-          <Table 
-            aria-label="Tabla de Ventas Cerradas"
-            selectionMode="multiple"
-            selectedKeys={selectedKeys}
-            onSelectionChange={handleSelectionChange}
-            disabledKeys={new Set(ventasFiltradas
-              .filter(venta => venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === ''))
-              .map(venta => venta.id.toString()))}
-            classNames={{
-              base: "min-w-full",
-              th: "bg-default-100",
-              td: "cursor-pointer",
-              tr: "transition-colors hover:bg-gray-50"
-            }}
-          >
-            <TableHeader>
-              <TableColumn>ID Proceso</TableColumn>
-              <TableColumn>Fecha</TableColumn>
-              <TableColumn>Repartidor</TableColumn>
-              <TableColumn>Total Venta</TableColumn>
-              <TableColumn>Efectivo</TableColumn>
-              <TableColumn>Transferencia</TableColumn>
-              <TableColumn>Balance</TableColumn>
-              <TableColumn>Estado</TableColumn>
-              <TableColumn>Acciones</TableColumn>
-            </TableHeader>
-            <TableBody 
-              items={ventasFiltradas}
-              emptyContent={"No hay ventas por administrar en caja"}
-            >
-              {(venta) => {
-                const index = ventasFiltradas.indexOf(venta);
-                return (
-                  <TableRow 
-                    key={venta.id.toString()}
-                    className={getVentaGroupStyle(venta, index, ventasFiltradas)}
-                    onClick={() => handleRowClick(venta)}
-                  >
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="font-medium">#{venta.proceso_id}</span>
-                        {venta.grupo_cierre && (
-                          <div className="flex gap-1 items-center text-xs text-gray-500">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                            Grupo {new Date(venta.grupo_cierre).toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        {venta.fecha_carga ? (
-                          <span className="font-medium text-green-600">
-                            Carga: {new Date(venta.fecha_carga).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_carga).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </span>
-                        ) : null}
-                        <span className="font-medium text-red-600">
-                          Descarga: {new Date(venta.fecha_cierre).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_cierre).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{venta.repartidor.nombre}</TableCell>
-                    <TableCell>
-                      ${calcularTotalVentaPorProductos(venta).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      ${parseNumber(venta.monto_efectivo).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      ${parseNumber(venta.monto_transferencia).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`${venta.estado === 'Finalizado' 
-                        ? 'text-gray-500' 
-                        : calcularBalance(venta) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${calcularBalance(venta).toFixed(2)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        venta.estado === 'Finalizado' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {venta.estado}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="primary"
-                        isIconOnly
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Aquí deberías llamar a la función para ver el PDF
-                          // Por ejemplo: verPDF(venta)
-                        }}
-                        title="Ver PDF"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
-                        </svg>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
+        <div className="min-w-[1000px] overflow-x-auto">
+          {ventasFiltradas.length === 0 ? (
+            <div className="min-h-[200px] flex items-center justify-center">
+              <Alert 
+                color="danger"
+                className="max-w-md"
+              >
+                <div className="text-center">
+                  <p className="font-semibold">No hay ventas por administrar en caja</p>
+                  <p className="text-sm opacity-80">No se encontraron ventas que coincidan con los filtros aplicados</p>
+                </div>
+              </Alert>
+            </div>
+          ) : (
+            <Table 
+              aria-label="Tabla de Ventas Cerradas"
+              selectionMode="multiple"
+              selectedKeys={selectedKeys}
+              onSelectionChange={handleSelectionChange}
+              disabledKeys={new Set(ventasFiltradas
+                .filter(venta => venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === ''))
+                .map(venta => venta.id.toString()))}
+              classNames={{
+                base: "min-w-full",
+                th: "bg-default-100",
+                td: "cursor-pointer",
+                tr: "transition-colors hover:bg-gray-50"
               }}
-            </TableBody>
-          </Table>
-        )}
+            >
+              <TableHeader>
+                <TableColumn>ID Proceso</TableColumn>
+                <TableColumn>Fecha</TableColumn>
+                <TableColumn>Repartidor</TableColumn>
+                <TableColumn>Total Venta</TableColumn>
+                <TableColumn>Efectivo</TableColumn>
+                <TableColumn>Transferencia</TableColumn>
+                <TableColumn>Balance</TableColumn>
+                <TableColumn>Estado</TableColumn>
+                <TableColumn>Acciones</TableColumn>
+              </TableHeader>
+              <TableBody 
+                items={ventasFiltradas}
+                emptyContent={"No hay ventas por administrar en caja"}
+              >
+                {(venta) => {
+                  const index = ventasFiltradas.indexOf(venta);
+                  return (
+                    <TableRow 
+                      key={venta.id.toString()}
+                      className={getVentaGroupStyle(venta, index, ventasFiltradas)}
+                      onClick={() => handleRowClick(venta)}
+                    >
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">#{venta.proceso_id}</span>
+                          {venta.grupo_cierre && (
+                            <div className="flex gap-1 items-center text-xs text-gray-500">
+                              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                              Grupo {new Date(venta.grupo_cierre).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          {venta.fecha_carga ? (
+                            <span className="font-medium text-green-600">
+                              Carga: {new Date(venta.fecha_carga).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_carga).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </span>
+                          ) : null}
+                          <span className="font-medium text-red-600">
+                            Descarga: {new Date(venta.fecha_cierre).toLocaleDateString()} <span className="ml-1 text-xs">{new Date(venta.fecha_cierre).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{venta.repartidor.nombre}</TableCell>
+                      <TableCell>
+                        ${calcularTotalVentaPorProductos(venta).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        ${parseNumber(venta.monto_efectivo).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        ${parseNumber(venta.monto_transferencia).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`${venta.estado === 'Finalizado' 
+                          ? 'text-gray-500' 
+                          : calcularBalance(venta) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ${calcularBalance(venta).toFixed(2)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          venta.estado === 'Finalizado' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {venta.estado}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          color="primary"
+                          isIconOnly
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Aquí deberías llamar a la función para ver el PDF
+                            // Por ejemplo: verPDF(venta)
+                          }}
+                          title="Ver PDF"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
+                          </svg>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }}
+              </TableBody>
+            </Table>
+          )}
+        </div>
         
         {/* Botones de acción */}
         <div className="flex justify-end mt-4">
