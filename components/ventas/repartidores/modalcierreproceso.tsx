@@ -21,6 +21,7 @@ interface ModalCierreProcesoProps {
   obtenerPrecioProducto: (producto_id: number) => number;
   onProcesoGuardado: () => void;
   onPreciosActualizados?: () => void;
+  onVentasCerradasActualizadas?: () => void;
 }
 
 const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
@@ -29,7 +30,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   proceso,
   obtenerPrecioProducto,
   onProcesoGuardado,
-  onPreciosActualizados
+  onPreciosActualizados,
+  onVentasCerradasActualizadas
 }) => {
   const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20);
   const [montoTransferencia, setMontoTransferencia] = useState<number>(0);
@@ -332,6 +334,11 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       onClose();
       if (onProcesoGuardado) {
         onProcesoGuardado();
+      }
+      
+      // Actualizar ventas cerradas si existe la función
+      if (onVentasCerradasActualizadas) {
+        onVentasCerradasActualizadas();
       }
       
       // Refetch para actualizar datos en tiempo real

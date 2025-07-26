@@ -127,6 +127,7 @@ const VentasDonjavier = () => {
   const [selectedTab, setSelectedTab] = useState("pendientes");
   const [loadingVentasCerradas, setLoadingVentasCerradas] = useState<boolean>(true);
   const [ventasCerradas, setVentasCerradas] = useState<VentaCerrada[]>([]);
+  const [lastTabChange, setLastTabChange] = useState<number>(Date.now());
 
   // Función para obtener el precio de un producto específico
   const obtenerPrecioProducto = (producto_id: number) => {
@@ -220,6 +221,17 @@ const VentasDonjavier = () => {
       ]);
     }
   }, [repartidorSeleccionado]);
+
+  // Actualizar ventas cerradas cuando se cambia al tab y ha pasado tiempo desde el último cambio
+  useEffect(() => {
+    if (selectedTab === "cerradas" && repartidorSeleccionado) {
+      // Solo actualizar si han pasado al menos 2 segundos desde el último cambio de tab
+      const timeSinceLastChange = Date.now() - lastTabChange;
+      if (timeSinceLastChange > 2000) {
+        fetchVentasCerradas(repartidorSeleccionado);
+      }
+    }
+  }, [selectedTab, repartidorSeleccionado, lastTabChange]);
 
   // Actualizar fechas cuando cambia el período
   useEffect(() => {
@@ -318,6 +330,18 @@ const VentasDonjavier = () => {
     }
   };
 
+  // Función para manejar el cambio de tab
+  const handleTabChange = (key: string) => {
+    const previousTab = selectedTab;
+    setSelectedTab(key);
+    setLastTabChange(Date.now());
+    
+    // Si cambiamos al tab de ventas cerradas desde otro tab, actualizar inmediatamente
+    if (key === "cerradas" && previousTab !== "cerradas" && repartidorSeleccionado) {
+      fetchVentasCerradas(repartidorSeleccionado);
+    }
+  };
+
   const getVentaGroupStyle = (venta: VentaCerrada, index: number, ventas: VentaCerrada[]) => {
     if (!venta.grupo_cierre) return '';
 
@@ -384,7 +408,7 @@ const VentasDonjavier = () => {
             <CardBody>
               <Tabs 
                 selectedKey={selectedTab} 
-                onSelectionChange={(key) => setSelectedTab(key.toString())}
+                onSelectionChange={(key) => handleTabChange(key.toString())}
                 className="mb-4"
               >
                 <Tab key="pendientes" title="Descargas Pendientes">
@@ -461,6 +485,7 @@ const VentasDonjavier = () => {
         obtenerPrecioProducto={obtenerPrecioProducto}
         onProcesoGuardado={actualizarDatos}
         onPreciosActualizados={actualizarDatos}
+        onVentasCerradasActualizadas={actualizarVentasCerradas}
       />
     </div>
   );
