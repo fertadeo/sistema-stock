@@ -43,13 +43,12 @@ const mobileStyles = `
     .modal-body-mobile {
       flex: 1 !important;
       overflow-y: auto !important;
-      padding-bottom: 180px !important;
       min-height: 0 !important;
     }
     
     .modal-footer-mobile {
       position: fixed !important;
-      bottom: 0 !important;
+      bottom: 40px !important;
       left: 0 !important;
       right: 0 !important;
       background: white !important;
@@ -57,8 +56,14 @@ const mobileStyles = `
       padding: 1rem !important;
       z-index: 1000 !important;
       height: auto !important;
-      min-height: 120px !important;
+      margin: 0 1rem !important;
+      border-radius: 8px !important;
     }
+  }
+  
+  /* Ocultar la X por defecto del modal de HeroUI */
+  .modal-close-button {
+    display: none !important;
   }
 `;
 
@@ -407,7 +412,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         classNames={{
           wrapper: "items-start pt-16 md:pt-0 modal-mobile-fix",
           base: "max-h-[85vh] md:max-h-[90vh] modal-mobile-fix",
-          body: "overflow-y-auto flex flex-col"
+          body: "overflow-y-auto flex flex-col",
+          closeButton: "hidden"
         }}
         scrollBehavior="inside"
       >
@@ -629,7 +635,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 pb-4 modal-footer-mobile z-50">
+            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pb-4 modal-footer-mobile z-50">
               <Button
                 color="success"
                 onPress={handleGuardar}
