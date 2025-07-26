@@ -43,7 +43,7 @@ const mobileStyles = `
     .modal-body-mobile {
       flex: 1 !important;
       overflow-y: auto !important;
-      padding-bottom: 120px !important;
+      padding-bottom: 140px !important;
       min-height: 0 !important;
     }
     
@@ -57,7 +57,7 @@ const mobileStyles = `
       padding: 1rem !important;
       z-index: 1000 !important;
       height: auto !important;
-      min-height: 80px !important;
+      min-height: 100px !important;
     }
   }
 `;
@@ -413,8 +413,18 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       >
         <ModalContent className="max-h-[85vh] md:max-h-[90vh] overflow-y-auto modal-content-mobile">
           <>
-            <ModalHeader className="flex flex-col gap-1">
+            <ModalHeader className="flex flex-row justify-between items-center">
               <h2 className="text-xl md:text-2xl font-bold">Nuevo Cliente</h2>
+              <Button
+                isIconOnly
+                color="danger"
+                variant="flat"
+                onPress={onClose}
+                size="sm"
+                className="text-red-600"
+              >
+                ×
+              </Button>
             </ModalHeader>
 
             <ModalBody className="space-y-4 pb-4 modal-body-mobile flex-1">
@@ -535,22 +545,23 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   <h3 className="text-lg font-semibold">Envases Prestados</h3>
                   
                   {/* Controles de agregar envase */}
-                  <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-                    <Select
-                      className="w-full md:w-48"
-                      label="Producto"
-                      placeholder="Seleccione el producto"
-                      value={productoSeleccionado}
-                      onChange={(e) => setProductoSeleccionado(e.target.value)}
-                      size="sm"
-                    >
-                      {productos.map((producto) => (
-                        <SelectItem key={producto.id} value={producto.id.toString()}>
-                          {producto.nombreProducto}
-                        </SelectItem>
-                      ))}
-                    </Select>
-                    <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    {/* Fila 1: Producto y Cantidad en móvil, lado a lado en desktop */}
+                    <div className="flex flex-row gap-2">
+                      <Select
+                        className="w-[70%] md:w-48"
+                        label="Producto"
+                        placeholder="Seleccione el producto"
+                        value={productoSeleccionado}
+                        onChange={(e) => setProductoSeleccionado(e.target.value)}
+                        size="sm"
+                      >
+                        {productos.map((producto) => (
+                          <SelectItem key={producto.id} value={producto.id.toString()}>
+                            {producto.nombreProducto}
+                          </SelectItem>
+                        ))}
+                      </Select>
                       <Input
                         type="number"
                         min="1"
@@ -574,21 +585,22 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                             setCantidadSeleccionada(1);
                           }
                         }}
-                        className="w-20 md:w-24"
+                        className="w-[30%] md:w-24"
                         size="sm"
                         inputMode="numeric"
                         pattern="[0-9]*"
                       />
-                      <Button 
-                        color="primary" 
-                        onPress={handleAgregarEnvase}
-                        className="h-[56px] px-4"
-                        size="sm"
-                      >
-                        <span className="hidden md:inline">Agregar</span>
-                        <span className="md:hidden">+</span>
-                      </Button>
                     </div>
+                    {/* Fila 2: Botón Agregar */}
+                    <Button 
+                      color="primary" 
+                      onPress={handleAgregarEnvase}
+                      className="w-full md:w-auto h-10 px-4"
+                      size="sm"
+                    >
+                      <span className="hidden md:inline">Agregar</span>
+                      <span className="md:hidden">+ Agregar</span>
+                    </Button>
                   </div>
                 </div>
 
@@ -618,15 +630,6 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
               </div>
             </ModalBody>
             <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 modal-footer-mobile z-50">
-              <Button 
-                color="danger" 
-                variant="flat" 
-                onPress={onClose}
-                className="w-full sm:w-auto"
-                size="sm"
-              >
-                Cerrar
-              </Button>
               <Button
                 color="success"
                 onPress={handleGuardar}
