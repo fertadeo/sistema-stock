@@ -17,6 +17,48 @@ import repartidoresData from "./soderia-data/repartidores.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import AddressAutocomplete from "./AddressAutocomplete";
 
+// Estilos CSS para mejorar la experiencia en mobile
+const mobileStyles = `
+  @media (max-width: 768px) {
+    .modal-mobile-fix {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      height: 100vh !important;
+      width: 100vw !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+    }
+    
+    .modal-content-mobile {
+      height: 100vh !important;
+      max-height: 100vh !important;
+      border-radius: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    
+    .modal-body-mobile {
+      flex: 1 !important;
+      overflow-y: auto !important;
+      padding-bottom: 80px !important;
+    }
+    
+    .modal-footer-mobile {
+      position: fixed !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      background: white !important;
+      border-top: 1px solid #e5e7eb !important;
+      padding: 1rem !important;
+      z-index: 1000 !important;
+    }
+  }
+`;
+
 type EnvasePrestado = {
   productoId: number;
   cantidad: number;
@@ -351,67 +393,95 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
 
   return (
     <>
-      <Modal backdrop="blur" isOpen={isOpen} onClose={onClose} size="4xl">
-        <ModalContent>
+      <style dangerouslySetInnerHTML={{ __html: mobileStyles }} />
+      <Modal 
+        backdrop="blur" 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        size="4xl" 
+        className="p-4"
+        classNames={{
+          wrapper: "items-start pt-16 md:pt-0 modal-mobile-fix",
+          base: "max-h-[85vh] md:max-h-[90vh] modal-mobile-fix",
+          body: "overflow-y-auto"
+        }}
+        scrollBehavior="inside"
+      >
+        <ModalContent className="max-h-[85vh] md:max-h-[90vh] overflow-y-auto modal-content-mobile">
           <>
             <ModalHeader className="flex flex-col gap-1">
-              Nuevo Cliente
+              <h2 className="text-xl md:text-2xl font-bold">Nuevo Cliente</h2>
             </ModalHeader>
 
-            <ModalBody>
-              <div className="flex gap-4 mb-4">
+            <ModalBody className="space-y-4 pb-4 modal-body-mobile">
+              {/* Primera fila - ID y Nombre */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input
-                  className="w-24"
+                  className="md:col-span-1"
                   label="ID"
                   value={idCliente ? idCliente.toString() : "..."}
                   readOnly
                   disabled
+                  size="sm"
                 />
                 <Input
-                  className="w-1/2"
+                  className="md:col-span-2"
                   label="Nombre completo"
                   placeholder="Ingrese el nombre"
                   value={nombre}
                   onChange={(e) => handleInputChange(e, "nombre")}
+                  size="sm"
                 />
+              </div>
+
+              {/* Segunda fila - Dirección completa */}
+              <div className="w-full">
                 <AddressAutocomplete
-                  className="flex-1"
+                  className="w-full"
                   label="Dirección"
                   placeholder="Ingrese la dirección"
                   value={direccion}
                   onChange={handleAddressChange}
                 />
               </div>
-              <div className="flex gap-4 mb-4">
+
+              {/* Tercera fila - DNI, Email, Teléfono */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input
-                  className="w-1/3"
+                  className="w-full"
                   label="DNI / CUIL"
                   placeholder="Ingrese el DNI o CUIL del cliente"
                   value={dni}
                   onChange={(e) => handleInputChange(e, "dni")}
+                  size="sm"
                 />
                 <Input
-                  className="w-1/3"
+                  className="w-full"
                   label="Email"
                   placeholder="Ingrese el Email"
                   value={email}
                   onChange={(e) => handleInputChange(e, "email")}
+                  size="sm"
                 />
                 <Input
-                  className="w-1/3"
+                  className="w-full"
                   label="Teléfono"
                   placeholder="Ingrese el teléfono"
                   value={telefono}
                   onChange={(e) => handleInputChange(e, "telefono")}
+                  size="sm"
                 />
               </div>
-              <div className="flex gap-4 mb-4">
+
+              {/* Cuarta fila - Zona, Repartidor, Día de Reparto */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select  
-                  className="w-1/3"
+                  className="w-full"
                   label="Zona"
                   placeholder="Seleccione la zona"
                   value={zona}
                   onChange={(e) => handleInputChange(e.target.value, "zona")}
+                  size="sm"
                 >
                   {zonas.map((zona, index) => (
                     <SelectItem key={index} value={index.toString()}>
@@ -420,11 +490,12 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   ))}
                 </Select>
                 <Select
-                  className="w-1/3"
+                  className="w-full"
                   label="Repartidor"
                   placeholder="Seleccione el repartidor"
                   value={repartidor}
                   onChange={(e) => handleInputChange(e.target.value, "repartidor")}
+                  size="sm"
                 >
                   {repartidoresData.repartidores.map((rep, index) => (
                     <SelectItem key={rep} value={rep}>
@@ -433,11 +504,12 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   ))}
                 </Select>
                 <Select
-                  className="w-1/3"
+                  className="w-full"
                   label="Día de Reparto"
                   placeholder="Seleccione el día de reparto"
                   value={diaReparto}
                   onChange={(e) => setDiaReparto(e.target.value)}
+                  size="sm"
                 >
                   {diasRepartoData.diasReparto.map((dia) => (
                     <SelectItem key={dia} value={dia}>
@@ -446,16 +518,21 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   ))}
                 </Select>
               </div>
+
+              {/* Sección de Envases Prestados */}
               <div className="flex flex-col gap-4 p-4 rounded-lg border">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <h3 className="text-lg font-semibold">Envases Prestados</h3>
-                  <div className="flex flex-1 gap-2 items-end ml-4">
+                  
+                  {/* Controles de agregar envase */}
+                  <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
                     <Select
-                      className="flex-1"
+                      className="w-full md:w-48"
                       label="Producto"
                       placeholder="Seleccione el producto"
                       value={productoSeleccionado}
                       onChange={(e) => setProductoSeleccionado(e.target.value)}
+                      size="sm"
                     >
                       {productos.map((producto) => (
                         <SelectItem key={producto.id} value={producto.id.toString()}>
@@ -463,44 +540,62 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                         </SelectItem>
                       ))}
                     </Select>
-                    <Input
-                      type="number"
-                      min="1"
-                      label="Cantidad"
-                      value={cantidadSeleccionada.toString()}
-                      onChange={(e) => setCantidadSeleccionada(parseInt(e.target.value) || 1)}
-                      className="w-24"
-                    />
-                    <Button color="primary" className="h-[56px]" onClick={handleAgregarEnvase}>
-                      Agregar
-                    </Button>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min="1"
+                        label="Cantidad"
+                        value={cantidadSeleccionada.toString()}
+                        onChange={(e) => setCantidadSeleccionada(parseInt(e.target.value) || 1)}
+                        className="w-20 md:w-24"
+                        size="sm"
+                      />
+                      <Button 
+                        color="primary" 
+                        onClick={handleAgregarEnvase}
+                        className="h-[56px] px-4"
+                        size="sm"
+                      >
+                        <span className="hidden md:inline">Agregar</span>
+                        <span className="md:hidden">+</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Lista de envases */}
                 <div className="overflow-y-auto mt-2 max-h-32">
                   {envasesPrestados.length > 0 ? (
                     envasesPrestados.map((envase, index) => (
-                      <div key={index} className="flex justify-between items-center py-1 hover:bg-gray-50">
-                        <span className="font-medium">{envase.cantidad} x {envase.nombreProducto}</span>
+                      <div key={index} className="flex justify-between items-center py-2 px-2 hover:bg-gray-50 rounded">
+                        <span className="font-medium text-sm">{envase.cantidad} x {envase.nombreProducto}</span>
                         <Button
                           color="danger"
                           size="sm"
                           variant="light"
                           onClick={() => handleQuitarEnvase(index)}
                         >
-                          Quitar
+                          <span className="hidden md:inline">Quitar</span>
+                          <span className="md:hidden">×</span>
                         </Button>
                       </div>
                     ))
                   ) : (
-                    <div className="py-2 italic text-center text-gray-500">
+                    <div className="py-4 italic text-center text-gray-500 text-sm">
                       Este cliente no tiene envases prestados
                     </div>
                   )}
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter>
-              <Button color="danger" variant="light" onPress={onClose}>
+            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 modal-footer-mobile">
+              <Button 
+                color="danger" 
+                variant="light" 
+                onPress={onClose}
+                className="w-full sm:w-auto"
+                size="sm"
+              >
                 Cerrar
               </Button>
               <Button
@@ -508,6 +603,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 onPress={handleGuardar}
                 disabled={isSaving || idCliente === null}
                 style={{ color: "white" }}
+                className="w-full sm:w-auto"
+                size="sm"
               >
                 {isSaving ? <Spinner color="default" /> : "Guardar"}
               </Button>

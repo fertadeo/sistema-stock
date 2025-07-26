@@ -90,10 +90,12 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   };
 
   const handleNuevoClienteModalOpen = () => {
+    console.log("Abriendo modal de nuevo cliente");
     setIsNuevoClienteModalOpen(true);
   };
 
   const handleNuevoClienteModalClose = () => {
+    console.log("Cerrando modal de nuevo cliente");
     setIsNuevoClienteModalOpen(false);
   };
 
@@ -403,7 +405,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   return (
     <div className="flex flex-col w-full h-full">
       {alertVisible && (
-        <div className="absolute right-8 bottom-8 z-50">
+        <div className="absolute right-4 md:right-8 bottom-4 md:bottom-8 z-50">
           <Alert
             type={alertType}
             message={alertMessage}
@@ -411,39 +413,53 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           />
         </div>
       )}
-      <div className="flex flex-col gap-4 p-4 h-auto bg-white rounded-lg shadow-medium">
-        <div className="flex justify-between items-center">
-          <Input
-            isClearable
-            placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
-            startContent={
-              <svg
-                className="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            }
-            onChange={(e) => setSearchTerm(e.target.value)}
-            value={searchTerm}
-            className="pr-4"
-          />
-          <Button color="primary" variant="shadow" className="pr-4" onClick={handleNuevoClienteModalOpen}>
-            Agregar Nuevo +
+      
+      <div className="flex flex-col gap-4 p-4 md:p-6 h-auto bg-white rounded-lg">
+        {/* Header con búsqueda y botón */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+          <div className="w-full md:w-2/3">
+            <Input
+              isClearable
+              placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
+              startContent={
+                <svg
+                  className="w-4 h-4 md:w-5 md:h-5 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              }
+              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              className="w-full"
+              size="sm"
+            />
+          </div>
+          <Button 
+            color="primary" 
+            variant="shadow" 
+            onPress={handleNuevoClienteModalOpen}
+            className="w-full md:w-auto"
+            size="sm"
+          >
+            <span className="hidden sm:inline">Agregar Nuevo +</span>
+            <span className="sm:hidden">+ Nuevo</span>
           </Button>
         </div>
         
-        {/* Filtros adicionales */}
-        <div className="flex gap-4">
-          <div className="w-1/3">
-            <label htmlFor="filtroDiaReparto" className="block mb-1 text-sm font-bold text-gray-700">Día de Reparto</label>
+        {/* Filtros - Responsive */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="w-full">
+            <label htmlFor="filtroDiaReparto" className="block mb-1 text-sm font-bold text-gray-700">
+              Día de Reparto
+            </label>
             <div className="relative">
               <select
                 id="filtroDiaReparto"
@@ -459,15 +475,17 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 ))}
               </select>
               <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>
             </div>
           </div>
           
-          <div className="w-1/3">
-            <label htmlFor="filtroRepartidor" className="block mb-1 text-sm font-bold text-gray-700">Repartidor</label>
+          <div className="w-full">
+            <label htmlFor="filtroRepartidor" className="block mb-1 text-sm font-bold text-gray-700">
+              Repartidor
+            </label>
             <div className="relative">
               <select
                 id="filtroRepartidor"
@@ -483,15 +501,17 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 ))}
               </select>
               <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>
             </div>
           </div>
           
-          <div className="w-1/3">
-            <label htmlFor="filtroZona" className="block mb-1 text-sm font-bold text-gray-700">Zona</label>
+          <div className="w-full">
+            <label htmlFor="filtroZona" className="block mb-1 text-sm font-bold text-gray-700">
+              Zona
+            </label>
             <div className="relative">
               <select
                 id="filtroZona"
@@ -507,7 +527,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 ))}
               </select>
               <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>
@@ -520,6 +540,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           <Button 
             color="success" 
             variant="flat" 
+            size="sm"
             onClick={() => {
               setFiltroDiaReparto("");
               setFiltroRepartidor("");
@@ -532,53 +553,67 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         </div>
       </div>
 
+      {/* Mensaje de no resultados */}
       {filteredUsers.length === 0 && (searchTerm || filtroDiaReparto || filtroRepartidor || filtroZona) && (
         <div className="px-4 py-3 mt-4 text-blue-700 bg-blue-100 rounded border-l-4 border-blue-500">
           <div className="flex">
             <div className="py-1">
-              <svg className="mr-4 w-6 h-6 text-blue-500 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+              <svg className="mr-2 md:mr-4 w-5 h-5 md:w-6 md:h-6 text-blue-500 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                 <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/>
               </svg>
             </div>
             <div>
-              <p className="font-bold">No se encontraron resultados</p>
-              <p className="text-sm">No hay clientes que coincidan con los filtros aplicados.</p>
+              <p className="font-bold text-sm md:text-base">No se encontraron resultados</p>
+              <p className="text-xs md:text-sm">No hay clientes que coincidan con los filtros aplicados.</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="overflow-auto flex-1 mt-4">
-        <Table aria-label="Tabla de Clientes" className="w-full">
-          <TableHeader columns={filteredColumns}>
-            {(column) => (
-              <TableColumn 
-                key={column.uid} 
-                align={column.uid === "name" ? "start" : column.uid === "actions" ? "start" : "center"}
-              >
-                {column.name}
-              </TableColumn>
-            )}
-          </TableHeader>
-          <TableBody items={currentItems}>
-            {(item) => (
-              <TableRow key={item.id}>
-                {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      {/* Tabla responsive */}
+      <div className="overflow-x-auto flex-1 mt-4">
+        <div className="min-w-full">
+          <Table aria-label="Tabla de Clientes" className="w-full">
+            <TableHeader columns={filteredColumns}>
+              {(column) => (
+                <TableColumn 
+                  key={column.uid} 
+                  align={column.uid === "name" ? "start" : column.uid === "actions" ? "start" : "center"}
+                  className="text-xs md:text-sm"
+                >
+                  {column.name}
+                </TableColumn>
+              )}
+            </TableHeader>
+            <TableBody items={currentItems}>
+              {(item) => (
+                <TableRow key={item.id}>
+                  {(columnKey) => (
+                    <TableCell className="text-xs md:text-sm">
+                      {renderCell(item, columnKey)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <div className="flex justify-center mt-4">
+      {/* Paginación responsive */}
+      <div className="flex justify-center mt-4 px-4">
         <Pagination
           total={Math.ceil(filteredUsers.length / itemsPerPage)}
           initialPage={1}
           page={currentPage}
           onChange={(page) => setCurrentPage(page)}
+          size="sm"
+          showControls
+          className="flex-wrap"
         />
       </div>
 
+      {/* Modales */}
       {editarModal && <EditarComponent cliente={selectedUser} isOpen={true} onClose={handleCloseEditarModal} onSave={handleSave} />}
       {selectedUser && <ModalToTable isOpen={isOpen} onClose={onClose} cliente={selectedUser} />}
       <NuevoClienteModal
@@ -593,7 +628,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         cliente={{
           nombre: userToDelete?.nombre || '',
           mensaje: "¿Está seguro que desea borrar este cliente? Todos los datos asociados a él como información de ventas y envases también se perderán"
-          }}
+        }}
       />
     </div>
   );
