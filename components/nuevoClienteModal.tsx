@@ -43,7 +43,7 @@ const mobileStyles = `
     .modal-body-mobile {
       flex: 1 !important;
       overflow-y: auto !important;
-      padding-bottom: 140px !important;
+      padding-bottom: 180px !important;
       min-height: 0 !important;
     }
     
@@ -57,7 +57,7 @@ const mobileStyles = `
       padding: 1rem !important;
       z-index: 1000 !important;
       height: auto !important;
-      min-height: 100px !important;
+      min-height: 120px !important;
     }
   }
 `;
@@ -629,7 +629,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 modal-footer-mobile z-50">
+            <ModalFooter className="flex flex-col sm:flex-row gap-2 sticky bottom-0 bg-white border-t pt-4 pb-4 modal-footer-mobile z-50">
               <Button
                 color="success"
                 onPress={handleGuardar}
