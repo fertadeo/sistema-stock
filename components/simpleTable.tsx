@@ -48,6 +48,24 @@ export default function SimpleTable() {
     fetchVentas();
   }, []);
 
+  // Función para obtener el nombre a mostrar en la columna Revendedor
+  const getNombreRevendedor = (venta: Venta) => {
+    // Si no hay nombre del revendedor o está vacío, mostrar "Venta en local"
+    if (!venta.revendedor_nombre || venta.revendedor_nombre.trim() === '') {
+      return "Venta en local";
+    }
+    // Si hay nombre del revendedor, mostrarlo
+    return venta.revendedor_nombre;
+  };
+
+  // Función para obtener las clases CSS del nombre
+  const getNombreClasses = (venta: Venta) => {
+    if (!venta.revendedor_nombre || venta.revendedor_nombre.trim() === '') {
+      return "text-yellow-600 font-bold";
+    }
+    return "";
+  };
+
   // Filtrar ventas basado en el término de búsqueda
   const ventasFiltradas = ventas.filter((venta) => {
     const searchString = searchTerm.toLowerCase().trim();
@@ -132,7 +150,11 @@ export default function SimpleTable() {
             ventasPaginadas.map((venta) => (
               <TableRow key={venta.venta_id}>
                 <TableCell>{`#${venta.venta_id.slice(0, 8)}`}</TableCell>
-                <TableCell>{venta.revendedor_nombre}</TableCell>
+                <TableCell>
+                  <span className={getNombreClasses(venta)}>
+                    {getNombreRevendedor(venta)}
+                  </span>
+                </TableCell>
                 <TableCell>{formatDate(venta.fecha_venta)}</TableCell>
                 <TableCell>${Number(venta.monto_total).toLocaleString('es-AR', {
                   minimumFractionDigits: 2,

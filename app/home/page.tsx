@@ -139,7 +139,7 @@ export default function Home() {
       <div className="flex flex-col gap-12 px-4 w-full md:flex-row md:space-x-8">
         {/* Columna izquierda con SimpleTable */}
         <div className="p-6 w-full bg-white rounded-lg shadow md:w-1/2">
-          <h3 className="mb-4 text-lg font-medium text-center">Ultimas ventas</h3>
+          <h3 className="mb-4 text-lg font-medium text-center">Últimas ventas</h3>
           <SimpleTable />
         </div>
 
