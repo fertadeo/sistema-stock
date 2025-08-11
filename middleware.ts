@@ -17,5 +17,5 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/home", "/clientes", "/control-stock", "/ventas/balance" ],
+  matcher: ["/home", "/clientes", "/control-stock", "/ventas/balance", "/repartidor/:path*" ],
 };

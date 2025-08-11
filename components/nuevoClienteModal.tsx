@@ -56,6 +56,7 @@ const mobileStyles = `
       padding: 1rem !important;
       z-index: 1000 !important;
       height: auto !important;
+
       margin: 0 1rem !important;
       border-radius: 8px !important;
     }
@@ -551,60 +552,59 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   <h3 className="text-lg font-semibold">Envases Prestados</h3>
                   
                   {/* Controles de agregar envase */}
-                  <div className="flex flex-col gap-2 w-full md:w-auto">
-                    {/* Fila 1: Producto y Cantidad en móvil, lado a lado en desktop */}
-                    <div className="flex flex-row gap-2">
-                      <Select
-                        className="w-[70%] md:w-48"
-                        label="Producto"
-                        placeholder="Seleccione el producto"
-                        value={productoSeleccionado}
-                        onChange={(e) => setProductoSeleccionado(e.target.value)}
-                        size="sm"
-                      >
-                        {productos.map((producto) => (
-                          <SelectItem key={producto.id} value={producto.id.toString()}>
-                            {producto.nombreProducto}
-                          </SelectItem>
-                        ))}
-                      </Select>
-                      <Input
-                        type="number"
-                        min="1"
-                        label="Cantidad"
-                        value={cantidadInput}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setCantidadInput(value);
-                          if (value === '') {
-                            setCantidadSeleccionada(1);
-                          } else {
-                            const numValue = parseInt(value);
-                            if (!isNaN(numValue) && numValue > 0) {
-                              setCantidadSeleccionada(numValue);
-                            }
+                  <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                    {/* Producto */}
+                    <Select
+                      className="w-full md:w-48"
+                      label="Producto"
+                      placeholder="Seleccione el producto"
+                      value={productoSeleccionado}
+                      onChange={(e) => setProductoSeleccionado(e.target.value)}
+                      size="sm"
+                    >
+                      {productos.map((producto) => (
+                        <SelectItem key={producto.id} value={producto.id.toString()}>
+                          {producto.nombreProducto}
+                        </SelectItem>
+                      ))}
+                    </Select>
+                    {/* Cantidad */}
+                    <Input
+                      type="number"
+                      min="1"
+                      label="Cantidad"
+                      value={cantidadInput}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCantidadInput(value);
+                        if (value === '') {
+                          setCantidadSeleccionada(1);
+                        } else {
+                          const numValue = parseInt(value);
+                          if (!isNaN(numValue) && numValue > 0) {
+                            setCantidadSeleccionada(numValue);
                           }
-                        }}
-                        onBlur={() => {
-                          if (cantidadInput === '' || parseInt(cantidadInput) <= 0) {
-                            setCantidadInput("1");
-                            setCantidadSeleccionada(1);
-                          }
-                        }}
-                        className="w-[30%] md:w-24"
-                        size="sm"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </div>
-                    {/* Fila 2: Botón Agregar */}
+                        }
+                      }}
+                      onBlur={() => {
+                        if (cantidadInput === '' || parseInt(cantidadInput) <= 0) {
+                          setCantidadInput("1");
+                          setCantidadSeleccionada(1);
+                        }
+                      }}
+                      className="w-full md:w-24"
+                      size="sm"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                    />
+                    {/* Botón Agregar */}
                     <Button 
                       color="primary" 
                       onPress={handleAgregarEnvase}
-                      className="w-full md:w-auto h-10 px-4"
+                      className="w-full md:w-auto px-3 py-2"
                       size="sm"
                     >
-                      <span className="hidden md:inline">Agregar</span>
+                      <span className="hidden md:inline">Agregar +</span>
                       <span className="md:hidden">+ Agregar</span>
                     </Button>
                   </div>

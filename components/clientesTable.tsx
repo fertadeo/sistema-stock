@@ -417,7 +417,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       <div className="flex flex-col gap-4 p-4 md:p-6 h-auto bg-white rounded-lg">
         {/* Header con búsqueda y botón */}
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-          <div className="w-full md:w-2/3">
+          <div className="w-full md:w-auto md:flex-1">
             <Input
               isClearable
               placeholder="Buscar por nombre, teléfono, email, DNI, zona o dirección..."
@@ -438,7 +438,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               }
               onChange={(e) => setSearchTerm(e.target.value)}
               value={searchTerm}
-              className="w-full"
+              className="w-full px-3 py-2"
               size="sm"
             />
           </div>
