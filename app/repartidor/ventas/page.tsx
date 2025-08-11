@@ -7,7 +7,8 @@ import {
   ShoppingCartIcon,
   UserIcon,
   MapPinIcon,
-  PhoneIcon
+  PhoneIcon,
+  ArrowRightIcon
 } from '@heroicons/react/24/outline';
 
 interface Cliente {
@@ -121,103 +122,106 @@ const VentaRapida: React.FC<VentaRapidaProps> = ({ cliente, productos, onVentaCo
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-6">
       {/* Header con info del cliente */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">{cliente.nombre}</h2>
-        <div className="space-y-1">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-800 mb-3">{cliente.nombre}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div className="flex items-center text-sm text-gray-600">
-            <MapPinIcon className="w-4 h-4 mr-2" />
-            <span>{cliente.direccion}</span>
+            <MapPinIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="truncate">{cliente.direccion}</span>
           </div>
           <div className="flex items-center text-sm text-gray-600">
-            <PhoneIcon className="w-4 h-4 mr-2" />
+            <PhoneIcon className="w-4 h-4 mr-2 flex-shrink-0" />
             <span>{cliente.telefono}</span>
           </div>
         </div>
       </div>
 
-      {/* Productos con scroll horizontal */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <h3 className="font-semibold mb-3 text-gray-800">Productos</h3>
-        <div className="flex space-x-3 overflow-x-auto pb-2">
-          {productos.map(producto => (
-            <ProductoCard 
-              key={producto.id}
-              producto={producto}
-              cantidad={cantidades[producto.id] || 0}
-              onCantidadChange={(cantidad) => handleCantidadChange(producto.id, cantidad)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Resumen de la venta */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold text-gray-800">Total</h3>
-          <span className="text-2xl font-bold text-gray-800">${total.toLocaleString()}</span>
-        </div>
-        
-        {/* Método de pago */}
-        <div className="mb-4">
-          <label htmlFor='metodoPago' className="block text-sm font-medium text-gray-700 mb-2">
-            Método de Pago
-          </label>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setMetodoPago('efectivo')}
-              className={`flex-1 py-2 px-4 rounded-lg border font-medium ${
-                metodoPago === 'efectivo'
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-700'
-              }`}
-            >
-              Efectivo
-            </button>
-            <button
-              onClick={() => setMetodoPago('fiado')}
-              className={`flex-1 py-2 px-4 rounded-lg border font-medium ${
-                metodoPago === 'fiado'
-                  ? 'bg-orange-50 border-orange-200 text-orange-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-700'
-              }`}
-            >
-              Fiado
-            </button>
+      {/* Layout responsivo para productos y resumen */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Productos */}
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <h3 className="font-semibold mb-4 text-gray-800 text-lg">Productos</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {productos.map(producto => (
+              <ProductoCard 
+                key={producto.id}
+                producto={producto}
+                cantidad={cantidades[producto.id] || 0}
+                onCantidadChange={(cantidad) => handleCantidadChange(producto.id, cantidad)}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Observaciones */}
-        <div className="mb-4">
-          <label htmlFor='observaciones' className="block text-sm font-medium text-gray-700 mb-2">
-            Observaciones
-          </label>
-          <textarea 
-            value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
-            placeholder="Notas adicionales..."
-            className="w-full p-3 border border-gray-300 rounded-lg resize-none"
-            rows={3}
-          />
-        </div>
-        
-        {/* Botones de acción */}
-        <div className="space-y-2">
-          <button 
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-            onClick={handleVentaEfectivo}
-            disabled={total === 0}
-          >
-            Venta Efectivo
-          </button>
-          <button 
-            className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
-            onClick={handleVentaFiado}
-            disabled={total === 0}
-          >
-            Venta Fiado
-          </button>
+        {/* Resumen de la venta */}
+        <div className="bg-white rounded-lg p-6 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-semibold text-gray-800 text-lg">Total</h3>
+            <span className="text-3xl font-bold text-gray-800">${total.toLocaleString()}</span>
+          </div>
+          
+          {/* Método de pago */}
+          <div className="mb-6">
+            <label htmlFor='metodoPago' className="block text-sm font-medium text-gray-700 mb-3">
+              Método de Pago
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setMetodoPago('efectivo')}
+                className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
+                  metodoPago === 'efectivo'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Efectivo
+              </button>
+              <button
+                onClick={() => setMetodoPago('fiado')}
+                className={`py-3 px-4 rounded-lg border font-medium transition-colors ${
+                  metodoPago === 'fiado'
+                    ? 'bg-orange-50 border-orange-200 text-orange-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Fiado
+              </button>
+            </div>
+          </div>
+
+          {/* Observaciones */}
+          <div className="mb-6">
+            <label htmlFor='observaciones' className="block text-sm font-medium text-gray-700 mb-2">
+              Observaciones
+            </label>
+            <textarea
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Observaciones adicionales..."
+              className="w-full p-3 border border-gray-300 rounded-lg resize-none"
+              rows={3}
+            />
+          </div>
+          
+          {/* Botones de acción */}
+          <div className="space-y-3">
+            <button 
+              className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+              onClick={handleVentaEfectivo}
+              disabled={total === 0}
+            >
+              Venta Efectivo
+            </button>
+            <button 
+              className="w-full bg-orange-600 text-white py-4 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+              onClick={handleVentaFiado}
+              disabled={total === 0}
+            >
+              Venta Fiado
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -271,16 +275,16 @@ const VentasPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-800 mb-2">Nueva Venta</h1>
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Nueva Venta</h1>
         <p className="text-gray-600">Selecciona un cliente para comenzar</p>
       </div>
 
       {/* Buscador */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <div className="relative">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <div className="relative max-w-md">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
@@ -294,31 +298,29 @@ const VentasPage: React.FC = () => {
 
       {/* Lista de clientes */}
       <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="font-semibold text-gray-800">Clientes</h2>
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="font-semibold text-gray-800 text-lg">Clientes</h2>
         </div>
         <div className="divide-y divide-gray-200">
           {clientesFiltrados.map(cliente => (
             <button
               key={cliente.id}
-              className="p-4 active:bg-gray-50 cursor-pointer"
+              className="p-6 active:bg-gray-50 cursor-pointer hover:bg-gray-50 transition-colors w-full text-left"
               onClick={() => setClienteSeleccionado(cliente)}
             >
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
-                  <UserIcon className="w-5 h-5 text-teal-600" />
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="w-6 h-6 text-teal-600" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-800">{cliente.nombre}</h3>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <MapPinIcon className="w-4 h-4 mr-1" />
-                    <span>{cliente.direccion}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-800 text-lg">{cliente.nombre}</h3>
+                  <div className="flex items-center text-sm text-gray-600 mt-1">
+                    <MapPinIcon className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">{cliente.direccion}</span>
                   </div>
-                  <p className="text-sm text-gray-500">{cliente.telefono}</p>
+                  <p className="text-sm text-gray-500 mt-1">{cliente.telefono}</p>
                 </div>
-                <div className="text-gray-400">
-                  <PlusIcon className="w-5 h-5" />
-                </div>
+                <ArrowRightIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
               </div>
             </button>
           ))}
@@ -326,7 +328,7 @@ const VentasPage: React.FC = () => {
       </div>
 
       {clientesFiltrados.length === 0 && searchTerm && (
-        <div className="bg-white rounded-lg p-4 shadow-sm text-center">
+        <div className="bg-white rounded-lg p-6 shadow-sm text-center">
           <p className="text-gray-500">No se encontraron clientes</p>
         </div>
       )}

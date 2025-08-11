@@ -253,42 +253,44 @@ const ClientesPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-800 mb-2">Clientes</h1>
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Clientes</h1>
         <p className="text-gray-600">Gestiona la información de tus clientes</p>
       </div>
 
       {/* Buscador y filtros */}
-      <div className="bg-white rounded-lg p-4 shadow-sm space-y-3">
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar cliente por nombre, dirección o teléfono..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-          />
-        </div>
-        <div>
-          <select
-            value={filtroZona}
-            onChange={(e) => setFiltroZona(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg"
-          >
-            <option value="">Todas las zonas</option>
-            {zonas.map(zona => (
-              <option key={zona} value={zona}>{zona}</option>
-            ))}
-          </select>
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar cliente por nombre, dirección o teléfono..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <select
+              value={filtroZona}
+              onChange={(e) => setFiltroZona(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg"
+            >
+              <option value="">Todas las zonas</option>
+              {zonas.map(zona => (
+                <option key={zona} value={zona}>{zona}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Lista de clientes */}
       <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200">
           <h2 className="font-semibold text-gray-800">
             Clientes ({clientesFiltrados.length})
           </h2>
@@ -297,29 +299,29 @@ const ClientesPage: React.FC = () => {
           {clientesFiltrados.map(cliente => (
             <button
               key={cliente.id}
-              className="p-4 active:bg-gray-50 cursor-pointer"
+              className="p-6 active:bg-gray-50 cursor-pointer hover:bg-gray-50 transition-colors w-full text-left"
               onClick={() => setClienteSeleccionado(cliente)}
             >
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <UserIcon className="w-6 h-6 text-teal-600" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-800">{cliente.nombre}</h3>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <MapPinIcon className="w-4 h-4 mr-1" />
-                    <span>{cliente.direccion}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-800 text-lg">{cliente.nombre}</h3>
+                  <div className="flex items-center text-sm text-gray-600 mt-1">
+                    <MapPinIcon className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">{cliente.direccion}</span>
                   </div>
-                  <div className="flex items-center mt-1">
-                    <p className="text-sm text-gray-500 mr-4">{cliente.telefono}</p>
+                  <div className="flex items-center mt-2 space-x-4">
+                    <p className="text-sm text-gray-500">{cliente.telefono}</p>
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                       {cliente.zona}
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center space-x-2 text-xs text-gray-500">
-                        {(cliente.fiados_pendientes ?? 0) > 0 && (
+                <div className="text-right flex-shrink-0">
+                  <div className="flex items-center space-x-2 text-xs text-gray-500 mb-2">
+                    {(cliente.fiados_pendientes ?? 0) > 0 && (
                       <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded">
                         {cliente.fiados_pendientes ?? 0} fiados
                       </span>
@@ -330,7 +332,7 @@ const ClientesPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <ArrowRightIcon className="w-5 h-5 text-gray-400 mt-2" />
+                  <ArrowRightIcon className="w-5 h-5 text-gray-400" />
                 </div>
               </div>
             </button>
@@ -339,16 +341,16 @@ const ClientesPage: React.FC = () => {
       </div>
 
       {clientesFiltrados.length === 0 && (searchTerm || filtroZona) && (
-        <div className="bg-white rounded-lg p-4 shadow-sm text-center">
+        <div className="bg-white rounded-lg p-6 shadow-sm text-center">
           <p className="text-gray-500">No se encontraron clientes</p>
         </div>
       )}
 
       {/* Botón para agregar nuevo cliente */}
-      <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
         <button
           onClick={() => router.push('/repartidor/clientes/nuevo')}
-          className="w-full bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors flex items-center justify-center space-x-2"
+          className="w-full bg-teal-600 text-white py-4 rounded-lg font-semibold hover:bg-teal-700 transition-colors flex items-center justify-center space-x-2"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Agregar Nuevo Cliente</span>

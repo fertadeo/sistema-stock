@@ -141,9 +141,9 @@ const RepartidorDashboard: React.FC = () => {
   ]);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-6">
       {/* Tarjetas de resumen */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <ResumenCard 
           titulo="Ventas Hoy"
           valor={`$${resumen.ventasRealizadas.toLocaleString()}`}
@@ -170,49 +170,52 @@ const RepartidorDashboard: React.FC = () => {
         />
       </div>
 
-      {/* Próximas entregas */}
-      <section className="bg-white rounded-lg p-4 shadow-sm">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800">Próximas Entregas</h2>
-        <div className="space-y-3">
-          {proximasEntregas.map(cliente => (
-            <ClienteCard 
-              key={cliente.id}
-              cliente={cliente}
-              onPress={() => router.push(`/repartidor/clientes/${cliente.id}`)}
-            />
-          ))}
-        </div>
-      </section>
+      {/* Layout de dos columnas para desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Próximas entregas */}
+        <section className="bg-white rounded-lg p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">Próximas Entregas</h2>
+          <div className="space-y-3">
+            {proximasEntregas.map(cliente => (
+              <ClienteCard 
+                key={cliente.id}
+                cliente={cliente}
+                onPress={() => router.push(`/repartidor/clientes/${cliente.id}`)}
+              />
+            ))}
+          </div>
+        </section>
 
-      {/* Acciones rápidas */}
-      <section className="bg-white rounded-lg p-4 shadow-sm">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800">Acciones Rápidas</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <ActionButton 
-            icon={<PlusIcon className="w-6 h-6" />}
-            label="Nueva Venta"
-            onPress={() => router.push('/repartidor/ventas')}
-            color="green"
-          />
-          <ActionButton 
-            icon={<UserPlusIcon className="w-6 h-6" />}
-            label="Nuevo Cliente"
-            onPress={() => router.push('/repartidor/clientes/nuevo')}
-            color="blue"
-          />
-        </div>
-      </section>
+        {/* Acciones rápidas */}
+        <section className="bg-white rounded-lg p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">Acciones Rápidas</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ActionButton 
+              icon={<PlusIcon className="w-6 h-6" />}
+              label="Nueva Venta"
+              onPress={() => router.push('/repartidor/ventas')}
+              color="green"
+            />
+            <ActionButton 
+              icon={<UserPlusIcon className="w-6 h-6" />}
+              label="Nuevo Cliente"
+              onPress={() => router.push('/repartidor/clientes/nuevo')}
+              color="blue"
+            />
+          </div>
+        </section>
+      </div>
 
       {/* Alertas del día */}
-      <section className="bg-white rounded-lg p-4 shadow-sm">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800">Alertas del Día</h2>
-        <div className="space-y-2">
-          <div className="flex items-center p-3 bg-orange-50 rounded-lg border border-orange-200">
-            <div className="w-2 h-2 bg-orange-500 rounded-full mr-3"></div>
+      <section className="bg-white rounded-lg p-6 shadow-sm">
+        <h2 className="text-lg font-semibold mb-4 text-gray-800">Alertas del Día</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+            <div className="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
             <span className="text-sm text-orange-800">3 fiados vencidos requieren atención</span>
           </div>
-          <div className="flex items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+          <div className="flex items-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
             <span className="text-sm text-blue-800">5 envases pendientes de devolución</span>
           </div>
         </div>
