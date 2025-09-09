@@ -111,6 +111,7 @@ const ControlCargaPage = () => {
   const [cargaAEliminar, setCargaAEliminar] = useState<CargaRepartidor | null>(null);
   const [isModalEliminarCargaOpen, setIsModalEliminarCargaOpen] = useState(false);
   const [mostrarListaEliminar, setMostrarListaEliminar] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchRepartidores = async () => {
@@ -194,6 +195,11 @@ const ControlCargaPage = () => {
 
   const calcularTotalUnidades = (cajones: number = 0, unidades: number = 0) => {
     return (cajones * 6) + unidades;
+  };
+
+  // Función para prevenir el cambio de valor con la rueda del mouse en inputs number
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
   };
 
   const handleProductChange = (
@@ -397,6 +403,11 @@ const ControlCargaPage = () => {
   };
 
   const confirmarGuardado = async () => {
+    setIsSubmitting(true);
+    
+    // Mostrar spinner durante 1.5 segundos antes de realizar el POST
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
     try {
       if (isCarga) {
         const repartidorId = parseInt(formData.repartidor);
@@ -708,6 +719,8 @@ const ControlCargaPage = () => {
       } else {
         handleError('Hubo un error al guardar los datos. Por favor, intente nuevamente.');
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1097,6 +1110,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full"
                                                 size="sm"
                                               />
@@ -1120,6 +1134,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full"
                                                 size="sm"
                                               />
@@ -1143,6 +1158,7 @@ const ControlCargaPage = () => {
                                               value === "" ? 0 : parseInt(value) || 0
                                             );
                                           }}
+                                          onWheel={handleWheel}
                                           className="w-full"
                                           size="sm"
                                         />
@@ -1172,6 +1188,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full border-green-200 focus:border-green-500"
                                               />
                                             </div>
@@ -1194,6 +1211,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full border-green-200 focus:border-green-500"
                                               />
                                             </div>
@@ -1212,6 +1230,7 @@ const ControlCargaPage = () => {
                                                 value === "" ? 0 : parseInt(value) || 0
                                               );
                                             }}
+                                            onWheel={handleWheel}
                                             className="w-full"
                                             size="sm"
                                           />
@@ -1239,6 +1258,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full border-blue-200 focus:border-blue-500"
                                               />
                                             </div>
@@ -1261,6 +1281,7 @@ const ControlCargaPage = () => {
                                                     true
                                                   );
                                                 }}
+                                                onWheel={handleWheel}
                                                 className="w-full border-blue-200 focus:border-blue-500"
                                               />
                                             </div>
@@ -1279,6 +1300,7 @@ const ControlCargaPage = () => {
                                                 value === "" ? 0 : parseInt(value) || 0
                                               );
                                             }}
+                                            onWheel={handleWheel}
                                             className="w-full"
                                             size="sm"
                                           />
@@ -1335,9 +1357,14 @@ const ControlCargaPage = () => {
                 ) : null}
 
                 <div className="mt-6">
-                  <Button type="submit" className="w-full">
-                  {isCarga ? 'Guardar Carga' : 'Guardar Descarga'}
-                </Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    isLoading={isSubmitting}
+                    disabled={isSubmitting}
+                  >
+                    {isCarga ? 'Guardar Carga' : 'Guardar Descarga'}
+                  </Button>
                 </div>
               </form>
             </CardBody>
@@ -1403,7 +1430,12 @@ const ControlCargaPage = () => {
                 <Button color="danger" variant="light" onPress={onClose}>
                   Cancelar
                 </Button>
-                <Button color="primary" onPress={confirmarGuardado}>
+                <Button 
+                  color="primary" 
+                  onPress={confirmarGuardado}
+                  isLoading={isSubmitting}
+                  disabled={isSubmitting}
+                >
                   Confirmar
                 </Button>
               </ModalFooter>
