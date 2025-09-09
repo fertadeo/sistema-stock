@@ -110,6 +110,11 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     return parseFloat(valor.replace(/\./g, "")) || 0;
   };
 
+  // Función para prevenir el cambio de valor con la rueda del mouse en inputs number
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
   // Función para calcular el total de la venta
   const calcularTotalVenta = () => {
     if (!productosDetalle || productosDetalle.length === 0) return 0;
@@ -462,7 +467,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             <span>$</span>
                             <input
                               type="number"
-                              value={item.precio_unitario}
+                              value={item.precio_unitario === 0 ? "" : item.precio_unitario}
                               onChange={(e) => {
                                 if (proceso?.estado_cuenta !== 'finalizado') {
                                   const nuevoPrecio = parseFloat(e.target.value) || 0;
@@ -472,6 +477,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                               onFocus={() => setEditandoPrecioIndex(index)}
                               onBlur={() => setEditandoPrecioIndex(null)}
                               onKeyDown={(e) => handleKeyDown(e, index)}
+                              onWheel={handleWheel}
+                              placeholder="0"
                               className={`w-24 text-right rounded border transition-colors duration-200 ${
                                 proceso?.estado_cuenta === 'finalizado'
                                   ? 'bg-gray-100 cursor-not-allowed'

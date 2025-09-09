@@ -110,6 +110,11 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
     return valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
+  // Función para prevenir el cambio de valor con la rueda del mouse en inputs number
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
   const handleCerrarCaja = async () => {
     setIsLoading(true);
     setError("");
@@ -344,8 +349,20 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                           type="number"
                           min="0"
                           max="100"
-                          value={porcentajeGanancia}
-                          onChange={(e) => setPorcentajeGanancia(Number(e.target.value))}
+                          value={porcentajeGanancia === 20 ? "" : porcentajeGanancia.toString()}
+                          onChange={(e) => {
+                            const valor = e.target.value;
+                            if (valor === "") {
+                              setPorcentajeGanancia(20);
+                            } else {
+                              const numero = Number(valor);
+                              if (!isNaN(numero) && numero >= 0 && numero <= 100) {
+                                setPorcentajeGanancia(numero);
+                              }
+                            }
+                          }}
+                          onWheel={handleWheel}
+                          placeholder="20"
                           className={`block w-24 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm px-4 text-center ${
                             todasFinalizadas ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                           disabled={todasFinalizadas}
