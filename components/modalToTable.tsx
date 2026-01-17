@@ -11,23 +11,15 @@ import {
   PopoverTrigger
 } from "@heroui/react";
 
-interface Producto {
-  detalles: {
-    sistema: string;
-    colorSistema: string;
-    ladoComando: string;
-  };
-  nombre: string;
-  cantidad: number;
-  subtotal: number;
-}
-
-interface Presupuesto {
+interface Movimiento {
   id: number;
+  tipo: "VENTA_LOCAL" | "CIERRE_VENTA" | "GASTO" | "NUEVO_CLIENTE";
+  descripcion: string;
+  usuario_id: number;
   fecha: string;
-  total: number;
-  items: Producto[];
-  numero_presupuesto: string;
+  activo: boolean;
+  monto: string;
+  detalles: any;
 }
 
 interface ModalToTableProps {
@@ -43,62 +35,48 @@ interface ModalToTableProps {
 }
 
 const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente }) => {
-  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const presupuestosPerPage = 4;
-
-  const indexOfLastPresupuesto = currentPage * presupuestosPerPage;
-  const indexOfFirstPresupuesto = indexOfLastPresupuesto - presupuestosPerPage;
-  const currentPresupuestos = presupuestos.slice(indexOfFirstPresupuesto, indexOfLastPresupuesto);
-
-  const totalPages = Math.ceil(presupuestos.length / presupuestosPerPage);
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
 
   useEffect(() => {
-    const fetchPresupuestos = async () => {
+    const fetchMovimientos = async () => {
       if (!cliente?.id) return;
       
       setIsLoading(true);
       setError(null);
       
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos/cliente/${cliente.id}`);
+        // Intentar obtener movimientos del cliente desde la API
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos/cliente/${cliente.id}`);
         
+        // Si el endpoint no existe o no hay movimientos, establecer array vacío
         if (!response.ok) {
-          throw new Error('Error al cargar los presupuestos');
+          // Si es 404 o cualquier error, simplemente no hay movimientos
+          setMovimientos([]);
+          return;
         }
         
         const data = await response.json();
-        console.log('Respuesta completa del servidor:', JSON.stringify(data, null, 2));
         
-        if (data.success) {
-          setPresupuestos(data.data);
+        if (data.success && data.movimientos) {
+          setMovimientos(data.movimientos);
+        } else if (data.success && Array.isArray(data)) {
+          setMovimientos(data);
         } else {
-          throw new Error(data.message || 'Error al obtener los presupuestos');
+          setMovimientos([]);
         }
       } catch (error) {
-        console.error('Error:', error);
-        setError(error instanceof Error ? error.message : 'Error al cargar los presupuestos');
+        console.error('Error al cargar movimientos:', error);
+        // En caso de error, simplemente establecer array vacío
+        setMovimientos([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     if (isOpen) {
-      fetchPresupuestos();
+      fetchMovimientos();
     }
   }, [isOpen, cliente?.id]);
 
@@ -117,7 +95,7 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
             </div>
 
             <div className="mt-6">
-              <h3 className="mb-4 text-lg font-semibold">Historial de Cliente</h3>
+              <h3 className="mb-4 text-lg font-semibold">Historial de Movimientos</h3>
               
               {error && (
                 <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-lg">
@@ -129,105 +107,40 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
                 <div className="flex justify-center p-4">
                   <div className="w-8 h-8 rounded-full border-4 border-blue-500 animate-spin border-t-transparent"></div>
                 </div>
-              ) : currentPresupuestos.length > 0 ? (
+              ) : movimientos.length > 0 ? (
                 <div className="space-y-4">
-                  {currentPresupuestos.map((presupuesto) => (
-                    <div key={presupuesto.id} className="overflow-hidden mb-6 bg-white rounded-xl border shadow-sm transition-all hover:shadow-md">
-                      <div className="p-4 bg-gray-50 border-b">
-                        <div className="flex flex-col gap-3 justify-between sm:flex-row sm:items-center">
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap gap-3 items-center">
-                              <span className="text-sm text-gray-600">
-                                <i className="mr-1 far fa-calendar"></i>
-                                {new Date(presupuesto.fecha).toLocaleDateString('es-AR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
-                              </span>
-                              <span className="px-3 py-1 text-sm font-semibold text-blue-700 bg-blue-100 rounded-full">
-                                Presupuesto #{presupuesto.numero_presupuesto}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-3 items-center">
-                            <Popover placement="bottom">
-                              <PopoverTrigger>
-                                <Button 
-                                  size="sm"
-                                  variant="flat"
-                                  color="default"
-                                >
-                                  Ver {presupuesto.items?.length || 0} productos
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="overflow-auto w-80 max-h-72">
-                                <div className="p-4 space-y-3">
-                                  {presupuesto.items && presupuesto.items.length > 0 ? (
-                                    presupuesto.items.map((producto, idx) => (
-                                      <div key={idx} className="flex justify-between items-start pb-3 border-b last:border-b-0">
-                                        <div className="flex-1">
-                                          <p className="font-medium">{producto.nombre}</p>
-                                          <div className="text-sm text-gray-600">
-                                            <p>Cantidad: {producto.cantidad}</p>
-                                            {producto.detalles && (
-                                              <p className="text-xs">
-                                                Sistema: {producto.detalles.sistema} - 
-                                                Color: {producto.detalles.colorSistema} - 
-                                                Comando: {producto.detalles.ladoComando}
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <div className="text-right">
-                                          <p className="font-medium">
-                                            ${producto.subtotal.toLocaleString('es-AR')}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="text-center text-gray-500">
-                                      No hay productos para mostrar
-                                    </div>
-                                  )}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            
-                            <span className="text-lg font-bold text-gray-800">
-                              ${presupuesto.total.toLocaleString('es-AR')}
+                  {movimientos.map((movimiento) => (
+                    <div key={movimiento.id} className="overflow-hidden mb-4 bg-white rounded-xl border shadow-sm transition-all hover:shadow-md">
+                      <div className="p-4">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-3 items-center justify-between">
+                            <span className="text-sm text-gray-600">
+                              {new Date(movimiento.fecha).toLocaleDateString('es-AR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            <span className="px-3 py-1 text-sm font-semibold text-blue-700 bg-blue-100 rounded-full">
+                              {movimiento.tipo}
                             </span>
                           </div>
+                          <p className="text-base font-medium text-gray-800">{movimiento.descripcion}</p>
+                          {movimiento.monto && (
+                            <p className="text-lg font-bold text-gray-900">
+                              ${Number(movimiento.monto).toLocaleString('es-AR')}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
-                  <div className="flex justify-between mt-4">
-                    <Button 
-                      size="md"
-                      variant="solid"
-                      color="primary"
-                      onPress={handlePreviousPage}
-                      disabled={currentPage === 1}
-                    >
-                     Anterior
-                    </Button>
-                    <Button 
-                      size="md"
-                      variant={currentPage === totalPages ? "flat" : "solid"}
-                      color="primary"
-                      onPress={handleNextPage}
-                      disabled={currentPage === totalPages}
-                    >
-                      Siguiente 
-                    </Button>
-                  </div>
                 </div>
               ) : (
                 <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-lg">
-                  No hay presupuestos registrados para este cliente
+                  Aun no hay movimientos registrados con este cliente
                 </div>
               )}
             </div>
