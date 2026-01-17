@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@heroui/react";
-import repartidoresData from "./soderia-data/repartidores.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
@@ -19,6 +18,15 @@ interface EnvasePrestado {
   producto_nombre: string;
   capacidad: number;
   cantidad: number;
+}
+
+interface Repartidor {
+  id: number;
+  nombre: string;
+  telefono: string;
+  zona_reparto: string;
+  activo: boolean;
+  fecha_registro: string;
 }
 
 interface ModalEditarProps {
@@ -44,6 +52,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [productos, setProductos] = useState<Producto[]>([]);
   const [selectedProducto, setSelectedProducto] = useState("");
   const [cantidad, setCantidad] = useState("1");
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
 
   // Efecto para cargar productos y actualizar envases prestados
   useEffect(() => {
@@ -73,6 +82,21 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
     };
     fetchProductos();
   }, [cliente]);
+
+  // Efecto para cargar repartidores desde la API
+  useEffect(() => {
+    const fetchRepartidores = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        if (!response.ok) throw new Error('Error al cargar repartidores');
+        const data = await response.json();
+        setRepartidores(data);
+      } catch (error) {
+        console.error('Error al cargar repartidores:', error);
+      }
+    };
+    fetchRepartidores();
+  }, []);
 
   // Efecto para actualizar los valores cuando cambia el cliente o se abre el modal
   useEffect(() => {
@@ -222,9 +246,9 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
               selectedKeys={repartidor ? [repartidor] : []}
               onChange={(e) => setRepartidor(e.target.value)}
             >
-              {repartidoresData.repartidores.map((rep) => (
-                <SelectItem key={rep} value={rep}>
-                  {rep}
+              {repartidores.map((rep) => (
+                <SelectItem key={rep.nombre} value={rep.nombre}>
+                  {rep.nombre}
                 </SelectItem>
               ))}
             </Select>

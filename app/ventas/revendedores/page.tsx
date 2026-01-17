@@ -171,17 +171,46 @@ export default function NuevaVenta() {
       return;
     }
 
-    setProducts(products.map(product => 
+    const updatedProducts = products.map(product => 
       product.id === productId 
         ? { ...product, quantity: value }
         : product
-    ));
-
-    // Actualizar resumen del presupuesto
-    const updatedProducts = products.map(product =>
-      product.id === productId ? { ...product, quantity: value } : product
     );
 
+    setProducts(updatedProducts);
+
+    // Actualizar resumen del presupuesto
+    const newResume = {
+      totalCajones: updatedProducts.reduce((sum, product) => 
+        sum + (product.name.toLowerCase().includes('soda') ? Math.floor(product.quantity / 6) : 0), 0),
+      totalUnidades: updatedProducts.reduce((sum, product) => sum + product.quantity, 0),
+      totalGeneral: updatedProducts.reduce((sum, product) => sum + (product.precioRevendedor * product.quantity), 0)
+    };
+
+    setBudgetResume(newResume);
+  };
+
+  const handlePrecioChange = (productId: number, value: number) => {
+    // Validar que el valor no sea negativo
+    if (value < 0 || isNaN(value)) {
+      setAlertInfo({
+        show: true,
+        type: 'error',
+        title: 'Error',
+        message: 'El precio debe ser un número válido mayor o igual a 0'
+      });
+      return;
+    }
+
+    const updatedProducts = products.map(product => 
+      product.id === productId 
+        ? { ...product, precioRevendedor: value }
+        : product
+    );
+
+    setProducts(updatedProducts);
+
+    // Actualizar resumen del presupuesto
     const newResume = {
       totalCajones: updatedProducts.reduce((sum, product) => 
         sum + (product.name.toLowerCase().includes('soda') ? Math.floor(product.quantity / 6) : 0), 0),
@@ -504,9 +533,28 @@ export default function NuevaVenta() {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-bold">{product.name}</p>
-                      <p className="text-gray-500">Precio: ${product.precioRevendedor}</p>
                     </div>
                     <div className="flex gap-4 items-center">
+                      <div className="flex flex-col h-[85px] justify-end">
+                        <label htmlFor={`precio-${product.id}`} className="block mb-2 text-gray-700">
+                          Precio Unit.
+                        </label>
+                        <Input
+                          id={`precio-${product.id}`}
+                          type="number"
+                          placeholder="0"
+                          value={product.precioRevendedor.toString()}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            handlePrecioChange(product.id, value);
+                          }}
+                          className="w-24"
+                          variant="bordered"
+                          color="secondary"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
                       {product.name && product.name.toLowerCase().includes('soda') ? (
                         <>
                           <div className="flex flex-col h-[85px] justify-end">
@@ -578,7 +626,7 @@ export default function NuevaVenta() {
                         />
                       </div>
                       <div className="flex justify-end mt-2 mr-12 min-w-36">
-                      <h2 className="text-lg font-bold">Total: ${product.precioRevendedor * (product.quantity || 0)}</h2>
+                      <h2 className="text-lg font-bold">Total: ${(product.precioRevendedor * (product.quantity || 0)).toFixed(2)}</h2>
                   </div>
                     </div>
                   </div>

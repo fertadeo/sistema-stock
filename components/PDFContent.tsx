@@ -56,26 +56,35 @@ const PDFContent = ({ selectedRevendedorName, selectedDate, products, formatDate
             </tr>
           </thead>
           <tbody>
-            {products.filter(p => p.quantity > 0).map(product => (
-              <tr key={product.id} className="border-b border-gray-200">
-                <td className="px-4 py-3">{product.name}</td>
-                <td className="px-4 py-3 text-center">
-                  {product.name?.toLowerCase().includes('soda') ? Math.floor(product.quantity / 6) : '-'}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  {product.name?.toLowerCase().includes('soda') ? product.quantity % 6 : '-'}
-                </td>
-                <td className="px-4 py-3 text-center">{product.quantity}</td>
-                <td className="px-4 py-3 text-right">${product.precioRevendedor}</td>
-                <td className="px-4 py-3 text-right">${product.precioRevendedor * product.quantity}</td>
-              </tr>
-            ))}
+            {products.filter(p => p.quantity > 0).map(product => {
+              const precio = Number(product.precioRevendedor) || 0;
+              const cantidad = Number(product.quantity) || 0;
+              const subtotal = precio * cantidad;
+              return (
+                <tr key={product.id} className="border-b border-gray-200">
+                  <td className="px-4 py-3">{product.name}</td>
+                  <td className="px-4 py-3 text-center">
+                    {product.name?.toLowerCase().includes('soda') ? Math.floor(cantidad / 6) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {product.name?.toLowerCase().includes('soda') ? cantidad % 6 : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-center">{cantidad}</td>
+                  <td className="px-4 py-3 text-right">${precio.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-3 text-right">${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="font-bold">
               <td colSpan={5} className="px-4 py-3 text-right">Total General:</td>
               <td className="px-4 py-3 text-right">
-                ${products.reduce((sum, product) => sum + (product.precioRevendedor * product.quantity), 0)}
+                ${products.reduce((sum, product) => {
+                  const precio = Number(product.precioRevendedor) || 0;
+                  const cantidad = Number(product.quantity) || 0;
+                  return sum + (precio * cantidad);
+                }, 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </td>
             </tr>
           </tfoot>

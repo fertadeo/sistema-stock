@@ -117,7 +117,7 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
             </div>
 
             <div className="mt-6">
-              <h3 className="mb-4 text-lg font-semibold">Historial de Presupuestos</h3>
+              <h3 className="mb-4 text-lg font-semibold">Historial de Cliente</h3>
               
               {error && (
                 <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-lg">

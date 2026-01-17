@@ -200,12 +200,12 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               avatarProps={{ radius: "lg" }}
               description={user.email}
               name={user.nombre}
-              className="text-left"
+              className="text-left cursor-pointer"
               classNames={{
                 name: "text-left",
                 description: "text-left"
               }}
-              onClick={() => handleOpenModal(user)}
+              onClick={() => handleEditarModal(user)}
             >
               <div className="text-left">
                 {user.email}
