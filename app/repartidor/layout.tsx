@@ -8,7 +8,8 @@ import {
   CubeIcon, 
   UserGroupIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  BoltIcon
 } from '@heroicons/react/24/outline';
 
 interface NavItemProps {
@@ -71,6 +72,11 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       href: '/repartidor',
       label: 'Inicio',
       icon: <HomeIcon className="w-6 h-6" />
+    },
+    {
+      href: '/repartidor/rapido',
+      label: 'Rápido',
+      icon: <BoltIcon className="w-6 h-6" />
     },
     {
       href: '/repartidor/ventas',

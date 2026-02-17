@@ -613,8 +613,8 @@ const RepartidorDashboard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ActionButton 
             icon={<PlusIcon className="w-6 h-6" />}
-            label="Nueva Venta"
-            onPress={() => router.push('/repartidor/ventas')}
+            label="Repartidor Rápido"
+            onPress={() => router.push('/repartidor/rapido')}
             color="green"
           />
           <ActionButton 
