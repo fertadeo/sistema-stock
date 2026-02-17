@@ -418,6 +418,18 @@ export default function RepartidorRapido() {
             <MagnifyingGlassIcon className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              setClienteForm({ nombre: '', telefono: '', direccion: '', email: '' });
+              setMostrarModalCliente(true);
+            }}
+            className="mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100"
+          >
+            <UserPlusIcon className="w-5 h-5" />
+            <span>Crear Cliente</span>
+          </button>
+
           {/* Lista de clientes encontrados */}
           {clientesEncontrados.length > 0 && (
             <div className="overflow-y-auto mt-2 max-h-64 bg-white rounded-lg border border-gray-200 shadow-sm">
