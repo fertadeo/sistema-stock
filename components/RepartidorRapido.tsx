@@ -12,7 +12,9 @@ import {
   ShoppingCartIcon,
   UserPlusIcon,
   ArrowLeftIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
+import { MapPinIcon as MapPinIconSolid } from '@heroicons/react/24/solid';
 import { repartidorRapidoService, ProductoVenta, EnvaseMovimiento } from '@/lib/services/repartidorRapidoService';
 
 interface Cliente {
@@ -67,6 +69,46 @@ export default function RepartidorRapido() {
     direccion: '',
     email: '',
   });
+
+  // Clientes fijados (a visitar) - persistido en localStorage
+  const STORAGE_KEY_FIJADOS = 'repartidor-rapido-clientes-fijados';
+  const [clientesFijados, setClientesFijados] = useState<Cliente[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const s = localStorage.getItem(STORAGE_KEY_FIJADOS);
+      if (!s) return [];
+      const parsed = JSON.parse(s);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const guardarFijados = (lista: Cliente[]) => {
+    setClientesFijados(lista);
+    try {
+      localStorage.setItem(STORAGE_KEY_FIJADOS, JSON.stringify(lista));
+    } catch (e) {
+      console.warn('No se pudo guardar clientes fijados', e);
+    }
+  };
+
+  const estaFijado = (clienteId: number) =>
+    clientesFijados.some((c) => c.id === clienteId);
+
+  const toggleFijar = (e: React.MouseEvent, cliente: Cliente) => {
+    e.stopPropagation();
+    if (estaFijado(cliente.id)) {
+      guardarFijados(clientesFijados.filter((c) => c.id !== cliente.id));
+    } else {
+      guardarFijados([...clientesFijados, { ...cliente }]);
+    }
+  };
+
+  const quitarFijado = (e: React.MouseEvent, clienteId: number) => {
+    e.stopPropagation();
+    guardarFijados(clientesFijados.filter((c) => c.id !== clienteId));
+  };
 
   useEffect(() => {
     cargarProductos();
@@ -407,6 +449,44 @@ export default function RepartidorRapido() {
       {/* Buscador de Clientes */}
       {!clienteSeleccionado && (
         <div className="p-4">
+          {/* Clientes a visitar (fijados) */}
+          {clientesFijados.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                <MapPinIconSolid className="w-4 h-4 text-blue-600" />
+                Clientes a visitar
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {clientesFijados.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => seleccionarCliente(c)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="font-medium text-gray-800 truncate">{c.nombre}</div>
+                      <div className="text-sm text-gray-600">{c.telefono}</div>
+                      {c.direccion && (
+                        <div className="text-xs text-gray-500 truncate">{c.direccion}</div>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => quitarFijado(e, c.id)}
+                      className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
+                      title="Quitar de la lista"
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="relative">
             <input
               type="text"
@@ -433,19 +513,43 @@ export default function RepartidorRapido() {
           {/* Lista de clientes encontrados */}
           {clientesEncontrados.length > 0 && (
             <div className="overflow-y-auto mt-2 max-h-64 bg-white rounded-lg border border-gray-200 shadow-sm">
-              {clientesEncontrados.map((cliente) => (
-                <button
-                  key={cliente.id}
-                  onClick={() => seleccionarCliente(cliente)}
-                  className="px-4 py-3 w-full text-left border-b border-gray-100 hover:bg-gray-50 last:border-b-0"
-                >
-                  <div className="font-medium text-gray-800">{cliente.nombre}</div>
-                  <div className="text-sm text-gray-600">{cliente.telefono}</div>
-                  {cliente.direccion && (
-                    <div className="text-xs text-gray-500">{cliente.direccion}</div>
-                  )}
-                </button>
-              ))}
+              {clientesEncontrados.map((cliente) => {
+                const fijado = estaFijado(cliente.id);
+                return (
+                  <div
+                    key={cliente.id}
+                    className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => seleccionarCliente(cliente)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="font-medium text-gray-800">{cliente.nombre}</div>
+                      <div className="text-sm text-gray-600">{cliente.telefono}</div>
+                      {cliente.direccion && (
+                        <div className="text-xs text-gray-500">{cliente.direccion}</div>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleFijar(e, cliente)}
+                      className={`p-2 rounded-full flex-shrink-0 ${
+                        fijado
+                          ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'
+                      }`}
+                      title={fijado ? 'Quitar de clientes a visitar' : 'Fijar para visitar'}
+                    >
+                      {fijado ? (
+                        <MapPinIconSolid className="w-5 h-5" />
+                      ) : (
+                        <MapPinIcon className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -701,6 +805,9 @@ function ModalCliente({
   );
 }
 
+const ID_MIN_PRINCIPAL = 8;
+const ID_MAX_PRINCIPAL = 12;
+
 // Componente Modal Venta
 function ModalVenta({
   cliente,
@@ -727,18 +834,48 @@ function ModalVenta({
   onCerrar,
   cargando,
 }: any) {
-  // Productos ordenados: primero los que el cliente tiene con envases asignados
-  const productosOrdenados = useMemo(() => {
+  const [busquedaOtros, setBusquedaOtros] = useState('');
+
+  // Productos principales: id 8 a 12, con envases primero y luego por nombre
+  const productosPrincipales = useMemo(() => {
+    const principales = productos.filter(
+      (p: Producto) => p.id >= ID_MIN_PRINCIPAL && p.id <= ID_MAX_PRINCIPAL
+    );
     const idsConEnvase = new Set(
       (cliente?.envases_prestados || []).map((e: { producto_id: number }) => e.producto_id)
     );
-    return [...productos].sort((a, b) => {
+    return principales.sort((a: Producto, b: Producto) => {
       const aTiene = idsConEnvase.has(a.id) ? 1 : 0;
       const bTiene = idsConEnvase.has(b.id) ? 1 : 0;
       if (bTiene !== aTiene) return bTiene - aTiene;
       return (a.nombreProducto || '').localeCompare(b.nombreProducto || '');
     });
   }, [productos, cliente?.envases_prestados]);
+
+  // Resto de productos (solo para buscador secundario)
+  const productosSecundarios = useMemo(
+    () =>
+      productos.filter(
+        (p: Producto) => p.id < ID_MIN_PRINCIPAL || p.id > ID_MAX_PRINCIPAL
+      ),
+    [productos]
+  );
+
+  const productosOtrosFiltrados = useMemo(() => {
+    if (!busquedaOtros.trim()) return [];
+    const t = busquedaOtros.toLowerCase().trim();
+    return productosSecundarios.filter((p: Producto) =>
+      (p.nombreProducto || '').toLowerCase().includes(t)
+    );
+  }, [productosSecundarios, busquedaOtros]);
+
+  // Productos agregados que no son principales (para mostrar en "Otros")
+  const otrosEnVenta = useMemo(() => {
+    const idsPrincipales = new Set(
+      productosPrincipales.map((p: Producto) => p.id.toString())
+    );
+    return productosVenta.filter((pv: ProductoVenta) => !idsPrincipales.has(pv.producto_id));
+  }, [productosVenta, productosPrincipales]);
 
   const getCantidad = (productoId: string) =>
     productosVenta.find((p: ProductoVenta) => p.producto_id === productoId)?.cantidad ?? 0;
@@ -756,10 +893,67 @@ function ModalVenta({
     if (cantidad > 0) onActualizarCantidad(id, cantidad - 1);
   };
 
+  const renderFilaProducto = (producto: Producto, esPrincipal: boolean) => {
+    const cantidad = getCantidad(producto.id.toString());
+    const precio = producto.precioPublico || 0;
+    const tieneEnvase = (cliente?.envases_prestados || []).some(
+      (e: { producto_id: number }) => e.producto_id === producto.id
+    );
+    return (
+      <div
+        key={producto.id}
+        className={`flex items-center gap-3 p-3 rounded-lg border ${
+          tieneEnvase && esPrincipal ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-800 truncate">
+              {producto.nombreProducto || 'Producto'}
+            </span>
+            {tieneEnvase && esPrincipal && (
+              <span className="flex-shrink-0 text-xs font-medium text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded">
+                Envase
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-gray-600">${precio.toLocaleString()} c/u</div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => handleMenos(producto)}
+            disabled={cantidad === 0}
+            className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            aria-label="Quitar uno"
+          >
+            <MinusIcon className="w-5 h-5" />
+          </button>
+          <span className="w-8 font-semibold text-center text-gray-800 tabular-nums">
+            {cantidad}
+          </span>
+          <button
+            type="button"
+            onClick={() => handleMas(producto)}
+            className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-green-500 touch-manipulation"
+            aria-label="Agregar uno"
+          >
+            <PlusIcon className="w-5 h-5" />
+          </button>
+          {cantidad > 0 && (
+            <span className="font-semibold text-gray-800 min-w-[70px] text-right">
+              ${(precio * cantidad).toLocaleString()}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex fixed inset-0 z-50 justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col">
-        <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+        <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200 z-10">
           <h2 className="text-lg font-semibold text-gray-800">
             {tipoOperacion === 'venta' ? 'Nueva Venta' : 'Nuevo Fiado'} - {cliente.nombre}
           </h2>
@@ -768,72 +962,68 @@ function ModalVenta({
           </button>
         </div>
         <div className="overflow-y-auto flex-1 p-4 space-y-4">
-          {/* Lista de productos con botones +/- */}
+          {/* Lista principal: solo productos id 8 a 12 con precio al público */}
           <div className="space-y-2">
             <h3 className="font-semibold text-gray-800">Productos</h3>
-            {productosOrdenados.length === 0 ? (
-              <p className="py-4 text-center text-gray-500">No hay productos cargados.</p>
+            {productosPrincipales.length === 0 ? (
+              <p className="py-2 text-sm text-gray-500">No hay productos principales cargados.</p>
             ) : (
               <div className="space-y-2">
-                {productosOrdenados.map((producto: Producto) => {
-                  const cantidad = getCantidad(producto.id.toString());
-                  const precio = producto.precioPublico || 0;
-                  const tieneEnvase = (cliente?.envases_prestados || []).some(
-                    (e: { producto_id: number }) => e.producto_id === producto.id
-                  );
-                  return (
-                    <div
-                      key={producto.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${
-                        tieneEnvase ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-800 truncate">
-                            {producto.nombreProducto || 'Producto'}
-                          </span>
-                          {tieneEnvase && (
-                            <span className="flex-shrink-0 text-xs font-medium text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded">
-                              Envase
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">${precio.toLocaleString()} c/u</div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleMenos(producto)}
-                          disabled={cantidad === 0}
-                          className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-                          aria-label="Quitar uno"
-                        >
-                          <MinusIcon className="w-5 h-5" />
-                        </button>
-                        <span className="w-8 font-semibold text-center text-gray-800 tabular-nums">
-                          {cantidad}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleMas(producto)}
-                          className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-green-500 touch-manipulation"
-                          aria-label="Agregar uno"
-                        >
-                          <PlusIcon className="w-5 h-5" />
-                        </button>
-                        {cantidad > 0 && (
-                          <span className="font-semibold text-gray-800 min-w-[70px] text-right">
-                            ${(precio * cantidad).toLocaleString()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                {productosPrincipales.map((producto: Producto) =>
+                  renderFilaProducto(producto, true)
+                )}
               </div>
             )}
           </div>
+
+          {/* Buscador secundario: agregar otros productos */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-gray-600">Agregar otro producto</h3>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar producto..."
+                value={busquedaOtros}
+                onChange={(e) => setBusquedaOtros(e.target.value)}
+                className="py-2 pr-4 pl-10 w-full text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+              />
+              <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
+              {busquedaOtros.trim() && productosOtrosFiltrados.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                  {productosOtrosFiltrados.slice(0, 8).map((producto: Producto) => (
+                    <button
+                      key={producto.id}
+                      type="button"
+                      onClick={() => {
+                        onAgregarProducto(producto);
+                        setBusquedaOtros('');
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center"
+                    >
+                      <span className="truncate">{producto.nombreProducto || 'Producto'}</span>
+                      <span className="text-gray-500 flex-shrink-0 ml-2">
+                        ${(producto.precioPublico || 0).toLocaleString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Otros productos ya agregados (fuera de 8-12) */}
+          {otrosEnVenta.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-gray-600">Otros productos en la venta</h3>
+              <div className="space-y-2">
+                {otrosEnVenta.map((pv: ProductoVenta) => {
+                  const producto = productos.find((p: Producto) => p.id.toString() === pv.producto_id);
+                  if (!producto) return null;
+                  return renderFilaProducto(producto, false);
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Pago (solo para ventas) */}
           {tipoOperacion === 'venta' && productosVenta.length > 0 && (
@@ -922,13 +1112,18 @@ function ModalVenta({
             />
           </div>
         </div>
-        <div className="sticky bottom-0 px-4 py-3 bg-white border-t border-gray-200">
+        <div className="sticky bottom-0 px-4 py-3 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
           <button
+            type="button"
             onClick={onProcesar}
             disabled={cargando || productosVenta.length === 0}
-            className="px-4 py-3 w-full font-semibold text-white bg-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 font-semibold text-white bg-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
           >
-            {cargando ? 'Procesando...' : tipoOperacion === 'venta' ? 'Confirmar Venta' : 'Confirmar Fiado'}
+            {cargando
+              ? 'Guardando...'
+              : tipoOperacion === 'venta'
+                ? 'Guardar venta'
+                : 'Guardar fiado'}
           </button>
         </div>
       </div>
