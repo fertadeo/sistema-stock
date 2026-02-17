@@ -89,10 +89,38 @@ export default function RepartidorRapido() {
     }
   };
 
+  // Puntúa un cliente respecto al término de búsqueda (mayor = más relevante)
+  const puntuarCliente = (c: Cliente, termo: string): number => {
+    const t = termo.toLowerCase().trim();
+    if (!t) return 0;
+    const nom = (c.nombre || '').toLowerCase();
+    const tel = (c.telefono || '').replace(/\s/g, '');
+    const dir = (c.direccion || '').toLowerCase();
+    if (nom.startsWith(t)) return 10;
+    if (nom.includes(t)) return 5;
+    if (tel.includes(t.replace(/\s/g, ''))) return 4;
+    if (dir.includes(t)) return 3;
+    // Coincidencia parcial en nombre (palabras)
+    if (nom.split(/\s+/).some((p) => p.startsWith(t) || t.startsWith(p))) return 2;
+    return 0;
+  };
+
   const buscarClientes = async () => {
     try {
-      const clientes = await repartidorRapidoService.buscarClientes(busquedaCliente);
-      setClientesEncontrados(clientes);
+      const termo = busquedaCliente.trim();
+      let clientes = await repartidorRapidoService.buscarClientes(termo);
+      if (clientes.length === 0 && termo.length >= 2) {
+        const todos = await repartidorRapidoService.obtenerTodosClientes();
+        clientes = todos.filter((c: Cliente) => puntuarCliente(c, termo) > 0);
+      }
+      const conPuntuacion = clientes.map((c: Cliente) => ({
+        cliente: c,
+        puntuacion: puntuarCliente(c, termo),
+      }));
+      const ordenados = conPuntuacion
+        .sort((a, b) => b.puntuacion - a.puntuacion)
+        .map((x) => x.cliente);
+      setClientesEncontrados(ordenados);
     } catch (error) {
       mostrarError('Error al buscar clientes');
     }
@@ -409,15 +437,22 @@ export default function RepartidorRapido() {
             </div>
           )}
 
-          {/* Botón crear cliente si no se encuentra */}
-          {busquedaCliente.length >= 2 && clientesEncontrados.length === 0 && (
-            <button
-              onClick={abrirModalCrearCliente}
-              className="flex justify-center items-center px-4 py-3 mt-4 space-x-2 w-full font-semibold text-white bg-blue-600 rounded-lg"
-            >
-              <UserPlusIcon className="w-5 h-5" />
-              <span>Crear nuevo cliente: &quot;{busquedaCliente}&quot;</span>
-            </button>
+          {/* Sin resultados: mensaje y botón Crear Cliente */}
+          {busquedaCliente.trim().length >= 2 && clientesEncontrados.length === 0 && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+              <p className="text-gray-600 font-medium">Búsqueda no encontrada</p>
+              <p className="mt-1 text-sm text-gray-500">
+                No hay coincidencias para &quot;{busquedaCliente.trim()}&quot;
+              </p>
+              <button
+                type="button"
+                onClick={abrirModalCrearCliente}
+                className="mt-4 flex justify-center items-center px-4 py-3 w-full space-x-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                <UserPlusIcon className="w-5 h-5" />
+                <span>Crear Cliente</span>
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -582,9 +617,9 @@ function ModalCliente({
   cargando: boolean;
 }) {
   return (
-    <div className="flex fixed inset-0 z-50 justify-center items-end p-4 bg-black bg-opacity-50 sm:items-center">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+    <div className="flex fixed inset-0 z-50 justify-center items-start pt-8 p-4 pb-8 bg-black bg-opacity-50 sm:items-center sm:pt-0 sm:pb-0">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
+        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200 rounded-t-2xl">
           <h2 className="text-lg font-semibold text-gray-800">
             {cliente ? 'Editar Cliente' : 'Crear Cliente'}
           </h2>

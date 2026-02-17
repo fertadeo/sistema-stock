@@ -157,6 +157,19 @@ class RepartidorRapidoService {
     }
   }
 
+  /** Obtiene todos los clientes (para búsqueda por coincidencias cercanas cuando search no devuelve resultados) */
+  async obtenerTodosClientes(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/api/clientes`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error al obtener clientes:', error);
+      return [];
+    }
+  }
+
   async obtenerCliente(clienteId: number): Promise<any> {
     try {
       // Backend expone GET un cliente en /clientes/:id (sin prefijo /api)
