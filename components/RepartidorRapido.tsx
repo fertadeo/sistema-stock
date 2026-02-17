@@ -645,6 +645,31 @@ export default function RepartidorRapido() {
               <span>Editar</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={async () => {
+              if (!clienteSeleccionado) return;
+              setCargando(true);
+              try {
+                const result = await repartidorRapidoService.registrarNoEncontrado(clienteSeleccionado.id);
+                if (result.success) {
+                  mostrarExito('Registro guardado: cliente no encontrado');
+                  resetearSeleccion();
+                } else {
+                  mostrarError(result.message || 'No se pudo registrar');
+                }
+              } catch {
+                mostrarError('No se pudo registrar');
+              } finally {
+                setCargando(false);
+              }
+            }}
+            disabled={cargando}
+            className="w-full py-3 px-4 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            No encontrado
+          </button>
         </div>
       )}
 
@@ -1112,12 +1137,12 @@ function ModalVenta({
             />
           </div>
         </div>
-        <div className="sticky bottom-0 px-4 py-3 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <div className="sticky bottom-0 left-0 right-0 px-4 pt-3 pb-24 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
           <button
             type="button"
             onClick={onProcesar}
             disabled={cargando || productosVenta.length === 0}
-            className="w-full py-3 px-4 font-semibold text-white bg-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
+            className="w-full py-4 px-4 text-base font-semibold text-white bg-green-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700 active:bg-green-800 shadow-md"
           >
             {cargando
               ? 'Guardando...'

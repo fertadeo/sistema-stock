@@ -271,6 +271,30 @@ class RepartidorRapidoService {
       return [];
     }
   }
+
+  /** Registra que el cliente no fue encontrado en la visita (dejar registro) */
+  async registrarNoEncontrado(clienteId: number, observaciones?: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await fetch(`${API_URL}/api/repartidor-rapido/no-encontrado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          repartidor_id: this.getRepartidorId(),
+          observaciones: observaciones || 'Cliente no encontrado en la visita',
+          fecha: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        return { success: false, message: (err as { message?: string }).message || 'Error al registrar' };
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error al registrar no encontrado:', error);
+      return { success: false, message: 'Error de conexión' };
+    }
+  }
 }
 
 export const repartidorRapidoService = new RepartidorRapidoService();
