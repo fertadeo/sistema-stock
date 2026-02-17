@@ -272,6 +272,21 @@ class RepartidorRapidoService {
     }
   }
 
+  /** Obtiene los registros "no encontrado" de un cliente para el historial */
+  async obtenerNoEncontradoPorCliente(clienteId: number): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_URL}/repartidor-rapido/no-encontrado?cliente_id=${clienteId}`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      if (Array.isArray(data)) return data;
+      if (data?.registros && Array.isArray(data.registros)) return data.registros;
+      return [];
+    } catch (error) {
+      console.error('Error al obtener registros no encontrado:', error);
+      return [];
+    }
+  }
+
   /** Registra que el cliente no fue encontrado en la visita (dejar registro) */
   async registrarNoEncontrado(clienteId: number, observaciones?: string): Promise<{ success: boolean; message?: string }> {
     try {

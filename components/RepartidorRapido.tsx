@@ -950,29 +950,31 @@ function ModalVenta({
           </div>
           <div className="text-sm text-gray-600">${precio.toLocaleString()} c/u</div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => handleMenos(producto)}
-            disabled={cantidad === 0}
-            className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-            aria-label="Quitar uno"
-          >
-            <MinusIcon className="w-5 h-5" />
-          </button>
-          <span className="w-8 font-semibold text-center text-gray-800 tabular-nums">
-            {cantidad}
-          </span>
-          <button
-            type="button"
-            onClick={() => handleMas(producto)}
-            className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-green-500 touch-manipulation"
-            aria-label="Agregar uno"
-          >
-            <PlusIcon className="w-5 h-5" />
-          </button>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleMenos(producto)}
+              disabled={cantidad === 0}
+              className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              aria-label="Quitar uno"
+            >
+              <MinusIcon className="w-5 h-5" />
+            </button>
+            <span className="w-8 font-semibold text-center text-gray-800 tabular-nums">
+              {cantidad}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleMas(producto)}
+              className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-green-500 touch-manipulation"
+              aria-label="Agregar uno"
+            >
+              <PlusIcon className="w-5 h-5" />
+            </button>
+          </div>
           {cantidad > 0 && (
-            <span className="font-semibold text-gray-800 min-w-[70px] text-right">
+            <span className="text-sm font-semibold text-gray-800">
               ${(precio * cantidad).toLocaleString()}
             </span>
           )}
@@ -1246,7 +1248,7 @@ function ModalCobro({
 
 // Tipos de movimiento que puede devolver la API
 interface MovimientoCliente {
-  id: number;
+  id: number | string;
   tipo: string;
   descripcion?: string;
   fecha: string;
@@ -1270,8 +1272,24 @@ function ModalHistorial({
     const cargar = async () => {
       setCargando(true);
       try {
-        const data = await repartidorRapidoService.obtenerMovimientosCliente(cliente.id);
-        if (mounted) setMovimientos(Array.isArray(data) ? data : []);
+        const [dataMov, dataNoEncontrado] = await Promise.all([
+          repartidorRapidoService.obtenerMovimientosCliente(cliente.id),
+          repartidorRapidoService.obtenerNoEncontradoPorCliente(cliente.id),
+        ]);
+        if (!mounted) return;
+        const movs: MovimientoCliente[] = Array.isArray(dataMov) ? dataMov : [];
+        const noEncontrado: MovimientoCliente[] = (Array.isArray(dataNoEncontrado) ? dataNoEncontrado : []).map(
+          (r: any, idx: number) => ({
+            id: r.id ?? `no-encontrado-${idx}-${r.fecha ?? ''}`,
+            tipo: 'NO_ENCONTRADO',
+            descripcion: r.observaciones ?? r.descripcion ?? 'Cliente no encontrado en la visita',
+            fecha: r.fecha ?? r.created_at ?? new Date().toISOString(),
+          })
+        );
+        const unidos = [...movs, ...noEncontrado].sort(
+          (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+        );
+        setMovimientos(unidos);
       } catch {
         if (mounted) setMovimientos([]);
       } finally {
@@ -1307,9 +1325,12 @@ function ModalHistorial({
       FIADO_RAPIDO: 'Fiado',
       GASTO: 'Gasto',
       NUEVO_CLIENTE: 'Nuevo cliente',
+      NO_ENCONTRADO: 'No encontrado',
     };
     return map[tipo] || tipo;
   };
+
+  const esNoEncontrado = (tipo: string) => tipo === 'NO_ENCONTRADO';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50 sm:items-center sm:p-4">
@@ -1338,11 +1359,17 @@ function ModalHistorial({
               {movimientos.map((mov) => (
                 <li
                   key={mov.id}
-                  className="p-3 rounded-lg border border-gray-200 bg-gray-50"
+                  className={`p-3 rounded-lg border ${
+                    esNoEncontrado(mov.tipo) ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'
+                  }`}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-teal-100 text-teal-800">
+                      <span
+                        className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
+                          esNoEncontrado(mov.tipo) ? 'bg-amber-200 text-amber-800' : 'bg-teal-100 text-teal-800'
+                        }`}
+                      >
                         {etiquetaTipo(mov.tipo)}
                       </span>
                       <p className="mt-1 text-sm font-medium text-gray-800">
@@ -1352,7 +1379,7 @@ function ModalHistorial({
                         {formatearFechaHora(mov.fecha)}
                       </p>
                     </div>
-                    {mov.monto != null && mov.monto !== '' && (
+                    {!esNoEncontrado(mov.tipo) && mov.monto != null && mov.monto !== '' && (
                       <span className="flex-shrink-0 text-base font-semibold text-gray-800">
                         ${Number(mov.monto).toLocaleString('es-AR')}
                       </span>
