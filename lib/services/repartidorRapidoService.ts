@@ -173,7 +173,7 @@ class RepartidorRapidoService {
   async obtenerCliente(clienteId: number): Promise<any> {
     try {
       // Backend expone GET un cliente en /clientes/:id (sin prefijo /api)
-      const response = await fetch(`${API_URL}/clientes/${clienteId}`);
+      const response = await fetch(`${API_URL}/api/clientes/${clienteId}`);
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -222,7 +222,7 @@ class RepartidorRapidoService {
   }): Promise<any> {
     try {
       // Backend expone PUT en /clientes/:id (sin prefijo /api)
-      const response = await fetch(`${API_URL}/clientes/${clienteId}`, {
+      const response = await fetch(`${API_URL}/api/clientes/${clienteId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

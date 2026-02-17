@@ -335,10 +335,13 @@ export default function RepartidorRapido() {
       setEnvasesDevueltos([]);
       setObservaciones('');
       
-      // Recargar información del cliente
-      if (clienteSeleccionado) {
-        const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
-        setClienteSeleccionado(clienteActualizado);
+      try {
+        if (clienteSeleccionado) {
+          const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
+          setClienteSeleccionado(clienteActualizado);
+        }
+      } catch {
+        // Si falla recargar el cliente (ej. 404), se mantiene el actual; la venta ya se guardó
       }
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar la venta');
@@ -367,10 +370,13 @@ export default function RepartidorRapido() {
       setMontoCobro(0);
       setObservaciones('');
       
-      // Recargar información del cliente
-      if (clienteSeleccionado) {
-        const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
-        setClienteSeleccionado(clienteActualizado);
+      try {
+        if (clienteSeleccionado) {
+          const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
+          setClienteSeleccionado(clienteActualizado);
+        }
+      } catch {
+        // Si falla recargar el cliente, se mantiene el actual; el cobro ya se guardó
       }
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar el cobro');
