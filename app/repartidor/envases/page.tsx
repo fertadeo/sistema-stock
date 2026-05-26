@@ -1,472 +1,305 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { 
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
   CubeIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
   UserGroupIcon,
-  CalendarIcon,
-  ArrowTrendingUpIcon,
-  ClockIcon
+  MagnifyingGlassIcon,
+  ClockIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import {
+  repartidorRapidoService,
+  ClienteBasico,
+  ResumenEnvases,
+  MovimientoEnvaseDetalle,
+} from '@/lib/services/repartidorRapidoService';
 
-interface Envase {
-  id: number;
-  clienteId: number;
-  cliente: string;
-  direccion: string;
-  telefono: string;
-  tipo: string;
-  cantidad: number;
-  fechaPrestamo: string;
-  fechaDevolucion?: string;
-  devuelto: boolean;
-  observaciones?: string;
-  diasPrestado?: number;
-}
+type ClienteConEnvases = ClienteBasico & { cantidad_envases: number };
 
-interface ResumenEnvases {
-  totalPrestado: number;
-  totalDevuelto: number;
-  totalPendiente: number;
-  cantidadClientes: number;
-  envasesVencidos: number;
-  promedioDias: number;
-  tipoMasPrestado: string;
-  clienteMasEnvases: string;
-}
+export default function EnvasesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const clienteParam = searchParams.get('cliente');
 
-const EnvasesPage: React.FC = () => {
-  const [envases, setEnvases] = useState<Envase[]>([]);
-  const [resumen, setResumen] = useState<ResumenEnvases>({
-    totalPrestado: 0,
-    totalDevuelto: 0,
-    totalPendiente: 0,
-    cantidadClientes: 0,
-    envasesVencidos: 0,
-    promedioDias: 0,
-    tipoMasPrestado: '',
-    clienteMasEnvases: ''
-  });
-  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'prestados' | 'devueltos' | 'vencidos'>('todos');
+  const [clientes, setClientes] = useState<ClienteConEnvases[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteConEnvases | null>(null);
+  const [resumen, setResumen] = useState<ResumenEnvases | null>(null);
+  const [movimientos, setMovimientos] = useState<MovimientoEnvaseDetalle[]>([]);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
   useEffect(() => {
-    // Simular datos de envases
-    const envasesSimulados: Envase[] = [
-      {
-        id: 1,
-        clienteId: 1,
-        cliente: "María González",
-        direccion: "Av. San Martín 1234",
-        telefono: "3541222719",
-        tipo: "Botella 2L",
-        cantidad: 3,
-        fechaPrestamo: '2024-01-10T10:00:00Z',
-        devuelto: false,
-        observaciones: 'Para evento familiar',
-        diasPrestado: 5
-      },
-      {
-        id: 2,
-        clienteId: 1,
-        cliente: "María González",
-        direccion: "Av. San Martín 1234",
-        telefono: "3541222719",
-        tipo: "Garrafa 20L",
-        cantidad: 1,
-        fechaPrestamo: '2024-01-05T14:30:00Z',
-        fechaDevolucion: '2024-01-12T09:00:00Z',
-        devuelto: true,
-        diasPrestado: 7
-      },
-      {
-        id: 3,
-        clienteId: 2,
-        cliente: "Carlos Rodríguez",
-        direccion: "Belgrano 567",
-        telefono: "3541222719",
-        tipo: "Botella 1L",
-        cantidad: 5,
-        fechaPrestamo: '2024-01-08T16:00:00Z',
-        devuelto: false,
-        diasPrestado: 7
-      },
-      {
-        id: 4,
-        clienteId: 3,
-        cliente: "Ana Martínez",
-        direccion: "Rivadavia 890",
-        telefono: "3541222719",
-        tipo: "Botella 500ml",
-        cantidad: 2,
-        fechaPrestamo: '2024-01-03T11:00:00Z',
-        devuelto: false,
-        diasPrestado: 12
-      },
-      {
-        id: 5,
-        clienteId: 4,
-        cliente: "Roberto Silva",
-        direccion: "San Juan 123",
-        telefono: "3541222719",
-        tipo: "Garrafa 10L",
-        cantidad: 2,
-        fechaPrestamo: '2024-01-01T09:00:00Z',
-        devuelto: false,
-        diasPrestado: 14
+    let mounted = true;
+
+    const cargar = async () => {
+      setCargando(true);
+      setError('');
+
+      try {
+        const data = await repartidorRapidoService.obtenerTodosClientes();
+        if (!mounted) return;
+
+        const clientesConEnvases = data
+          .map((cliente) => ({
+            ...cliente,
+            cantidad_envases: (cliente.envases_prestados || []).reduce(
+              (total, envase) => total + (Number(envase.cantidad) || 0),
+              0
+            ),
+          }))
+          .filter((cliente) => cliente.cantidad_envases > 0)
+          .sort((a, b) => b.cantidad_envases - a.cantidad_envases);
+
+        setClientes(clientesConEnvases);
+      } catch (err: any) {
+        if (!mounted) return;
+        setError(err?.message || 'No se pudo cargar el estado de envases.');
+      } finally {
+        if (mounted) setCargando(false);
       }
-    ];
+    };
 
-    setEnvases(envasesSimulados);
-
-    // Calcular resumen
-    const prestados = envasesSimulados.filter(e => !e.devuelto);
-    const devueltos = envasesSimulados.filter(e => e.devuelto);
-    const vencidos = envasesSimulados.filter(e => !e.devuelto && (e.diasPrestado || 0) > 10);
-
-    // Encontrar tipo más prestado
-    const tiposCount = envasesSimulados.reduce((acc, e) => {
-      acc[e.tipo] = (acc[e.tipo] || 0) + e.cantidad;
-      return acc;
-    }, {} as { [key: string]: number });
-
-    const tipoMasPrestado = Object.entries(tiposCount)
-      .sort(([,a], [,b]) => b - a)[0]?.[0] || '';
-
-    // Encontrar cliente con más envases
-    const envasesPorCliente = envasesSimulados
-      .filter(e => !e.devuelto)
-      .reduce((acc, e) => {
-        acc[e.cliente] = (acc[e.cliente] || 0) + e.cantidad;
-        return acc;
-      }, {} as { [key: string]: number });
-
-    const clienteMasEnvases = Object.entries(envasesPorCliente)
-      .sort(([,a], [,b]) => b - a)[0]?.[0] || '';
-
-    const clientesUnicos = new Set(envasesSimulados.map(e => e.cliente)).size;
-    const promedioDias = envasesSimulados.length > 0 
-      ? envasesSimulados.reduce((sum, e) => sum + (e.diasPrestado || 0), 0) / envasesSimulados.length 
-      : 0;
-
-    setResumen({
-      totalPrestado: envasesSimulados.reduce((sum, e) => sum + e.cantidad, 0),
-      totalDevuelto: devueltos.reduce((sum, e) => sum + e.cantidad, 0),
-      totalPendiente: prestados.reduce((sum, e) => sum + e.cantidad, 0),
-      cantidadClientes: clientesUnicos,
-      envasesVencidos: vencidos.reduce((sum, e) => sum + e.cantidad, 0),
-      promedioDias,
-      tipoMasPrestado,
-      clienteMasEnvases
-    });
+    cargar();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const envasesFiltrados = envases.filter(envase => {
-    // Filtro por estado
-    const cumpleEstado = 
-      filtroEstado === 'todos' ||
-      (filtroEstado === 'prestados' && !envase.devuelto) ||
-      (filtroEstado === 'devueltos' && envase.devuelto) ||
-      (filtroEstado === 'vencidos' && !envase.devuelto && (envase.diasPrestado || 0) > 10);
+  useEffect(() => {
+    if (!clienteParam || clientes.length === 0) return;
+    const cliente = clientes.find((item) => item.id === Number(clienteParam));
+    if (cliente) {
+      void abrirDetalle(cliente);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteParam, clientes]);
 
-    // Filtro por búsqueda
-    const cumpleBusqueda = 
-      !busqueda ||
-      envase.cliente.toLowerCase().includes(busqueda.toLowerCase()) ||
-      envase.direccion.toLowerCase().includes(busqueda.toLowerCase()) ||
-      envase.tipo.toLowerCase().includes(busqueda.toLowerCase());
+  const abrirDetalle = async (cliente: ClienteConEnvases) => {
+    setClienteSeleccionado(cliente);
+    setCargandoDetalle(true);
 
-    return cumpleEstado && cumpleBusqueda;
-  });
+    try {
+      const [resumenData, movimientosData] = await Promise.all([
+        repartidorRapidoService.obtenerResumenEnvases(cliente.id),
+        repartidorRapidoService.obtenerMovimientosEnvases(cliente.id, { page: 1, limit: 20 }),
+      ]);
 
-  const registrarDevolucion = (envaseId: number) => {
-    setEnvases(prev => prev.map(e => 
-      e.id === envaseId 
-        ? { 
-            ...e, 
-            devuelto: true, 
-            fechaDevolucion: new Date().toISOString()
-          }
-        : e
-    ));
+      setResumen(resumenData);
+      setMovimientos(movimientosData.movimientos);
+    } catch {
+      setResumen(null);
+      setMovimientos([]);
+    } finally {
+      setCargandoDetalle(false);
+    }
   };
+
+  const clientesFiltrados = useMemo(
+    () =>
+      clientes.filter((cliente) => {
+        const termino = busqueda.trim().toLowerCase();
+        if (!termino) return true;
+
+        return (
+          cliente.nombre.toLowerCase().includes(termino) ||
+          (cliente.direccion || '').toLowerCase().includes(termino) ||
+          (cliente.telefono || '').toLowerCase().includes(termino)
+        );
+      }),
+    [clientes, busqueda]
+  );
+
+  const totalEnvases = useMemo(
+    () => clientes.reduce((total, cliente) => total + cliente.cantidad_envases, 0),
+    [clientes]
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Reporte de Envases</h1>
-        <p className="text-gray-600">Gestión y seguimiento de envases prestados</p>
+      <div className="rounded-xl bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-900">Envases por cliente</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Seguimiento real de saldos de envases y movimientos recientes.
+        </p>
       </div>
 
-      {/* Métricas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-blue-500">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Prestado</p>
-              <p className="text-2xl font-bold text-gray-800">{resumen.totalPrestado}</p>
+              <p className="text-sm text-gray-500">Clientes con envases</p>
+              <p className="text-2xl font-bold text-blue-600">{clientes.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <CubeIcon className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-blue-500 mr-1" />
-            <span className="text-blue-600">Envases en circulación</span>
+            <UserGroupIcon className="h-8 w-8 text-blue-500" />
           </div>
         </div>
-
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-green-500">
+        <div className="rounded-xl border border-indigo-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Devuelto</p>
-              <p className="text-2xl font-bold text-gray-800">{resumen.totalDevuelto}</p>
+              <p className="text-sm text-gray-500">Envases prestados</p>
+              <p className="text-2xl font-bold text-indigo-600">{totalEnvases}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircleIcon className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-green-500 mr-1" />
-            <span className="text-green-600">Envases recuperados</span>
+            <CubeIcon className="h-8 w-8 text-indigo-500" />
           </div>
         </div>
-
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-orange-500">
+        <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Pendientes</p>
-              <p className="text-2xl font-bold text-gray-800">{resumen.totalPendiente}</p>
+              <p className="text-sm text-gray-500">Gestión operativa</p>
+              <p className="text-sm font-semibold text-amber-700">Alta, devolución y ajuste</p>
             </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-              <ClockIcon className="w-6 h-6 text-orange-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-orange-500 mr-1" />
-            <span className="text-orange-600">Por devolver</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-red-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Vencidos</p>
-              <p className="text-2xl font-bold text-gray-800">{resumen.envasesVencidos}</p>
-            </div>
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-red-500 mr-1" />
-            <span className="text-red-600">+10 días</span>
+            <ExclamationTriangleIcon className="h-8 w-8 text-amber-500" />
           </div>
         </div>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <div className="bg-white rounded-lg p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFiltroEstado('todos')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === 'todos'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Todos
-            </button>
-            <button
-              onClick={() => setFiltroEstado('prestados')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === 'prestados'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Prestados
-            </button>
-            <button
-              onClick={() => setFiltroEstado('vencidos')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === 'vencidos'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Vencidos
-            </button>
-            <button
-              onClick={() => setFiltroEstado('devueltos')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filtroEstado === 'devueltos'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Devueltos
-            </button>
-          </div>
-          
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Buscar por cliente, dirección o tipo de envase..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+      <div className="rounded-xl bg-white p-6 shadow-sm">
+        <div className="relative">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por cliente, dirección o teléfono..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
         </div>
       </div>
 
-      {/* Resumen por tipo y cliente */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-            <CubeIcon className="w-5 h-5 mr-2" />
-            Resumen por Tipo de Envase
-          </h3>
-          <div className="space-y-4">
-            {Object.entries(
-              envases.reduce((acc, e) => {
-                if (!acc[e.tipo]) {
-                  acc[e.tipo] = { prestado: 0, devuelto: 0 };
-                }
-                if (e.devuelto) {
-                  acc[e.tipo].devuelto += e.cantidad;
-                } else {
-                  acc[e.tipo].prestado += e.cantidad;
-                }
-                return acc;
-              }, {} as { [key: string]: { prestado: number; devuelto: number } })
-            ).map(([tipo, datos]) => (
-              <div key={tipo} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <span className="font-medium text-gray-800">{tipo}</span>
-                  <div className="text-sm text-gray-600">
-                    {datos.prestado} prestados, {datos.devuelto} devueltos
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-xl bg-white shadow-sm">
+          <div className="border-b border-gray-200 p-6">
+            <h2 className="font-semibold text-gray-900">Clientes con envases activos</h2>
+          </div>
+
+          {cargando ? (
+            <div className="p-6 text-sm text-gray-500">Cargando clientes...</div>
+          ) : clientesFiltrados.length === 0 ? (
+            <div className="p-6 text-sm text-gray-500">No hay clientes con envases pendientes.</div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {clientesFiltrados.map((cliente) => (
+                <button
+                  key={cliente.id}
+                  onClick={() => abrirDetalle(cliente)}
+                  className={`w-full p-6 text-left transition-colors hover:bg-gray-50 ${
+                    clienteSeleccionado?.id === cliente.id ? 'bg-gray-50' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900">{cliente.nombre}</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {cliente.direccion || 'Sin dirección cargada'}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">{cliente.telefono || 'Sin teléfono'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">Envases</p>
+                      <p className="font-bold text-blue-600">{cliente.cantidad_envases}</p>
+                    </div>
                   </div>
-                </div>
-                <span className="font-semibold text-blue-600">{datos.prestado + datos.devuelto}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <aside className="rounded-xl bg-white p-6 shadow-sm">
+          {!clienteSeleccionado ? (
+            <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+              Seleccioná un cliente para ver su saldo actual y sus movimientos de envases.
+            </div>
+          ) : cargandoDetalle ? (
+            <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+              <ArrowPathIcon className="h-5 w-5 animate-spin" />
+              Cargando detalle...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">{clienteSeleccionado.nombre}</h2>
+                <p className="text-sm text-gray-500">{clienteSeleccionado.direccion}</p>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-            <UserGroupIcon className="w-5 h-5 mr-2" />
-            Resumen por Cliente
-          </h3>
-          <div className="space-y-4">
-            {Object.entries(
-              envases.reduce((acc, e) => {
-                if (!acc[e.cliente]) {
-                  acc[e.cliente] = { prestado: 0, devuelto: 0, direccion: e.direccion };
-                }
-                if (e.devuelto) {
-                  acc[e.cliente].devuelto += e.cantidad;
-                } else {
-                  acc[e.cliente].prestado += e.cantidad;
-                }
-                return acc;
-              }, {} as { [key: string]: { prestado: number; devuelto: number; direccion: string } })
-            ).map(([cliente, datos]) => (
-              <div key={cliente} className="bg-gray-50 rounded-lg p-3">
-                <h4 className="font-semibold text-gray-800 mb-1">{cliente}</h4>
-                <p className="text-sm text-gray-600 mb-2">{datos.direccion}</p>
-                <div className="flex justify-between text-sm">
-                  <span>Prestados: <span className="font-semibold text-blue-600">{datos.prestado}</span></span>
-                  <span>Devueltos: <span className="font-semibold text-green-600">{datos.devuelto}</span></span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de envases */}
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-800 text-lg">Historial de Envases</h3>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {envasesFiltrados.map(envase => (
-            <div key={envase.id} className="p-6 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h4 className="font-semibold text-gray-800">{envase.cliente}</h4>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      envase.devuelto 
-                        ? 'bg-green-100 text-green-800' 
-                        : (envase.diasPrestado || 0) > 10
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {envase.devuelto ? 'Devuelto' : (envase.diasPrestado || 0) > 10 ? 'Vencido' : 'Prestado'}
-                    </span>
+              {resumen && (
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">Saldo actual</p>
+                      <p className="text-2xl font-bold text-blue-600">{resumen.cantidad_total}</p>
+                    </div>
+                    <ClockIcon className="h-8 w-8 text-blue-500" />
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">{envase.direccion}</p>
-                  <div className="flex items-center text-sm text-gray-600 mb-1">
-                    <CubeIcon className="w-4 h-4 mr-1" />
-                    <span>{envase.tipo} - {envase.cantidad} unidades</span>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {resumen.saldo_actual.map((item) => (
+                      <span
+                        key={item.producto_id}
+                        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700"
+                      >
+                        {item.producto_nombre}: {item.cantidad}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex items-center text-xs text-gray-500">
-                    <CalendarIcon className="w-3 h-3 mr-1" />
-                    <span>Prestado: {new Date(envase.fechaPrestamo).toLocaleDateString('es-ES')}</span>
-                    {!envase.devuelto && envase.diasPrestado && envase.diasPrestado > 10 && (
-                      <>
-                        <span className="mx-2">•</span>
-                        <ClockIcon className="w-3 h-3 mr-1" />
-                        <span className="text-red-600">{envase.diasPrestado} días prestado</span>
-                      </>
-                    )}
-                  </div>
-                  {envase.observaciones && (
-                    <p className="text-sm text-gray-500 mt-1">{envase.observaciones}</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-800">{envase.cantidad} unidades</p>
-                  {envase.devuelto && envase.fechaDevolucion && (
-                    <p className="text-xs text-green-600">
-                      Devuelto: {new Date(envase.fechaDevolucion).toLocaleDateString('es-ES')}
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {!envase.devuelto && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => registrarDevolucion(envase.id)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  >
-                    Registrar Devolución
-                  </button>
                 </div>
               )}
+
+              <button
+                onClick={() =>
+                  router.push(`/repartidor/rapido?cliente=${clienteSeleccionado.id}&accion=envases`)
+                }
+                className="w-full rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700"
+              >
+                Gestionar envases
+              </button>
+
+              <div>
+                <h3 className="font-semibold text-gray-900">Últimos movimientos</h3>
+                <div className="mt-3 space-y-2">
+                  {movimientos.length === 0 ? (
+                    <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">
+                      No hay movimientos recientes.
+                    </p>
+                  ) : (
+                    movimientos.map((movimiento) => (
+                      <div key={movimiento.id} className="rounded-lg border border-gray-200 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800">
+                              {movimiento.producto_nombre} · {movimiento.tipo}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {new Date(movimiento.fecha_movimiento).toLocaleString('es-AR')}
+                            </p>
+                            {movimiento.observaciones && (
+                              <p className="mt-1 text-xs text-gray-600">{movimiento.observaciones}</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {movimiento.cantidad > 0 ? '+' : ''}
+                            {movimiento.cantidad}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-        
-        {envasesFiltrados.length === 0 && (
-          <div className="p-6 text-center text-gray-500">
-            No hay envases que coincidan con los filtros seleccionados
-          </div>
-        )}
+          )}
+        </aside>
       </div>
     </div>
   );
-};
-
-export default EnvasesPage;
+}

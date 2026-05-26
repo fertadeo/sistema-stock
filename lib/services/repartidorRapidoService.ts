@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = (() => {
+  const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  return rawUrl.replace(/\/+$/, '').replace(/\/api$/, '');
+})();
 
 type MedioPago = 'efectivo' | 'transferencia' | 'debito' | 'credito';
 
@@ -14,6 +17,63 @@ export interface PaginacionMeta {
   pagina: number;
   porPagina: number;
   totalPaginas: number;
+}
+
+export interface ZonaCliente {
+  id: number;
+  nombre: string;
+}
+
+export interface ClienteBasico {
+  id: number;
+  dni?: string;
+  nombre: string;
+  email?: string;
+  telefono: string;
+  direccion?: string;
+  latitud?: number | null;
+  longitud?: number | null;
+  fecha_alta?: string;
+  estado?: boolean;
+  repartidor?: string;
+  dia_reparto?: string;
+  zona?: number | null;
+  envases_prestados?: Array<{
+    id?: number;
+    cliente_id?: number;
+    producto_id: number;
+    producto_nombre?: string;
+    capacidad?: number;
+    cantidad: number;
+    fecha_prestamo?: string;
+  }>;
+  historial_ventas?: Array<{
+    venta_id: string;
+    monto_total: string;
+    medio_pago: MedioPago;
+    forma_pago: 'total' | 'parcial';
+    saldo: boolean;
+    saldo_monto?: string | null;
+    fecha_venta: string;
+    tipo: 'LOCAL' | 'REPARTIDOR' | 'REVENDEDOR';
+    observaciones?: string | null;
+  }>;
+}
+
+export interface ClienteDeudor {
+  cliente_id: number;
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  estado: boolean;
+  zona: number | null;
+  repartidor: string;
+  dia_reparto: string;
+  saldo_actual: number;
+  total_debitos: number;
+  total_creditos: number;
+  cantidad_movimientos: number;
+  ultimo_movimiento_at: string | null;
 }
 
 export interface ProductoVenta {
@@ -152,6 +212,10 @@ export interface RegistrarMovimientoEnvasesResponse {
 }
 
 class RepartidorRapidoService {
+  private buildApiUrl(path: string): string {
+    return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
   private getRepartidorId(): number | undefined {
     if (typeof window !== 'undefined') {
       const repartidorId = localStorage.getItem('repartidor_id');
@@ -178,7 +242,7 @@ class RepartidorRapidoService {
 
   async registrarVenta(data: VentaRapidaData): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/repartidor-rapido/venta`, {
+      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/venta'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,7 +268,7 @@ class RepartidorRapidoService {
   async registrarCobro(data: CobroRapidoData): Promise<{ cobro: CobroCliente; saldo_actual: number }> {
     try {
       const { cliente_id, ...payload } = data;
-      const response = await fetch(`${API_URL}/api/clientes/${cliente_id}/cobros`, {
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${cliente_id}/cobros`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +288,7 @@ class RepartidorRapidoService {
 
   async registrarFiado(data: FiadoRapidoData): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/repartidor-rapido/fiado`, {
+      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/fiado'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,7 +313,7 @@ class RepartidorRapidoService {
 
   async obtenerEnvasesCliente(clienteId: number): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/repartidor-rapido/envases/${clienteId}`);
+      const response = await fetch(this.buildApiUrl(`/api/repartidor-rapido/envases/${clienteId}`));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -262,9 +326,9 @@ class RepartidorRapidoService {
     }
   }
 
-  async buscarClientes(termino: string): Promise<any[]> {
+  async buscarClientes(termino: string): Promise<ClienteBasico[]> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes?search=${encodeURIComponent(termino)}`);
+      const response = await fetch(this.buildApiUrl(`/api/clientes?search=${encodeURIComponent(termino)}`));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -279,9 +343,9 @@ class RepartidorRapidoService {
   }
 
   /** Obtiene todos los clientes (para búsqueda por coincidencias cercanas cuando search no devuelve resultados) */
-  async obtenerTodosClientes(): Promise<any[]> {
+  async obtenerTodosClientes(): Promise<ClienteBasico[]> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes`);
+      const response = await fetch(this.buildApiUrl('/api/clientes'));
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -291,13 +355,56 @@ class RepartidorRapidoService {
     }
   }
 
-  async obtenerCliente(clienteId: number): Promise<any> {
+  async obtenerCliente(clienteId: number): Promise<ClienteBasico> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes/${clienteId}`);
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}`));
 
-      return await this.parseResponse<any>(response);
+      return await this.parseResponse<ClienteBasico>(response);
     } catch (error) {
       console.error('Error al obtener cliente:', error);
+      throw error;
+    }
+  }
+
+  async obtenerZonas(): Promise<ZonaCliente[]> {
+    try {
+      const response = await fetch(this.buildApiUrl('/api/clientes/zonas'));
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error al obtener zonas:', error);
+      return [];
+    }
+  }
+
+  async obtenerClientesDeudores(params?: {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    clientes: ClienteDeudor[];
+    meta?: PaginacionMeta;
+  }> {
+    try {
+      const searchParams = new URLSearchParams();
+
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.limit) searchParams.set('limit', String(params.limit));
+
+      const query = searchParams.toString();
+      const response = await fetch(
+        this.buildApiUrl(`/api/clientes/deudores${query ? `?${query}` : ''}`)
+      );
+      const data = await this.parseResponse<ApiEnvelope<ClienteDeudor[]>>(response);
+
+      return {
+        clientes: data.data,
+        meta: data.meta,
+      };
+    } catch (error) {
+      console.error('Error al obtener clientes deudores:', error);
       throw error;
     }
   }
@@ -310,7 +417,7 @@ class RepartidorRapidoService {
     dni?: string;
   }): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes`, {
+      const response = await fetch(this.buildApiUrl('/api/clientes'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,7 +439,7 @@ class RepartidorRapidoService {
     email?: string;
   }): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes/${clienteId}`, {
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -349,7 +456,7 @@ class RepartidorRapidoService {
 
   async obtenerCuentaCorrienteResumen(clienteId: number): Promise<CuentaCorrienteResumen> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes/${clienteId}/cuenta-corriente/resumen`);
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente/resumen`));
       return await this.parseWrappedResponse<CuentaCorrienteResumen>(response);
     } catch (error) {
       console.error('Error al obtener resumen de cuenta corriente:', error);
@@ -380,7 +487,7 @@ class RepartidorRapidoService {
 
       const query = searchParams.toString();
       const response = await fetch(
-        `${API_URL}/api/clientes/${clienteId}/cuenta-corriente${query ? `?${query}` : ''}`
+        this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<{
         resumen: CuentaCorrienteResumen;
@@ -420,7 +527,7 @@ class RepartidorRapidoService {
 
       const query = searchParams.toString();
       const response = await fetch(
-        `${API_URL}/api/clientes/${clienteId}/cobros${query ? `?${query}` : ''}`
+        this.buildApiUrl(`/api/clientes/${clienteId}/cobros${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<CobroCliente[]>>(response);
 
@@ -436,7 +543,7 @@ class RepartidorRapidoService {
 
   async obtenerResumenEnvases(clienteId: number): Promise<ResumenEnvases> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes/${clienteId}/envases/resumen`);
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/resumen`));
       return await this.parseWrappedResponse<ResumenEnvases>(response);
     } catch (error) {
       console.error('Error al obtener resumen de envases:', error);
@@ -464,7 +571,7 @@ class RepartidorRapidoService {
 
       const query = searchParams.toString();
       const response = await fetch(
-        `${API_URL}/api/clientes/${clienteId}/envases/movimientos${query ? `?${query}` : ''}`
+        this.buildApiUrl(`/api/clientes/${clienteId}/envases/movimientos${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<MovimientoEnvaseDetalle[]>>(response);
 
@@ -483,7 +590,7 @@ class RepartidorRapidoService {
     payload: RegistrarMovimientoEnvasesPayload
   ): Promise<RegistrarMovimientoEnvasesResponse> {
     try {
-      const response = await fetch(`${API_URL}/api/clientes/${clienteId}/envases/movimientos`, {
+      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/movimientos`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +610,7 @@ class RepartidorRapidoService {
 
   async obtenerProductos(): Promise<any[]> {
     try {
-      const response = await fetch(`${API_URL}/api/productos`);
+      const response = await fetch(this.buildApiUrl('/api/productos'));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -519,7 +626,7 @@ class RepartidorRapidoService {
 
   async obtenerMovimientosCliente(clienteId: number): Promise<any[]> {
     try {
-      const response = await fetch(`${API_URL}/api/movimientos/cliente/${clienteId}`);
+      const response = await fetch(this.buildApiUrl(`/api/movimientos/cliente/${clienteId}`));
       if (!response.ok) return [];
       const data = await response.json();
       if (data.success && data.movimientos) return data.movimientos;
@@ -534,7 +641,7 @@ class RepartidorRapidoService {
   /** Obtiene los registros "no encontrado" de un cliente para el historial */
   async obtenerNoEncontradoPorCliente(clienteId: number): Promise<any[]> {
     try {
-      const response = await fetch(`${API_URL}/repartidor-rapido/no-encontrado?cliente_id=${clienteId}`);
+      const response = await fetch(this.buildApiUrl(`/api/repartidor-rapido/no-encontrado?cliente_id=${clienteId}`));
       if (!response.ok) return [];
       const data = await response.json();
       if (Array.isArray(data)) return data;
@@ -549,7 +656,7 @@ class RepartidorRapidoService {
   /** Registra que el cliente no fue encontrado en la visita (dejar registro) */
   async registrarNoEncontrado(clienteId: number, observaciones?: string): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await fetch(`${API_URL}/api/repartidor-rapido/no-encontrado`, {
+      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/no-encontrado'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -38,12 +38,16 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, href, isActive, onClick 
   );
 };
 
+const isRouteActive = (pathname: string, href: string) => {
+  if (href === '/repartidor') return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+};
+
 const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
   const [fechaActual, setFechaActual] = useState('');
   const [horaActual, setHoraActual] = useState('');
-  const [zonaActual, setZonaActual] = useState('Zona Centro');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -100,6 +104,20 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     }
   ];
 
+  const tituloActual =
+    navItems.find((item) => item.href === pathname)?.label ||
+    (pathname.startsWith('/repartidor/clientes/') ? 'Clientes' : 'Repartidor');
+
+  const subtituloActual = (() => {
+    if (pathname === '/repartidor') return 'Panel operativo';
+    if (pathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
+    if (pathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
+    if (pathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
+    if (pathname === '/repartidor/envases') return 'Seguimiento de envases';
+    if (pathname.startsWith('/repartidor/clientes')) return 'Listado y ficha de clientes';
+    return 'Operación diaria';
+  })();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header responsivo */}
@@ -118,8 +136,8 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               )}
             </button>
             <div>
-              <h1 className="text-lg font-semibold text-gray-800">Repartidor</h1>
-              <p className="text-sm text-gray-600">Zona: {zonaActual}</p>
+              <h1 className="text-lg font-semibold text-gray-800">{tituloActual}</h1>
+              <p className="text-sm text-gray-600">{subtituloActual}</p>
             </div>
           </div>
           <div className="text-right">
@@ -152,7 +170,7 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
                   setSidebarOpen(false);
                 }}
                 className={`flex items-center w-full px-4 py-3 text-left rounded-lg transition-colors ${
-                  pathname === item.href
+                  isRouteActive(pathname, item.href)
                     ? 'bg-teal-100 text-teal-700 border-r-2 border-teal-600' 
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
@@ -172,8 +190,8 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
                 <UserGroupIcon className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-800">Repartidor</p>
-                <p className="text-xs text-gray-500">{zonaActual}</p>
+                <p className="text-sm font-medium text-gray-800">Módulo Repartidor</p>
+                <p className="text-xs text-gray-500">{subtituloActual}</p>
               </div>
             </div>
           </div>
@@ -204,7 +222,7 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               icon={item.icon}
               label={item.label}
               href={item.href}
-              isActive={pathname === item.href}
+              isActive={isRouteActive(pathname, item.href)}
               onClick={() => router.push(item.href)}
             />
           ))}

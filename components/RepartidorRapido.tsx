@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -56,6 +57,8 @@ type MedioPago = 'efectivo' | 'transferencia' | 'debito' | 'credito';
 type TipoOperacion = 'venta' | 'fiado' | 'cobro';
 
 export default function RepartidorRapido() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -279,10 +282,22 @@ export default function RepartidorRapido() {
     setProductosVenta([]);
     setMontoPagado(0);
     setFormaPago('total');
+    setMedioPago('efectivo');
     setEnvasesPrestados([]);
     setEnvasesDevueltos([]);
     setObservaciones('');
     setMostrarModalVenta(true);
+  };
+
+  const abrirModalCobro = () => {
+    setMontoCobro(0);
+    setMedioPago('efectivo');
+    setObservaciones('');
+    setMostrarModalCobro(true);
+  };
+
+  const abrirModalEnvases = () => {
+    setMostrarModalEnvases(true);
   };
 
   const agregarProducto = (producto: Producto) => {
@@ -492,6 +507,69 @@ export default function RepartidorRapido() {
     setProductosVenta([]);
     setMostrarModalEnvases(false);
   };
+
+  useEffect(() => {
+    if (!searchParams) return;
+    const nuevo = searchParams.get('nuevo');
+    if (nuevo !== '1') return;
+
+    setClienteSeleccionado(null);
+    setResumenCuenta(null);
+    setResumenEnvases(null);
+    setClientesEncontrados([]);
+    setBusquedaCliente('');
+    setClienteForm({
+      nombre: '',
+      telefono: '',
+      direccion: '',
+      email: '',
+    });
+    setMostrarModalCliente(true);
+    router.replace('/repartidor/rapido');
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    const clienteParam = searchParams.get('cliente');
+    if (!clienteParam) return;
+
+    const clienteId = Number(clienteParam);
+    if (!Number.isFinite(clienteId) || clienteId <= 0) {
+      router.replace('/repartidor/rapido');
+      return;
+    }
+
+    const accion = searchParams.get('accion');
+
+    const abrirDesdeRuta = async () => {
+      setCargando(true);
+      try {
+        await cargarFichaCliente(clienteId, {
+          id: clienteId,
+          nombre: 'Cliente',
+          telefono: '',
+        });
+
+        setBusquedaCliente('');
+        setClientesEncontrados([]);
+
+        if (accion === 'venta' || accion === 'fiado') {
+          abrirModalVenta(accion);
+        } else if (accion === 'cobro') {
+          abrirModalCobro();
+        } else if (accion === 'envases') {
+          abrirModalEnvases();
+        }
+      } catch {
+        mostrarError('No se pudo abrir el cliente solicitado');
+      } finally {
+        setCargando(false);
+        router.replace('/repartidor/rapido');
+      }
+    };
+
+    void abrirDesdeRuta();
+  }, [router, searchParams]);
 
   return (
     <div className="pb-20 min-h-screen bg-gray-50">
@@ -726,14 +804,14 @@ export default function RepartidorRapido() {
               <span>Fiar</span>
             </button>
             <button
-              onClick={() => setMostrarModalCobro(true)}
+              onClick={abrirModalCobro}
               className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-blue-600 rounded-lg"
             >
               <BanknotesIcon className="w-6 h-6" />
               <span>Cobrar</span>
             </button>
             <button
-              onClick={() => setMostrarModalEnvases(true)}
+              onClick={abrirModalEnvases}
               className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-teal-600 rounded-lg"
             >
               <MapPinIcon className="w-6 h-6" />
@@ -952,9 +1030,6 @@ function ModalCliente({
   );
 }
 
-const ID_MIN_PRINCIPAL = 8;
-const ID_MAX_PRINCIPAL = 12;
-
 // Componente Modal Venta
 function ModalVenta({
   cliente,
@@ -981,17 +1056,14 @@ function ModalVenta({
   onCerrar,
   cargando,
 }: any) {
-  const [busquedaOtros, setBusquedaOtros] = useState('');
+  const [busquedaProducto, setBusquedaProducto] = useState('');
 
-  // Productos principales: id 8 a 12, con envases primero y luego por nombre
-  const productosPrincipales = useMemo(() => {
-    const principales = productos.filter(
-      (p: Producto) => p.id >= ID_MIN_PRINCIPAL && p.id <= ID_MAX_PRINCIPAL
-    );
+  const productosOrdenados = useMemo(() => {
     const idsConEnvase = new Set(
       (cliente?.envases_prestados || []).map((e: { producto_id: number }) => e.producto_id)
     );
-    return principales.sort((a: Producto, b: Producto) => {
+
+    return [...productos].sort((a: Producto, b: Producto) => {
       const aTiene = idsConEnvase.has(a.id) ? 1 : 0;
       const bTiene = idsConEnvase.has(b.id) ? 1 : 0;
       if (bTiene !== aTiene) return bTiene - aTiene;
@@ -999,30 +1071,14 @@ function ModalVenta({
     });
   }, [productos, cliente?.envases_prestados]);
 
-  // Resto de productos (solo para buscador secundario)
-  const productosSecundarios = useMemo(
-    () =>
-      productos.filter(
-        (p: Producto) => p.id < ID_MIN_PRINCIPAL || p.id > ID_MAX_PRINCIPAL
-      ),
-    [productos]
-  );
+  const productosVisibles = useMemo(() => {
+    const termino = busquedaProducto.trim().toLowerCase();
+    if (!termino) return productosOrdenados;
 
-  const productosOtrosFiltrados = useMemo(() => {
-    if (!busquedaOtros.trim()) return [];
-    const t = busquedaOtros.toLowerCase().trim();
-    return productosSecundarios.filter((p: Producto) =>
-      (p.nombreProducto || '').toLowerCase().includes(t)
+    return productosOrdenados.filter((producto: Producto) =>
+      (producto.nombreProducto || '').toLowerCase().includes(termino)
     );
-  }, [productosSecundarios, busquedaOtros]);
-
-  // Productos agregados que no son principales (para mostrar en "Otros")
-  const otrosEnVenta = useMemo(() => {
-    const idsPrincipales = new Set(
-      productosPrincipales.map((p: Producto) => p.id.toString())
-    );
-    return productosVenta.filter((pv: ProductoVenta) => !idsPrincipales.has(pv.producto_id));
-  }, [productosVenta, productosPrincipales]);
+  }, [productosOrdenados, busquedaProducto]);
 
   const getCantidad = (productoId: string) =>
     productosVenta.find((p: ProductoVenta) => p.producto_id === productoId)?.cantidad ?? 0;
@@ -1040,7 +1096,7 @@ function ModalVenta({
     if (cantidad > 0) onActualizarCantidad(id, cantidad - 1);
   };
 
-  const renderFilaProducto = (producto: Producto, esPrincipal: boolean) => {
+  const renderFilaProducto = (producto: Producto) => {
     const cantidad = getCantidad(producto.id.toString());
     const precio = producto.precioPublico || 0;
     const tieneEnvase = (cliente?.envases_prestados || []).some(
@@ -1050,7 +1106,7 @@ function ModalVenta({
       <div
         key={producto.id}
         className={`flex items-center gap-3 p-3 rounded-lg border ${
-          tieneEnvase && esPrincipal ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
+          tieneEnvase ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
         }`}
       >
         <div className="flex-1 min-w-0">
@@ -1058,7 +1114,7 @@ function ModalVenta({
             <span className="font-medium text-gray-800 truncate">
               {producto.nombreProducto || 'Producto'}
             </span>
-            {tieneEnvase && esPrincipal && (
+            {tieneEnvase && (
               <span className="flex-shrink-0 text-xs font-medium text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded">
                 Envase
               </span>
@@ -1111,68 +1167,26 @@ function ModalVenta({
           </button>
         </div>
         <div className="overflow-y-auto flex-1 p-4 space-y-4">
-          {/* Lista principal: solo productos id 8 a 12 con precio al público */}
           <div className="space-y-2">
             <h3 className="font-semibold text-gray-800">Productos</h3>
-            {productosPrincipales.length === 0 ? (
-              <p className="py-2 text-sm text-gray-500">No hay productos principales cargados.</p>
-            ) : (
-              <div className="space-y-2">
-                {productosPrincipales.map((producto: Producto) =>
-                  renderFilaProducto(producto, true)
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Buscador secundario: agregar otros productos */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-gray-600">Agregar otro producto</h3>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Buscar producto..."
-                value={busquedaOtros}
-                onChange={(e) => setBusquedaOtros(e.target.value)}
+                value={busquedaProducto}
+                onChange={(e) => setBusquedaProducto(e.target.value)}
                 className="py-2 pr-4 pl-10 w-full text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
               />
               <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
-              {busquedaOtros.trim() && productosOtrosFiltrados.length > 0 && (
-                <div className="overflow-y-auto absolute right-0 left-0 top-full z-20 mt-1 max-h-48 bg-white rounded-lg border border-gray-200 shadow-lg">
-                  {productosOtrosFiltrados.slice(0, 8).map((producto: Producto) => (
-                    <button
-                      key={producto.id}
-                      type="button"
-                      onClick={() => {
-                        onAgregarProducto(producto);
-                        setBusquedaOtros('');
-                      }}
-                      className="flex justify-between items-center px-3 py-2 w-full text-sm text-left border-b hover:bg-gray-50 last:border-b-0"
-                    >
-                      <span className="truncate">{producto.nombreProducto || 'Producto'}</span>
-                      <span className="flex-shrink-0 ml-2 text-gray-500">
-                        ${(producto.precioPublico || 0).toLocaleString()}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+            </div>
+            <div className="space-y-2">
+              {productosVisibles.length === 0 ? (
+                <p className="py-2 text-sm text-gray-500">No hay productos que coincidan con la búsqueda.</p>
+              ) : (
+                productosVisibles.map((producto: Producto) => renderFilaProducto(producto))
               )}
             </div>
           </div>
-
-          {/* Otros productos ya agregados (fuera de 8-12) */}
-          {otrosEnVenta.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-gray-600">Otros productos en la venta</h3>
-              <div className="space-y-2">
-                {otrosEnVenta.map((pv: ProductoVenta) => {
-                  const producto = productos.find((p: Producto) => p.id.toString() === pv.producto_id);
-                  if (!producto) return null;
-                  return renderFilaProducto(producto, false);
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Pago (solo para ventas) */}
           {tipoOperacion === 'venta' && productosVenta.length > 0 && (
@@ -1446,13 +1460,8 @@ function ModalEnvases({
 
   const productosEnvases = useMemo(() => {
     const idsConSaldo = new Set((resumenEnvases?.saldo_actual || []).map((item) => item.producto_id));
-    const base = productos.filter(
-      (producto) =>
-        (producto.id >= ID_MIN_PRINCIPAL && producto.id <= ID_MAX_PRINCIPAL) || idsConSaldo.has(producto.id)
-    );
-    const candidatos = base.length > 0 ? base : productos;
 
-    return [...candidatos].sort((a, b) => {
+    return [...productos].sort((a, b) => {
       const aSaldo = idsConSaldo.has(a.id) ? 1 : 0;
       const bSaldo = idsConSaldo.has(b.id) ? 1 : 0;
 

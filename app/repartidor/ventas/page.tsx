@@ -1,365 +1,264 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { 
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
   ShoppingCartIcon,
-  CurrencyDollarIcon,
-  CalendarIcon,
-  ArrowTrendingUpIcon,
   UserGroupIcon,
-  ChartBarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon
+  CubeIcon,
+  MagnifyingGlassIcon,
+  CreditCardIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
+import {
+  repartidorRapidoService,
+  ClienteBasico,
+} from '@/lib/services/repartidorRapidoService';
 
-interface Venta {
+type Producto = {
   id: number;
-  cliente: string;
-  productos: string[];
-  monto: number;
-  metodoPago: 'efectivo' | 'fiado';
-  fecha: string;
-  hora: string;
-}
+  nombreProducto?: string;
+  nombre?: string;
+  precioPublico?: number;
+  cantidadStock?: number;
+};
 
-interface ResumenVentas {
-  totalHoy: number;
-  totalSemana: number;
-  totalMes: number;
-  ventasHoy: number;
-  promedioVenta: number;
-  mejorCliente: string;
-  productoMasVendido: string;
-}
-
-const VentasPage: React.FC = () => {
-  const [ventas, setVentas] = useState<Venta[]>([]);
-  const [resumen, setResumen] = useState<ResumenVentas>({
-    totalHoy: 0,
-    totalSemana: 0,
-    totalMes: 0,
-    ventasHoy: 0,
-    promedioVenta: 0,
-    mejorCliente: '',
-    productoMasVendido: ''
-  });
-  const [filtroFecha, setFiltroFecha] = useState<'hoy' | 'semana' | 'mes'>('hoy');
+export default function VentasPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const clienteParam = searchParams.get('cliente');
+  const [clientes, setClientes] = useState<ClienteBasico[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [busqueda, setBusqueda] = useState(searchParams.get('search') || '');
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Simular datos de ventas
-    const ventasSimuladas: Venta[] = [
-      {
-        id: 1,
-        cliente: "María González",
-        productos: ["Soda 1L", "Agua 500ml"],
-        monto: 1200,
-        metodoPago: "efectivo",
-        fecha: "2024-01-15",
-        hora: "14:30"
-      },
-      {
-        id: 2,
-        cliente: "Carlos Rodríguez",
-        productos: ["Soda 2L", "Jugo Naranja 1L"],
-        monto: 2200,
-        metodoPago: "fiado",
-        fecha: "2024-01-15",
-        hora: "15:15"
-      },
-      {
-        id: 3,
-        cliente: "Ana Martínez",
-        productos: ["Agua 1L", "Limonada 1L"],
-        monto: 1600,
-        metodoPago: "efectivo",
-        fecha: "2024-01-15",
-        hora: "16:00"
-      },
-      {
-        id: 4,
-        cliente: "María González",
-        productos: ["Soda 1L"],
-        monto: 800,
-        metodoPago: "efectivo",
-        fecha: "2024-01-14",
-        hora: "10:30"
-      },
-      {
-        id: 5,
-        cliente: "Roberto Silva",
-        productos: ["Soda 2L", "Agua 1L", "Jugo Manzana 1L"],
-        monto: 2800,
-        metodoPago: "fiado",
-        fecha: "2024-01-14",
-        hora: "11:45"
+    if (!clienteParam) return;
+    router.replace(`/repartidor/rapido?cliente=${clienteParam}&accion=venta`);
+  }, [clienteParam, router]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const cargar = async () => {
+      setCargando(true);
+      setError('');
+      try {
+        const [clientesData, productosData] = await Promise.all([
+          repartidorRapidoService.obtenerTodosClientes(),
+          repartidorRapidoService.obtenerProductos(),
+        ]);
+
+        if (!mounted) return;
+        setClientes(clientesData);
+        setProductos(productosData);
+      } catch (err: any) {
+        if (!mounted) return;
+        setError(err?.message || 'No se pudo cargar la información de ventas.');
+      } finally {
+        if (mounted) setCargando(false);
       }
-    ];
+    };
 
-    setVentas(ventasSimuladas);
-
-    // Calcular resumen
-    const hoy = new Date().toDateString();
-    const ventasHoy = ventasSimuladas.filter(v => new Date(v.fecha).toDateString() === hoy);
-    const totalHoy = ventasHoy.reduce((sum, v) => sum + v.monto, 0);
-    const totalSemana = ventasSimuladas.reduce((sum, v) => sum + v.monto, 0);
-    const promedioVenta = ventasSimuladas.length > 0 ? ventasSimuladas.reduce((sum, v) => sum + v.monto, 0) / ventasSimuladas.length : 0;
-
-    // Encontrar mejor cliente
-    const clientesMap = ventasSimuladas.reduce((acc, v) => {
-      acc[v.cliente] = (acc[v.cliente] || 0) + v.monto;
-      return acc;
-    }, {} as { [key: string]: number });
-    const mejorCliente = Object.entries(clientesMap).sort(([,a], [,b]) => b - a)[0]?.[0] || '';
-
-    setResumen({
-      totalHoy,
-      totalSemana,
-      totalMes: totalSemana * 4, // Simulación
-      ventasHoy: ventasHoy.length,
-      promedioVenta,
-      mejorCliente,
-      productoMasVendido: "Soda 1L"
-    });
+    cargar();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const ventasFiltradas = ventas.filter(venta => {
-    const fechaVenta = new Date(venta.fecha);
-    const hoy = new Date();
-    
-    switch (filtroFecha) {
-      case 'hoy':
-        return fechaVenta.toDateString() === hoy.toDateString();
-      case 'semana':
-        const unaSemanaAtras = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return fechaVenta >= unaSemanaAtras;
-      case 'mes':
-        const unMesAtras = new Date(hoy.getTime() - 30 * 24 * 60 * 60 * 1000);
-        return fechaVenta >= unMesAtras;
-      default:
-        return true;
-    }
-  });
+  const clientesFiltrados = useMemo(
+    () =>
+      clientes.filter((cliente) => {
+        const termino = busqueda.trim().toLowerCase();
+        if (!termino) return true;
 
-  const totalFiltrado = ventasFiltradas.reduce((sum, v) => sum + v.monto, 0);
+        return (
+          cliente.nombre.toLowerCase().includes(termino) ||
+          (cliente.direccion || '').toLowerCase().includes(termino) ||
+          (cliente.telefono || '').toLowerCase().includes(termino)
+        );
+      }),
+    [clientes, busqueda]
+  );
+
+  const productosOrdenados = useMemo(
+    () =>
+      [...productos]
+        .sort((a, b) => (a.nombreProducto || a.nombre || '').localeCompare(b.nombreProducto || b.nombre || ''))
+        .slice(0, 12),
+    [productos]
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Reporte de Ventas</h1>
-        <p className="text-gray-600">Resumen detallado de las ventas del reparto</p>
+      <div className="rounded-xl bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-900">Operación de ventas</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Prepará la venta desde acá y ejecutala en `Repartidor Rápido`, que es el flujo conectado al backend.
+        </p>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-lg p-6 shadow-sm">
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => setFiltroFecha('hoy')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filtroFecha === 'hoy'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Hoy
-          </button>
-          <button
-            onClick={() => setFiltroFecha('semana')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filtroFecha === 'semana'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Esta Semana
-          </button>
-          <button
-            onClick={() => setFiltroFecha('mes')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filtroFecha === 'mes'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Este Mes
-          </button>
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
         </div>
-      </div>
+      )}
 
-      {/* Métricas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-green-500">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-green-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Vendido</p>
-              <p className="text-2xl font-bold text-gray-800">${totalFiltrado.toLocaleString()}</p>
+              <p className="text-sm text-gray-500">Clientes disponibles</p>
+              <p className="text-2xl font-bold text-green-600">{clientes.length}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <CurrencyDollarIcon className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-green-500 mr-1" />
-            <span className="text-green-600">+12% vs ayer</span>
+            <UserGroupIcon className="h-8 w-8 text-green-500" />
           </div>
         </div>
-
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-blue-500">
+        <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Ventas Realizadas</p>
-              <p className="text-2xl font-bold text-gray-800">{ventasFiltradas.length}</p>
+              <p className="text-sm text-gray-500">Productos cargados</p>
+              <p className="text-2xl font-bold text-blue-600">{productos.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <ShoppingCartIcon className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-blue-500 mr-1" />
-            <span className="text-blue-600">+3 vs ayer</span>
+            <ClipboardDocumentListIcon className="h-8 w-8 text-blue-500" />
           </div>
         </div>
-
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-purple-500">
+        <div className="rounded-xl border border-purple-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Promedio por Venta</p>
-              <p className="text-2xl font-bold text-gray-800">
-                ${ventasFiltradas.length > 0 ? (totalFiltrado / ventasFiltradas.length).toFixed(0) : '0'}
+              <p className="text-sm text-gray-500">Envases con clientes</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {
+                  clientes.filter(
+                    (cliente) =>
+                      (cliente.envases_prestados || []).reduce(
+                        (total, envase) => total + (Number(envase.cantidad) || 0),
+                        0
+                      ) > 0
+                  ).length
+                }
               </p>
             </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-              <ArrowTrendingUpIcon className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-purple-500 mr-1" />
-            <span className="text-purple-600">+8% vs ayer</span>
+            <CubeIcon className="h-8 w-8 text-purple-500" />
           </div>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg p-6 shadow-sm border-l-4 border-orange-500">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-xl bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-600">Clientes Atendidos</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {new Set(ventasFiltradas.map(v => v.cliente)).size}
+              <h2 className="text-lg font-semibold text-gray-900">Elegí un cliente</h2>
+              <p className="text-sm text-gray-500">Buscá al cliente y arrancá una venta o un fiado.</p>
+            </div>
+            <button
+              onClick={() => router.push('/repartidor/rapido')}
+              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+            >
+              Abrir flujo completo
+            </button>
+          </div>
+
+          <div className="relative mt-4">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, dirección o teléfono..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {cargando ? (
+              <p className="text-sm text-gray-500">Cargando clientes...</p>
+            ) : clientesFiltrados.length === 0 ? (
+              <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+                No se encontraron clientes.
               </p>
-            </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-              <UserGroupIcon className="w-6 h-6 text-orange-600" />
-            </div>
+            ) : (
+              clientesFiltrados.slice(0, 12).map((cliente) => (
+                <div key={cliente.id} className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900">{cliente.nombre}</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {cliente.direccion || 'Sin dirección cargada'}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">{cliente.telefono || 'Sin teléfono'}</p>
+                    </div>
+                    <ShoppingCartIcon className="h-6 w-6 flex-shrink-0 text-green-600" />
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => router.push(`/repartidor/rapido?cliente=${cliente.id}&accion=venta`)}
+                      className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                    >
+                      Vender
+                    </button>
+                    <button
+                      onClick={() => router.push(`/repartidor/rapido?cliente=${cliente.id}&accion=fiado`)}
+                      className="flex-1 rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+                    >
+                      Fiar
+                    </button>
+                    <button
+                      onClick={() => router.push(`/repartidor/clientes/${cliente.id}`)}
+                      className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                    >
+                      Ficha
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-          <div className="mt-2 flex items-center text-sm">
-            <ArrowUpIcon className="w-4 h-4 text-orange-500 mr-1" />
-            <span className="text-orange-600">+2 vs ayer</span>
-          </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Resumen general */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-            <ChartBarIcon className="w-5 h-5 mr-2" />
-            Resumen General
-          </h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Total Hoy:</span>
-              <span className="font-semibold text-green-600">${resumen.totalHoy.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Total Semana:</span>
-              <span className="font-semibold text-blue-600">${resumen.totalSemana.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Total Mes:</span>
-              <span className="font-semibold text-purple-600">${resumen.totalMes.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Mejor Cliente:</span>
-              <span className="font-semibold text-gray-800">{resumen.mejorCliente}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Producto Más Vendido:</span>
-              <span className="font-semibold text-gray-800">{resumen.productoMasVendido}</span>
-            </div>
-          </div>
-        </div>
+        <aside className="rounded-xl bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">Catálogo disponible</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Referencia rápida de productos y precios antes de registrar la operación.
+          </p>
 
-        <div className="bg-white rounded-lg p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-            <CalendarIcon className="w-5 h-5 mr-2" />
-            Ventas por Método de Pago
-          </h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-              <span className="text-gray-600">Efectivo:</span>
-              <span className="font-semibold text-green-600">
-                ${ventasFiltradas.filter(v => v.metodoPago === 'efectivo').reduce((sum, v) => sum + v.monto, 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-              <span className="text-gray-600">Fiado:</span>
-              <span className="font-semibold text-orange-600">
-                ${ventasFiltradas.filter(v => v.metodoPago === 'fiado').reduce((sum, v) => sum + v.monto, 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Porcentaje de ventas a fiado:</p>
-              <p className="font-semibold text-blue-600">
-                {ventasFiltradas.length > 0 
-                  ? Math.round((ventasFiltradas.filter(v => v.metodoPago === 'fiado').length / ventasFiltradas.length) * 100)
-                  : 0}%
+          <div className="mt-4 space-y-2">
+            {cargando ? (
+              <p className="text-sm text-gray-500">Cargando productos...</p>
+            ) : productosOrdenados.length === 0 ? (
+              <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+                No hay productos disponibles.
               </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de ventas */}
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="font-semibold text-gray-800 text-lg">Historial de Ventas</h3>
-        </div>
-        <div className="divide-y divide-gray-200">
-          {ventasFiltradas.map(venta => (
-            <div key={venta.id} className="p-6 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h4 className="font-semibold text-gray-800">{venta.cliente}</h4>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      venta.metodoPago === 'efectivo' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-orange-100 text-orange-800'
-                    }`}>
-                      {venta.metodoPago === 'efectivo' ? 'Efectivo' : 'Fiado'}
+            ) : (
+              productosOrdenados.map((producto) => (
+                <div key={producto.id} className="rounded-lg border border-gray-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800">
+                        {producto.nombreProducto || producto.nombre || 'Producto'}
+                      </p>
+                      {producto.cantidadStock != null && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Stock: {producto.cantidadStock}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ${(producto.precioPublico || 0).toLocaleString('es-AR')}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {venta.productos.join(', ')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {venta.fecha} - {venta.hora}
-                  </p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-800">${venta.monto.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        {ventasFiltradas.length === 0 && (
-          <div className="p-6 text-center text-gray-500">
-            No hay ventas registradas para el período seleccionado
+              ))
+            )}
           </div>
-        )}
+
+          <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+            Los reportes históricos globales de ventas no están expuestos por backend en este módulo.
+            Por eso esta pantalla quedó enfocada en la operación real y en disparar el flujo productivo.
+          </div>
+        </aside>
       </div>
     </div>
   );
-};
-
-export default VentasPage;
+}
