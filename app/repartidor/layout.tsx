@@ -46,6 +46,7 @@ const isRouteActive = (pathname: string, href: string) => {
 const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const currentPathname = pathname ?? '';
   const [fechaActual, setFechaActual] = useState('');
   const [horaActual, setHoraActual] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -105,16 +106,16 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   ];
 
   const tituloActual =
-    navItems.find((item) => item.href === pathname)?.label ||
-    (pathname.startsWith('/repartidor/clientes/') ? 'Clientes' : 'Repartidor');
+    navItems.find((item) => item.href === currentPathname)?.label ||
+    (currentPathname.startsWith('/repartidor/clientes/') ? 'Clientes' : 'Repartidor');
 
   const subtituloActual = (() => {
-    if (pathname === '/repartidor') return 'Panel operativo';
-    if (pathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
-    if (pathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
-    if (pathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
-    if (pathname === '/repartidor/envases') return 'Seguimiento de envases';
-    if (pathname.startsWith('/repartidor/clientes')) return 'Listado y ficha de clientes';
+    if (currentPathname === '/repartidor') return 'Panel operativo';
+    if (currentPathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
+    if (currentPathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
+    if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
+    if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
+    if (currentPathname.startsWith('/repartidor/clientes')) return 'Listado y ficha de clientes';
     return 'Operación diaria';
   })();
 
@@ -170,7 +171,7 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
                   setSidebarOpen(false);
                 }}
                 className={`flex items-center w-full px-4 py-3 text-left rounded-lg transition-colors ${
-                  isRouteActive(pathname, item.href)
+                  isRouteActive(currentPathname, item.href)
                     ? 'bg-teal-100 text-teal-700 border-r-2 border-teal-600' 
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
@@ -222,7 +223,7 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
               icon={item.icon}
               label={item.label}
               href={item.href}
-              isActive={isRouteActive(pathname, item.href)}
+              isActive={isRouteActive(currentPathname, item.href)}
               onClick={() => router.push(item.href)}
             />
           ))}
