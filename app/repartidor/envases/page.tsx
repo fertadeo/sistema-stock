@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CubeIcon,
@@ -19,7 +19,7 @@ import {
 
 type ClienteConEnvases = ClienteBasico & { cantidad_envases: number };
 
-export default function EnvasesPage() {
+function EnvasesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clienteParam = searchParams?.get('cliente') ?? null;
@@ -301,5 +301,13 @@ export default function EnvasesPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function EnvasesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-500">Cargando envases...</div>}>
+      <EnvasesPageContent />
+    </Suspense>
   );
 }

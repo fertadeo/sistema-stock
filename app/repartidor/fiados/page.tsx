@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CreditCardIcon,
@@ -17,7 +17,7 @@ import {
   MovimientoCuentaCorriente,
 } from '@/lib/services/repartidorRapidoService';
 
-export default function FiadosPage() {
+function FiadosPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clienteParam = searchParams?.get('cliente') ?? null;
@@ -312,5 +312,13 @@ export default function FiadosPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function FiadosPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-500">Cargando deudores...</div>}>
+      <FiadosPageContent />
+    </Suspense>
   );
 }
