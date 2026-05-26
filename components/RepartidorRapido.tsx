@@ -15,7 +15,23 @@ import {
   MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinIconSolid } from '@heroicons/react/24/solid';
-import { repartidorRapidoService, ProductoVenta, EnvaseMovimiento } from '@/lib/services/repartidorRapidoService';
+import {
+  repartidorRapidoService,
+  ProductoVenta,
+  EnvaseMovimiento,
+  CuentaCorrienteResumen,
+  ResumenEnvases,
+  MovimientoCuentaCorriente,
+  MovimientoEnvaseDetalle,
+  RegistrarMovimientoEnvasesPayload,
+} from '@/lib/services/repartidorRapidoService';
+
+interface EnvasePrestadoCliente {
+  producto_id: number;
+  producto_nombre?: string;
+  capacidad?: number;
+  cantidad: number;
+}
 
 interface Cliente {
   id: number;
@@ -24,7 +40,7 @@ interface Cliente {
   direccion?: string;
   email?: string;
   deuda?: number;
-  envases_prestados?: any[];
+  envases_prestados?: EnvasePrestadoCliente[];
   activo?: boolean;
 }
 
@@ -48,9 +64,9 @@ export default function RepartidorRapido() {
   const [cargando, setCargando] = useState(false);
   const [mostrarModalCliente, setMostrarModalCliente] = useState(false);
   const [mostrarModalVenta, setMostrarModalVenta] = useState(false);
-  const [mostrarModalPago, setMostrarModalPago] = useState(false);
   const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
+  const [mostrarModalEnvases, setMostrarModalEnvases] = useState(false);
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>('venta');
   const [medioPago, setMedioPago] = useState<MedioPago>('efectivo');
   const [montoPagado, setMontoPagado] = useState(0);
@@ -59,6 +75,8 @@ export default function RepartidorRapido() {
   const [observaciones, setObservaciones] = useState('');
   const [envasesPrestados, setEnvasesPrestados] = useState<EnvaseMovimiento[]>([]);
   const [envasesDevueltos, setEnvasesDevueltos] = useState<EnvaseMovimiento[]>([]);
+  const [resumenCuenta, setResumenCuenta] = useState<CuentaCorrienteResumen | null>(null);
+  const [resumenEnvases, setResumenEnvases] = useState<ResumenEnvases | null>(null);
   const [mensajeExito, setMensajeExito] = useState('');
   const [mensajeError, setMensajeError] = useState('');
 
@@ -70,19 +88,20 @@ export default function RepartidorRapido() {
     email: '',
   });
 
-  // Clientes fijados (a visitar) - persistido en localStorage
+  // Clientes fijados (a visitar) - persistido en localStorage (se cargan tras montar para evitar hydration mismatch)
   const STORAGE_KEY_FIJADOS = 'repartidor-rapido-clientes-fijados';
-  const [clientesFijados, setClientesFijados] = useState<Cliente[]>(() => {
-    if (typeof window === 'undefined') return [];
+  const [clientesFijados, setClientesFijados] = useState<Cliente[]>([]);
+
+  useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY_FIJADOS);
-      if (!s) return [];
+      if (!s) return;
       const parsed = JSON.parse(s);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) setClientesFijados(parsed);
     } catch {
-      return [];
+      // ignore
     }
-  });
+  }, []);
 
   const guardarFijados = (lista: Cliente[]) => {
     setClientesFijados(lista);
@@ -168,21 +187,35 @@ export default function RepartidorRapido() {
     }
   };
 
+  const normalizarCliente = (cliente: Cliente): Cliente => ({
+    ...cliente,
+    deuda: cliente.deuda ?? 0,
+    envases_prestados: cliente.envases_prestados ?? [],
+  });
+
+  const cargarFichaCliente = async (clienteId: number, fallbackCliente?: Cliente) => {
+    const [detalleResult, cuentaResult, envasesResult] = await Promise.allSettled([
+      repartidorRapidoService.obtenerCliente(clienteId),
+      repartidorRapidoService.obtenerCuentaCorrienteResumen(clienteId),
+      repartidorRapidoService.obtenerResumenEnvases(clienteId),
+    ]);
+
+    if (detalleResult.status === 'fulfilled') {
+      setClienteSeleccionado(normalizarCliente(detalleResult.value));
+    } else if (fallbackCliente) {
+      setClienteSeleccionado(normalizarCliente(fallbackCliente));
+    } else {
+      throw detalleResult.reason;
+    }
+
+    setResumenCuenta(cuentaResult.status === 'fulfilled' ? cuentaResult.value : null);
+    setResumenEnvases(envasesResult.status === 'fulfilled' ? envasesResult.value : null);
+  };
+
   const seleccionarCliente = async (cliente: Cliente) => {
     setCargando(true);
     try {
-      let clienteCompleto: Cliente;
-      try {
-        clienteCompleto = await repartidorRapidoService.obtenerCliente(cliente.id);
-      } catch {
-        // Si el backend no tiene GET /clientes/:id o devuelve 404, usar datos del resultado de búsqueda
-        clienteCompleto = {
-          ...cliente,
-          deuda: cliente.deuda ?? 0,
-          envases_prestados: cliente.envases_prestados ?? [],
-        };
-      }
-      setClienteSeleccionado(clienteCompleto);
+      await cargarFichaCliente(cliente.id, cliente);
       setBusquedaCliente('');
       setClientesEncontrados([]);
     } catch (error) {
@@ -291,9 +324,22 @@ export default function RepartidorRapido() {
   }, [productosVenta]);
 
   const saldoFinal = useMemo(() => {
-    const deudaAnterior = clienteSeleccionado?.deuda || 0;
+    const deudaAnterior = resumenCuenta?.saldo_actual ?? clienteSeleccionado?.deuda ?? 0;
     return montoTotal - montoPagado + deudaAnterior;
-  }, [montoTotal, montoPagado, clienteSeleccionado]);
+  }, [montoTotal, montoPagado, resumenCuenta, clienteSeleccionado]);
+
+  const saldoActualCliente = resumenCuenta?.saldo_actual ?? clienteSeleccionado?.deuda ?? 0;
+
+  const totalEnvasesCliente = useMemo(() => {
+    if (resumenEnvases) {
+      return resumenEnvases.cantidad_total;
+    }
+
+    return (clienteSeleccionado?.envases_prestados || []).reduce(
+      (total, envase) => total + (Number(envase.cantidad) || 0),
+      0
+    );
+  }, [resumenEnvases, clienteSeleccionado?.envases_prestados]);
 
   const procesarVenta = async () => {
     if (!clienteSeleccionado || productosVenta.length === 0) {
@@ -337,11 +383,10 @@ export default function RepartidorRapido() {
       
       try {
         if (clienteSeleccionado) {
-          const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
-          setClienteSeleccionado(clienteActualizado);
+          await cargarFichaCliente(clienteSeleccionado.id, clienteSeleccionado);
         }
       } catch {
-        // Si falla recargar el cliente (ej. 404), se mantiene el actual; la venta ya se guardó
+        // La venta ya se guardó; si falla la recarga se conserva la información actual.
       }
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar la venta');
@@ -358,12 +403,22 @@ export default function RepartidorRapido() {
 
     setCargando(true);
     try {
-      await repartidorRapidoService.registrarCobro({
+      const resultadoCobro = await repartidorRapidoService.registrarCobro({
         cliente_id: clienteSeleccionado.id,
         monto: montoCobro,
         medio_pago: medioPago,
         observaciones: observaciones || undefined,
       });
+
+      setResumenCuenta((prev) =>
+        prev
+          ? {
+              ...prev,
+              saldo_actual: resultadoCobro.saldo_actual,
+              ultimo_movimiento_at: resultadoCobro.cobro.fecha_cobro,
+            }
+          : prev
+      );
       
       mostrarExito('Cobro registrado exitosamente');
       setMostrarModalCobro(false);
@@ -372,14 +427,47 @@ export default function RepartidorRapido() {
       
       try {
         if (clienteSeleccionado) {
-          const clienteActualizado = await repartidorRapidoService.obtenerCliente(clienteSeleccionado.id);
-          setClienteSeleccionado(clienteActualizado);
+          await cargarFichaCliente(clienteSeleccionado.id, {
+            ...clienteSeleccionado,
+            deuda: resultadoCobro.saldo_actual,
+          });
         }
       } catch {
-        // Si falla recargar el cliente, se mantiene el actual; el cobro ya se guardó
+        // El cobro ya se registró; si falla la recarga se conserva el saldo actualizado.
       }
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar el cobro');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const procesarMovimientoEnvases = async (payload: RegistrarMovimientoEnvasesPayload) => {
+    if (!clienteSeleccionado) return;
+
+    setCargando(true);
+    try {
+      const resultado = await repartidorRapidoService.registrarMovimientoEnvases(
+        clienteSeleccionado.id,
+        payload
+      );
+
+      setResumenEnvases({
+        cliente_id: clienteSeleccionado.id,
+        saldo_actual: resultado.saldo_actual,
+        cantidad_total: resultado.cantidad_total,
+        ultimo_movimiento_at: resultado.ultimo_movimiento_at,
+      });
+      setMostrarModalEnvases(false);
+      mostrarExito('Movimiento de envases registrado exitosamente');
+
+      try {
+        await cargarFichaCliente(clienteSeleccionado.id, clienteSeleccionado);
+      } catch {
+        // El movimiento ya quedó persistido; se conserva el resumen actualizado localmente.
+      }
+    } catch (error: any) {
+      mostrarError(error.message || 'Error al registrar el movimiento de envases');
     } finally {
       setCargando(false);
     }
@@ -397,9 +485,12 @@ export default function RepartidorRapido() {
 
   const resetearSeleccion = () => {
     setClienteSeleccionado(null);
+    setResumenCuenta(null);
+    setResumenEnvases(null);
     setBusquedaCliente('');
     setClientesEncontrados([]);
     setProductosVenta([]);
+    setMostrarModalEnvases(false);
   };
 
   return (
@@ -458,15 +549,15 @@ export default function RepartidorRapido() {
           {/* Clientes a visitar (fijados) */}
           {clientesFijados.length > 0 && (
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+              <h3 className="flex gap-1 items-center mb-2 text-sm font-semibold text-gray-700">
                 <MapPinIconSolid className="w-4 h-4 text-blue-600" />
                 Clientes a visitar
               </h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="overflow-y-auto space-y-2 max-h-48">
                 {clientesFijados.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100"
+                    className="flex gap-2 items-center p-3 bg-blue-50 rounded-lg border border-blue-100"
                   >
                     <button
                       type="button"
@@ -482,7 +573,7 @@ export default function RepartidorRapido() {
                     <button
                       type="button"
                       onClick={(e) => quitarFijado(e, c.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-50"
+                      className="p-2 text-gray-500 rounded-full hover:text-red-600 hover:bg-red-50"
                       title="Quitar de la lista"
                     >
                       <XMarkIcon className="w-5 h-5" />
@@ -524,7 +615,7 @@ export default function RepartidorRapido() {
                 return (
                   <div
                     key={cliente.id}
-                    className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                    className="flex gap-2 items-center px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
                   >
                     <button
                       type="button"
@@ -561,15 +652,15 @@ export default function RepartidorRapido() {
 
           {/* Sin resultados: mensaje y botón Crear Cliente */}
           {busquedaCliente.trim().length >= 2 && clientesEncontrados.length === 0 && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
-              <p className="text-gray-600 font-medium">Búsqueda no encontrada</p>
+            <div className="p-4 mt-4 text-center bg-gray-50 rounded-lg border border-gray-200">
+              <p className="font-medium text-gray-600">Búsqueda no encontrada</p>
               <p className="mt-1 text-sm text-gray-500">
                 No hay coincidencias para &quot;{busquedaCliente.trim()}&quot;
               </p>
               <button
                 type="button"
                 onClick={abrirModalCrearCliente}
-                className="mt-4 flex justify-center items-center px-4 py-3 w-full space-x-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="flex justify-center items-center px-4 py-3 mt-4 space-x-2 w-full font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
               >
                 <UserPlusIcon className="w-5 h-5" />
                 <span>Crear Cliente</span>
@@ -586,7 +677,7 @@ export default function RepartidorRapido() {
           <button
             type="button"
             onClick={() => setMostrarModalHistorial(true)}
-            className="w-full p-4 text-left bg-white rounded-lg shadow-sm border border-gray-100 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            className="p-4 w-full text-left bg-white rounded-lg border border-gray-100 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
           >
             <h2 className="mb-3 font-semibold text-gray-800">Información del Cliente</h2>
             <div className="space-y-2 text-sm">
@@ -598,18 +689,24 @@ export default function RepartidorRapido() {
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Deuda actual:</span>
-                <span className={`font-semibold ${(clienteSeleccionado.deuda || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  ${(clienteSeleccionado.deuda || 0).toLocaleString()}
+                <span className={`font-semibold ${saldoActualCliente > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  ${saldoActualCliente.toLocaleString()}
                 </span>
               </div>
-              {clienteSeleccionado.envases_prestados && clienteSeleccionado.envases_prestados.length > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Envases prestados:</span>
+                <span className="font-semibold">{totalEnvasesCliente}</span>
+              </div>
+              {resumenCuenta?.ultimo_movimiento_at && (
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Envases prestados:</span>
-                  <span className="font-semibold">{clienteSeleccionado.envases_prestados.length}</span>
+                  <span className="text-gray-600">Último movimiento:</span>
+                  <span className="font-medium">
+                    {new Date(resumenCuenta.ultimo_movimiento_at).toLocaleDateString('es-AR')}
+                  </span>
                 </div>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">Toque para ver ventas y pagos</p>
+            <p className="mt-2 text-xs text-gray-500">Toque para ver cuenta corriente y cobros</p>
           </button>
 
           {/* Botones de Acción */}
@@ -634,6 +731,13 @@ export default function RepartidorRapido() {
             >
               <BanknotesIcon className="w-6 h-6" />
               <span>Cobrar</span>
+            </button>
+            <button
+              onClick={() => setMostrarModalEnvases(true)}
+              className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-teal-600 rounded-lg"
+            >
+              <MapPinIcon className="w-6 h-6" />
+              <span>Envases</span>
             </button>
             <button
               onClick={() => {
@@ -672,7 +776,7 @@ export default function RepartidorRapido() {
               }
             }}
             disabled={cargando}
-            className="w-full py-3 px-4 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-3 w-full font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             No encontrado
           </button>
@@ -736,6 +840,18 @@ export default function RepartidorRapido() {
         />
       )}
 
+      {/* Modal Envases */}
+      {mostrarModalEnvases && clienteSeleccionado && (
+        <ModalEnvases
+          cliente={clienteSeleccionado}
+          productos={productos}
+          resumenEnvases={resumenEnvases}
+          onProcesar={procesarMovimientoEnvases}
+          onCerrar={() => setMostrarModalEnvases(false)}
+          cargando={cargando}
+        />
+      )}
+
       {/* Modal Historial de ventas y pagos */}
       {mostrarModalHistorial && clienteSeleccionado && (
         <ModalHistorial
@@ -764,9 +880,9 @@ function ModalCliente({
   cargando: boolean;
 }) {
   return (
-    <div className="flex fixed inset-0 z-50 justify-center items-start pt-8 p-4 pb-8 bg-black bg-opacity-50 sm:items-center sm:pt-0 sm:pb-0">
+    <div className="flex fixed inset-0 z-50 justify-center items-start p-4 pt-8 pb-8 bg-black bg-opacity-50 sm:items-center sm:pt-0 sm:pb-0">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
-        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200 rounded-t-2xl">
+        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white rounded-t-2xl border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">
             {cliente ? 'Editar Cliente' : 'Crear Cliente'}
           </h2>
@@ -938,7 +1054,7 @@ function ModalVenta({
         }`}
       >
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 items-center">
             <span className="font-medium text-gray-800 truncate">
               {producto.nombreProducto || 'Producto'}
             </span>
@@ -950,24 +1066,24 @@ function ModalVenta({
           </div>
           <div className="text-sm text-gray-600">${precio.toLocaleString()} c/u</div>
         </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col flex-shrink-0 gap-1 items-end">
+          <div className="flex gap-2 items-center">
             <button
               type="button"
               onClick={() => handleMenos(producto)}
               disabled={cantidad === 0}
-              className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              className="flex justify-center items-center w-9 h-9 text-white bg-red-500 rounded-full disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
               aria-label="Quitar uno"
             >
               <MinusIcon className="w-5 h-5" />
             </button>
-            <span className="w-8 font-semibold text-center text-gray-800 tabular-nums">
+            <span className="w-8 font-semibold tabular-nums text-center text-gray-800">
               {cantidad}
             </span>
             <button
               type="button"
               onClick={() => handleMas(producto)}
-              className="flex justify-center items-center w-9 h-9 rounded-full text-white bg-green-500 touch-manipulation"
+              className="flex justify-center items-center w-9 h-9 text-white bg-green-500 rounded-full touch-manipulation"
               aria-label="Agregar uno"
             >
               <PlusIcon className="w-5 h-5" />
@@ -986,7 +1102,7 @@ function ModalVenta({
   return (
     <div className="flex fixed inset-0 z-50 justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col">
-        <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200 z-10">
+        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">
             {tipoOperacion === 'venta' ? 'Nueva Venta' : 'Nuevo Fiado'} - {cliente.nombre}
           </h2>
@@ -1022,7 +1138,7 @@ function ModalVenta({
               />
               <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
               {busquedaOtros.trim() && productosOtrosFiltrados.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                <div className="overflow-y-auto absolute right-0 left-0 top-full z-20 mt-1 max-h-48 bg-white rounded-lg border border-gray-200 shadow-lg">
                   {productosOtrosFiltrados.slice(0, 8).map((producto: Producto) => (
                     <button
                       key={producto.id}
@@ -1031,10 +1147,10 @@ function ModalVenta({
                         onAgregarProducto(producto);
                         setBusquedaOtros('');
                       }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b last:border-b-0 flex justify-between items-center"
+                      className="flex justify-between items-center px-3 py-2 w-full text-sm text-left border-b hover:bg-gray-50 last:border-b-0"
                     >
                       <span className="truncate">{producto.nombreProducto || 'Producto'}</span>
-                      <span className="text-gray-500 flex-shrink-0 ml-2">
+                      <span className="flex-shrink-0 ml-2 text-gray-500">
                         ${(producto.precioPublico || 0).toLocaleString()}
                       </span>
                     </button>
@@ -1099,8 +1215,17 @@ function ModalVenta({
                   <label htmlFor="montoPagado" className="block mb-1 text-sm font-medium text-gray-700">Monto pagado</label>
                   <input
                     type="number"
-                    value={montoPagado}
-                    onChange={(e) => setMontoPagado(parseFloat(e.target.value) || 0)}
+                    min={0}
+                    value={montoPagado === 0 ? '' : String(montoPagado)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '' || raw === undefined) {
+                        setMontoPagado(0);
+                        return;
+                      }
+                      const n = parseFloat(raw);
+                      setMontoPagado(Number.isFinite(n) ? n : 0);
+                    }}
                     className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                   />
@@ -1150,7 +1275,7 @@ function ModalVenta({
             type="button"
             onClick={onProcesar}
             disabled={cargando || productosVenta.length === 0}
-            className="w-full py-4 px-4 text-base font-semibold text-white bg-green-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700 active:bg-green-800 shadow-md"
+            className="px-4 py-4 w-full text-base font-semibold text-white bg-green-600 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700 active:bg-green-800"
           >
             {cargando
               ? 'Guardando...'
@@ -1246,17 +1371,330 @@ function ModalCobro({
   );
 }
 
-// Tipos de movimiento que puede devolver la API
-interface MovimientoCliente {
+interface MovimientoHistorialCliente {
   id: number | string;
-  tipo: string;
-  descripcion?: string;
+  tipo: 'DEBITO_VENTA' | 'CREDITO_COBRO' | 'NO_ENCONTRADO';
+  descripcion: string;
   fecha: string;
-  monto?: string | number;
-  detalles?: Record<string, unknown>;
+  monto?: number;
+  saldo_acumulado?: number;
+  medio_pago?: string | null;
+  observaciones?: string | null;
+  origen?: 'VENTA' | 'COBRO';
 }
 
-// Modal Historial de ventas y pagos del cliente
+function ModalEnvases({
+  cliente,
+  productos,
+  resumenEnvases,
+  onProcesar,
+  onCerrar,
+  cargando,
+}: {
+  cliente: Cliente;
+  productos: Producto[];
+  resumenEnvases: ResumenEnvases | null;
+  onProcesar: (payload: RegistrarMovimientoEnvasesPayload) => Promise<void>;
+  onCerrar: () => void;
+  cargando: boolean;
+}) {
+  const [tipoMovimiento, setTipoMovimiento] = useState<'PRESTAMO' | 'DEVOLUCION' | 'AJUSTE'>('PRESTAMO');
+  const [observaciones, setObservaciones] = useState('');
+  const [cantidades, setCantidades] = useState<Record<number, string>>({});
+  const [historial, setHistorial] = useState<MovimientoEnvaseDetalle[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    const cargarHistorial = async () => {
+      setCargandoHistorial(true);
+      try {
+        const data = await repartidorRapidoService.obtenerMovimientosEnvases(cliente.id, {
+          page: 1,
+          limit: 10,
+        });
+
+        if (mounted) {
+          setHistorial(data.movimientos);
+        }
+      } catch {
+        if (mounted) {
+          setHistorial([]);
+        }
+      } finally {
+        if (mounted) {
+          setCargandoHistorial(false);
+        }
+      }
+    };
+
+    cargarHistorial();
+    return () => {
+      mounted = false;
+    };
+  }, [cliente.id]);
+
+  const saldoPorProducto = useMemo(
+    () =>
+      new Map(
+        (resumenEnvases?.saldo_actual || []).map((item) => [item.producto_id, item])
+      ),
+    [resumenEnvases]
+  );
+
+  const productosEnvases = useMemo(() => {
+    const idsConSaldo = new Set((resumenEnvases?.saldo_actual || []).map((item) => item.producto_id));
+    const base = productos.filter(
+      (producto) =>
+        (producto.id >= ID_MIN_PRINCIPAL && producto.id <= ID_MAX_PRINCIPAL) || idsConSaldo.has(producto.id)
+    );
+    const candidatos = base.length > 0 ? base : productos;
+
+    return [...candidatos].sort((a, b) => {
+      const aSaldo = idsConSaldo.has(a.id) ? 1 : 0;
+      const bSaldo = idsConSaldo.has(b.id) ? 1 : 0;
+
+      if (bSaldo !== aSaldo) return bSaldo - aSaldo;
+      return (a.nombreProducto || '').localeCompare(b.nombreProducto || '');
+    });
+  }, [productos, resumenEnvases]);
+
+  const items = useMemo(
+    () =>
+      Object.entries(cantidades)
+        .map(([productoId, cantidad]) => ({
+          producto_id: Number(productoId),
+          cantidad: Number(cantidad),
+        }))
+        .filter((item) => Number.isFinite(item.cantidad) && item.cantidad !== 0),
+    [cantidades]
+  );
+
+  const formatearFechaHora = (fecha: string) => {
+    try {
+      return new Date(fecha).toLocaleString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return fecha;
+    }
+  };
+
+  const handleProcesar = async () => {
+    setError('');
+
+    if (items.length === 0) {
+      setError('Debe cargar al menos un item.');
+      return;
+    }
+
+    if (tipoMovimiento === 'AJUSTE' && !observaciones.trim()) {
+      setError('Los ajustes requieren observaciones.');
+      return;
+    }
+
+    const itemsNormalizados = items.map((item) => ({
+      producto_id: item.producto_id,
+      cantidad: tipoMovimiento === 'AJUSTE' ? item.cantidad : Math.abs(item.cantidad),
+    }));
+
+    if (
+      (tipoMovimiento === 'PRESTAMO' || tipoMovimiento === 'DEVOLUCION') &&
+      itemsNormalizados.some((item) => item.cantidad <= 0)
+    ) {
+      setError('Las cantidades deben ser positivas para préstamos y devoluciones.');
+      return;
+    }
+
+    await onProcesar({
+      tipo: tipoMovimiento,
+      items: itemsNormalizados,
+      observaciones: observaciones.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="flex fixed inset-0 z-50 justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
+        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Gestionar envases</h2>
+            <p className="text-sm text-gray-500">{cliente.nombre}</p>
+          </div>
+          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Saldo actual</span>
+              <span className="text-lg font-bold text-gray-800">
+                {resumenEnvases?.cantidad_total ?? 0} envases
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(resumenEnvases?.saldo_actual || []).length === 0 ? (
+                <span className="text-sm text-gray-500">No hay envases prestados actualmente.</span>
+              ) : (
+                resumenEnvases?.saldo_actual.map((item) => (
+                  <span
+                    key={item.producto_id}
+                    className="px-2.5 py-1 text-xs font-medium text-teal-800 bg-teal-100 rounded-full"
+                  >
+                    {item.producto_nombre}: {item.cantidad}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="block mb-2 text-sm font-medium text-gray-700">Tipo de movimiento</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(['PRESTAMO', 'DEVOLUCION', 'AJUSTE'] as const).map((tipo) => (
+                <button
+                  key={tipo}
+                  type="button"
+                  onClick={() => setTipoMovimiento(tipo)}
+                  className={`py-2 px-3 rounded-lg font-medium text-sm ${
+                    tipoMovimiento === tipo ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  {tipo === 'PRESTAMO' ? 'Préstamo' : tipo === 'DEVOLUCION' ? 'Devolución' : 'Ajuste'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-gray-800">Items</h3>
+              <span className="text-xs text-gray-500">
+                {tipoMovimiento === 'AJUSTE' ? 'Puede usar valores positivos o negativos.' : 'Ingrese cantidades positivas.'}
+              </span>
+            </div>
+            {productosEnvases.map((producto) => {
+              const saldoActual = saldoPorProducto.get(producto.id)?.cantidad ?? 0;
+
+              return (
+                <div key={producto.id} className="flex gap-3 items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800">{producto.nombreProducto || 'Producto'}</p>
+                    <p className="text-xs text-gray-500">Saldo actual: {saldoActual}</p>
+                  </div>
+                  <input
+                    type="number"
+                    value={cantidades[producto.id] ?? ''}
+                    onChange={(e) =>
+                      setCantidades((prev) => ({
+                        ...prev,
+                        [producto.id]: e.target.value,
+                      }))
+                    }
+                    className="px-3 py-2 w-28 text-right rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500"
+                    placeholder="0"
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div>
+            <label htmlFor="observaciones-envases" className="block mb-1 text-sm font-medium text-gray-700">
+              Observaciones {tipoMovimiento === 'AJUSTE' ? '*' : '(opcional)'}
+            </label>
+            <textarea
+              id="observaciones-envases"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500"
+              rows={3}
+              placeholder={
+                tipoMovimiento === 'AJUSTE'
+                  ? 'Explique el motivo del ajuste'
+                  : 'Notas adicionales...'
+              }
+            />
+          </div>
+
+          {error && (
+            <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg border border-red-200">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h3 className="font-semibold text-gray-800">Últimos movimientos</h3>
+            {cargandoHistorial ? (
+              <div className="flex justify-center py-4">
+                <div className="w-7 h-7 rounded-full border-4 border-teal-500 animate-spin border-t-transparent" />
+              </div>
+            ) : historial.length === 0 ? (
+              <p className="text-sm text-gray-500">Todavía no hay movimientos registrados.</p>
+            ) : (
+              <ul className="space-y-2">
+                {historial.map((movimiento) => (
+                  <li key={movimiento.id} className="p-3 bg-white rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-800">
+                          {movimiento.producto_nombre} · {movimiento.tipo}
+                        </p>
+                        <p className="text-xs text-gray-500">{formatearFechaHora(movimiento.fecha_movimiento)}</p>
+                        {movimiento.observaciones && (
+                          <p className="mt-1 text-xs text-gray-600">{movimiento.observaciones}</p>
+                        )}
+                      </div>
+                      <span className={`text-sm font-semibold ${
+                        movimiento.tipo === 'DEVOLUCION'
+                          ? 'text-green-600'
+                          : movimiento.tipo === 'AJUSTE'
+                            ? 'text-amber-600'
+                            : 'text-blue-600'
+                      }`}>
+                        {movimiento.cantidad > 0 ? '+' : ''}
+                        {movimiento.cantidad}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 px-4 py-3 bg-white border-t border-gray-200">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onCerrar}
+              className="flex-1 px-4 py-3 font-semibold text-gray-800 bg-gray-200 rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleProcesar}
+              disabled={cargando}
+              className="flex-1 px-4 py-3 font-semibold text-white bg-teal-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cargando ? 'Guardando...' : 'Guardar movimiento'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalHistorial({
   cliente,
   onCerrar,
@@ -1264,46 +1702,74 @@ function ModalHistorial({
   cliente: Cliente;
   onCerrar: () => void;
 }) {
-  const [movimientos, setMovimientos] = useState<MovimientoCliente[]>([]);
+  const [resumen, setResumen] = useState<CuentaCorrienteResumen | null>(null);
+  const [movimientos, setMovimientos] = useState<MovimientoHistorialCliente[]>([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+
     const cargar = async () => {
       setCargando(true);
       try {
-        const [dataMov, dataNoEncontrado] = await Promise.all([
-          repartidorRapidoService.obtenerMovimientosCliente(cliente.id),
+        const [dataCuenta, dataNoEncontrado] = await Promise.all([
+          repartidorRapidoService.obtenerCuentaCorriente(cliente.id, { page: 1, limit: 50 }),
           repartidorRapidoService.obtenerNoEncontradoPorCliente(cliente.id),
         ]);
+
         if (!mounted) return;
-        const movs: MovimientoCliente[] = Array.isArray(dataMov) ? dataMov : [];
-        const noEncontrado: MovimientoCliente[] = (Array.isArray(dataNoEncontrado) ? dataNoEncontrado : []).map(
-          (r: any, idx: number) => ({
-            id: r.id ?? `no-encontrado-${idx}-${r.fecha ?? ''}`,
-            tipo: 'NO_ENCONTRADO',
-            descripcion: r.observaciones ?? r.descripcion ?? 'Cliente no encontrado en la visita',
-            fecha: r.fecha ?? r.created_at ?? new Date().toISOString(),
+
+        setResumen(dataCuenta.resumen);
+
+        const movimientosCuenta: MovimientoHistorialCliente[] = dataCuenta.movimientos.map(
+          (movimiento: MovimientoCuentaCorriente) => ({
+            id: movimiento.id,
+            tipo: movimiento.tipo,
+            descripcion: movimiento.descripcion,
+            fecha: movimiento.fecha,
+            monto: movimiento.credito > 0 ? movimiento.credito : movimiento.debito,
+            saldo_acumulado: movimiento.saldo_acumulado,
+            medio_pago: movimiento.medio_pago,
+            observaciones: movimiento.observaciones,
+            origen: movimiento.origen,
           })
         );
-        const unidos = [...movs, ...noEncontrado].sort(
+
+        const movimientosNoEncontrado: MovimientoHistorialCliente[] = (
+          Array.isArray(dataNoEncontrado) ? dataNoEncontrado : []
+        ).map((registro: any, idx: number) => ({
+          id: registro.id ?? `no-encontrado-${idx}-${registro.fecha ?? ''}`,
+          tipo: 'NO_ENCONTRADO',
+          descripcion: registro.observaciones ?? registro.descripcion ?? 'Cliente no encontrado en la visita',
+          fecha: registro.fecha ?? registro.created_at ?? new Date().toISOString(),
+        }));
+
+        const unidos = [...movimientosCuenta, ...movimientosNoEncontrado].sort(
           (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
         );
+
         setMovimientos(unidos);
       } catch {
-        if (mounted) setMovimientos([]);
+        if (mounted) {
+          setResumen(null);
+          setMovimientos([]);
+        }
       } finally {
-        if (mounted) setCargando(false);
+        if (mounted) {
+          setCargando(false);
+        }
       }
     };
+
     cargar();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [cliente.id]);
 
   const formatearFechaHora = (fecha: string) => {
     try {
-      const d = new Date(fecha);
-      return d.toLocaleString('es-AR', {
+      return new Date(fecha).toLocaleString('es-AR', {
         weekday: 'short',
         day: '2-digit',
         month: '2-digit',
@@ -1316,72 +1782,98 @@ function ModalHistorial({
     }
   };
 
-  const etiquetaTipo = (tipo: string) => {
-    const map: Record<string, string> = {
-      VENTA_LOCAL: 'Venta',
-      CIERRE_VENTA: 'Cierre / Pago',
-      COBRO_RAPIDO: 'Cobro',
-      VENTA_RAPIDA: 'Venta rápida',
-      FIADO_RAPIDO: 'Fiado',
-      GASTO: 'Gasto',
-      NUEVO_CLIENTE: 'Nuevo cliente',
-      NO_ENCONTRADO: 'No encontrado',
-    };
-    return map[tipo] || tipo;
+  const etiquetaTipo = (tipo: MovimientoHistorialCliente['tipo']) => {
+    if (tipo === 'DEBITO_VENTA') return 'Venta';
+    if (tipo === 'CREDITO_COBRO') return 'Cobro';
+    return 'No encontrado';
   };
 
-  const esNoEncontrado = (tipo: string) => tipo === 'NO_ENCONTRADO';
+  const esNoEncontrado = (movimiento: MovimientoHistorialCliente) => movimiento.tipo === 'NO_ENCONTRADO';
+  const esCredito = (movimiento: MovimientoHistorialCliente) => movimiento.tipo === 'CREDITO_COBRO';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50 sm:items-center sm:p-4">
+    <div className="flex fixed inset-0 z-50 justify-center items-end bg-black bg-opacity-50 sm:items-center sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Ventas y pagos</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Cuenta corriente</h2>
           <button type="button" onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
-        <div className="px-4 py-2 border-b border-gray-100">
-          <p className="text-sm font-medium text-gray-800">{cliente.nombre}</p>
-          {cliente.direccion && (
-            <p className="text-xs text-gray-500">{cliente.direccion}</p>
+        <div className="px-4 py-3 border-b border-gray-100 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-gray-800">{cliente.nombre}</p>
+            {cliente.direccion && (
+              <p className="text-xs text-gray-500">{cliente.direccion}</p>
+            )}
+          </div>
+          {resumen && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2 bg-red-50 rounded-lg border border-red-100">
+                <p className="text-xs text-red-600">Saldo</p>
+                <p className="font-semibold text-red-700">${resumen.saldo_actual.toLocaleString('es-AR')}</p>
+              </div>
+              <div className="p-2 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500">Débitos</p>
+                <p className="font-semibold text-gray-800">${resumen.total_debitos.toLocaleString('es-AR')}</p>
+              </div>
+              <div className="p-2 bg-green-50 rounded-lg border border-green-100">
+                <p className="text-xs text-green-600">Créditos</p>
+                <p className="font-semibold text-green-700">${resumen.total_creditos.toLocaleString('es-AR')}</p>
+              </div>
+            </div>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="overflow-y-auto flex-1 p-4">
           {cargando ? (
             <div className="flex justify-center py-8">
-              <div className="w-8 h-8 rounded-full border-4 border-teal-500 border-t-transparent animate-spin" />
+              <div className="w-8 h-8 rounded-full border-4 border-teal-500 animate-spin border-t-transparent" />
             </div>
           ) : movimientos.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">Aún no hay ventas ni pagos registrados.</p>
+            <p className="py-8 text-center text-gray-500">Aún no hay movimientos registrados.</p>
           ) : (
             <ul className="space-y-3">
-              {movimientos.map((mov) => (
+              {movimientos.map((movimiento) => (
                 <li
-                  key={mov.id}
+                  key={movimiento.id}
                   className={`p-3 rounded-lg border ${
-                    esNoEncontrado(mov.tipo) ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'
+                    esNoEncontrado(movimiento)
+                      ? 'border-amber-200 bg-amber-50'
+                      : esCredito(movimiento)
+                        ? 'border-green-200 bg-green-50'
+                        : 'border-red-200 bg-red-50'
                   }`}
                 >
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0 flex-1">
+                  <div className="flex gap-2 justify-between items-start">
+                    <div className="flex-1 min-w-0">
                       <span
                         className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
-                          esNoEncontrado(mov.tipo) ? 'bg-amber-200 text-amber-800' : 'bg-teal-100 text-teal-800'
+                          esNoEncontrado(movimiento)
+                            ? 'bg-amber-200 text-amber-800'
+                            : esCredito(movimiento)
+                              ? 'bg-green-200 text-green-800'
+                              : 'bg-red-200 text-red-800'
                         }`}
                       >
-                        {etiquetaTipo(mov.tipo)}
+                        {etiquetaTipo(movimiento.tipo)}
                       </span>
-                      <p className="mt-1 text-sm font-medium text-gray-800">
-                        {mov.descripcion || '—'}
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        {formatearFechaHora(mov.fecha)}
-                      </p>
+                      <p className="mt-1 text-sm font-medium text-gray-800">{movimiento.descripcion}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{formatearFechaHora(movimiento.fecha)}</p>
+                      {!esNoEncontrado(movimiento) && (
+                        <div className="mt-1 text-xs text-gray-600 space-y-0.5">
+                          {movimiento.medio_pago && <p>Medio de pago: {movimiento.medio_pago}</p>}
+                          {movimiento.saldo_acumulado != null && (
+                            <p>Saldo acumulado: ${movimiento.saldo_acumulado.toLocaleString('es-AR')}</p>
+                          )}
+                          {movimiento.observaciones && <p>{movimiento.observaciones}</p>}
+                        </div>
+                      )}
                     </div>
-                    {!esNoEncontrado(mov.tipo) && mov.monto != null && mov.monto !== '' && (
-                      <span className="flex-shrink-0 text-base font-semibold text-gray-800">
-                        ${Number(mov.monto).toLocaleString('es-AR')}
+                    {!esNoEncontrado(movimiento) && movimiento.monto != null && (
+                      <span className={`flex-shrink-0 text-base font-semibold ${
+                        esCredito(movimiento) ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {esCredito(movimiento) ? '+' : '-'}${movimiento.monto.toLocaleString('es-AR')}
                       </span>
                     )}
                   </div>

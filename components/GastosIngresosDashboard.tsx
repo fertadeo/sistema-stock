@@ -33,6 +33,14 @@ function parseMonto(m: string | number): number {
   return typeof n === 'number' && !Number.isNaN(n) ? n : 0;
 }
 
+/** Clave YYYY-MM-DD en hora local para que los buckets coincidan con las fechas de los movimientos. */
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 type PeriodoKey = '7d' | '30d';
 
 const PERIODO_LABELS: Record<PeriodoKey, string> = {
@@ -71,7 +79,7 @@ export default function GastosIngresosDashboard() {
     const dias = periodo === '7d' ? 7 : 30;
     const hasta = new Date();
     const desde = new Date(hasta);
-    desde.setDate(desde.getDate() - dias);
+    desde.setDate(desde.getDate() - dias + 1); // Incluir hoy: últimos N días = hoy + (N-1) días atrás
 
     const ingresos = movimientos.filter(
       (m) => m.tipo === 'VENTA_LOCAL' || m.tipo === 'CIERRE_VENTA'
@@ -85,35 +93,39 @@ export default function GastosIngresosDashboard() {
     for (let i = 0; i < dias; i++) {
       const d = new Date(desde);
       d.setDate(d.getDate() + i);
-      const key = d.toISOString().slice(0, 10);
+      const key = toLocalDateKey(d);
       buckets[key] = { ingresos: 0, gastos: 0 };
     }
 
     ingresos.forEach((m) => {
       const fecha = new Date(m.fecha);
       if (fecha >= desde && fecha <= hasta) {
-        const key = fecha.toISOString().slice(0, 10);
+        const key = toLocalDateKey(fecha);
         if (buckets[key]) buckets[key].ingresos += parseMonto(m.monto);
       }
     });
     gastos.forEach((m) => {
       const fecha = new Date(m.fecha);
       if (fecha >= desde && fecha <= hasta) {
-        const key = fecha.toISOString().slice(0, 10);
+        const key = toLocalDateKey(fecha);
         if (buckets[key]) buckets[key].gastos += parseMonto(m.monto);
       }
     });
 
     const datosGrafico = Object.entries(buckets)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([fecha, v]) => ({
-        periodo: new Date(fecha).toLocaleDateString('es-AR', {
+      .map(([fechaStr, v]) => {
+        const [y, mo, d] = fechaStr.split('-').map(Number);
+        const periodo = new Date(y, mo - 1, d).toLocaleDateString('es-AR', {
           day: '2-digit',
           month: 'short',
-        }),
-        ingresos: Math.round(v.ingresos),
-        gastos: Math.round(v.gastos),
-      }));
+        });
+        return {
+          periodo,
+          ingresos: Math.round(v.ingresos),
+          gastos: Math.round(v.gastos),
+        };
+      });
 
     const recientesIngresos = [...ingresos]
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
