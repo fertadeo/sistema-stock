@@ -26,10 +26,10 @@ type Producto = {
 export default function VentasPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const clienteParam = searchParams.get('cliente');
+  const clienteParam = searchParams?.get('cliente') ?? null;
   const [clientes, setClientes] = useState<ClienteBasico[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [busqueda, setBusqueda] = useState(searchParams.get('search') || '');
+  const [busqueda, setBusqueda] = useState(searchParams?.get('search') ?? '');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 

@@ -22,7 +22,7 @@ type ClienteConEnvases = ClienteBasico & { cantidad_envases: number };
 export default function EnvasesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const clienteParam = searchParams.get('cliente');
+  const clienteParam = searchParams?.get('cliente') ?? null;
 
   const [clientes, setClientes] = useState<ClienteConEnvases[]>([]);
   const [busqueda, setBusqueda] = useState('');

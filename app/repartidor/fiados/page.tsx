@@ -20,10 +20,10 @@ import {
 export default function FiadosPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const clienteParam = searchParams.get('cliente');
+  const clienteParam = searchParams?.get('cliente') ?? null;
 
   const [deudores, setDeudores] = useState<ClienteDeudor[]>([]);
-  const [busqueda, setBusqueda] = useState(searchParams.get('search') || '');
+  const [busqueda, setBusqueda] = useState(searchParams?.get('search') ?? '');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteDeudor | null>(null);
