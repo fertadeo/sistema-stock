@@ -26,6 +26,13 @@ import {
   MovimientoEnvaseDetalle,
   RegistrarMovimientoEnvasesPayload,
 } from '@/lib/services/repartidorRapidoService';
+import {
+  abrirWhatsAppConMensaje,
+  construirMensajeResumenCliente,
+  normalizarTelefonoWhatsApp,
+} from '@/lib/whatsappResumenCliente';
+import { useRepartidorUi } from '@/contexts/RepartidorUiContext';
+import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -59,6 +66,13 @@ type TipoOperacion = 'venta' | 'fiado' | 'cobro';
 export default function RepartidorRapido() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const {
+    iniciarOperacion,
+    finalizarOperacion,
+    setModalOperacionAbierto,
+    registrarScrollOperacion,
+    navInferiorVisible,
+  } = useRepartidorUi();
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -80,8 +94,12 @@ export default function RepartidorRapido() {
   const [envasesDevueltos, setEnvasesDevueltos] = useState<EnvaseMovimiento[]>([]);
   const [resumenCuenta, setResumenCuenta] = useState<CuentaCorrienteResumen | null>(null);
   const [resumenEnvases, setResumenEnvases] = useState<ResumenEnvases | null>(null);
-  const [mensajeExito, setMensajeExito] = useState('');
   const [mensajeError, setMensajeError] = useState('');
+  const [pieExito, setPieExito] = useState<{
+    mensaje: string;
+    telefono: string;
+    mensajeWhatsapp: string;
+  } | null>(null);
 
   // Datos del cliente para crear/editar
   const [clienteForm, setClienteForm] = useState({
@@ -203,16 +221,70 @@ export default function RepartidorRapido() {
       repartidorRapidoService.obtenerResumenEnvases(clienteId),
     ]);
 
+    let clienteActual: Cliente;
+
     if (detalleResult.status === 'fulfilled') {
-      setClienteSeleccionado(normalizarCliente(detalleResult.value));
+      clienteActual = normalizarCliente(detalleResult.value);
+      setClienteSeleccionado(clienteActual);
     } else if (fallbackCliente) {
-      setClienteSeleccionado(normalizarCliente(fallbackCliente));
+      clienteActual = normalizarCliente(fallbackCliente);
+      setClienteSeleccionado(clienteActual);
     } else {
       throw detalleResult.reason;
     }
 
-    setResumenCuenta(cuentaResult.status === 'fulfilled' ? cuentaResult.value : null);
-    setResumenEnvases(envasesResult.status === 'fulfilled' ? envasesResult.value : null);
+    const cuenta =
+      cuentaResult.status === 'fulfilled' ? cuentaResult.value : null;
+    const envases =
+      envasesResult.status === 'fulfilled' ? envasesResult.value : null;
+
+    setResumenCuenta(cuenta);
+    setResumenEnvases(envases);
+
+    return { cliente: clienteActual, cuenta, envases };
+  };
+
+  const operacionModalActiva =
+    mostrarModalVenta || mostrarModalCobro || mostrarModalEnvases;
+
+  useEffect(() => {
+    setModalOperacionAbierto(operacionModalActiva);
+    if (operacionModalActiva || pieExito) {
+      iniciarOperacion();
+    } else {
+      finalizarOperacion();
+    }
+  }, [
+    operacionModalActiva,
+    pieExito,
+    iniciarOperacion,
+    finalizarOperacion,
+    setModalOperacionAbierto,
+  ]);
+
+  useEffect(() => {
+    if (!pieExito || operacionModalActiva) return;
+
+    const onScrollVentana = () => {
+      registrarScrollOperacion(window.scrollY);
+    };
+
+    onScrollVentana();
+    window.addEventListener('scroll', onScrollVentana, { passive: true });
+    return () => window.removeEventListener('scroll', onScrollVentana);
+  }, [pieExito, operacionModalActiva, registrarScrollOperacion]);
+
+  const mostrarExitoConPie = (mensaje: string, telefono: string, mensajeWhatsapp: string) => {
+    setPieExito({ mensaje, telefono, mensajeWhatsapp });
+    window.setTimeout(() => setPieExito(null), 15000);
+  };
+
+  const enviarResumenWhatsApp = () => {
+    if (!pieExito) return;
+    const ok = abrirWhatsAppConMensaje(pieExito.telefono, pieExito.mensajeWhatsapp);
+    if (!ok) {
+      mostrarError('El teléfono del cliente no es válido para WhatsApp. Revisá el número en la ficha.');
+    }
   };
 
   const seleccionarCliente = async (cliente: Cliente) => {
@@ -278,6 +350,8 @@ export default function RepartidorRapido() {
   };
 
   const abrirModalVenta = (tipo: TipoOperacion) => {
+    setModalOperacionAbierto(true);
+    iniciarOperacion();
     setTipoOperacion(tipo);
     setProductosVenta([]);
     setMontoPagado(0);
@@ -290,6 +364,8 @@ export default function RepartidorRapido() {
   };
 
   const abrirModalCobro = () => {
+    setModalOperacionAbierto(true);
+    iniciarOperacion();
     setMontoCobro(0);
     setMedioPago('efectivo');
     setObservaciones('');
@@ -297,7 +373,19 @@ export default function RepartidorRapido() {
   };
 
   const abrirModalEnvases = () => {
+    setModalOperacionAbierto(true);
+    iniciarOperacion();
     setMostrarModalEnvases(true);
+  };
+
+  const cerrarModalOperacion = (
+    cerrar: () => void
+  ) => {
+    cerrar();
+    setModalOperacionAbierto(false);
+    if (!pieExito) {
+      finalizarOperacion();
+    }
   };
 
   const agregarProducto = (producto: Producto) => {
@@ -362,30 +450,39 @@ export default function RepartidorRapido() {
       return;
     }
 
+    const clienteOperacion = clienteSeleccionado;
+    const productosOperacion = [...productosVenta];
+    const totalOperacion = montoTotal;
+    const pagadoOperacion = montoPagado;
+    const formaPagoOperacion = formaPago;
+    const medioPagoOperacion = medioPago;
+    const observacionesOperacion = observaciones;
+    const operacionActual = tipoOperacion;
+
     setCargando(true);
     try {
       if (tipoOperacion === 'venta') {
         await repartidorRapidoService.registrarVenta({
-          cliente_id: clienteSeleccionado.id,
-          productos: productosVenta,
-          monto_total: montoTotal,
-          medio_pago: medioPago,
-          forma_pago: formaPago,
-          saldo_monto: formaPago === 'parcial' ? saldoFinal : undefined,
+          cliente_id: clienteOperacion.id,
+          productos: productosOperacion,
+          monto_total: totalOperacion,
+          medio_pago: medioPagoOperacion,
+          forma_pago: formaPagoOperacion,
+          saldo_monto: formaPagoOperacion === 'parcial' ? saldoFinal : undefined,
           envases_prestados: envasesPrestados.length > 0 ? envasesPrestados : undefined,
           envases_devueltos: envasesDevueltos.length > 0 ? envasesDevueltos : undefined,
-          observaciones: observaciones || undefined,
+          observaciones: observacionesOperacion || undefined,
         });
-        mostrarExito('Venta registrada exitosamente');
+        // mensaje de éxito en pie inferior
       } else if (tipoOperacion === 'fiado') {
         await repartidorRapidoService.registrarFiado({
-          cliente_id: clienteSeleccionado.id,
-          productos: productosVenta,
-          monto_total: montoTotal,
+          cliente_id: clienteOperacion.id,
+          productos: productosOperacion,
+          monto_total: totalOperacion,
           envases_prestados: envasesPrestados.length > 0 ? envasesPrestados : undefined,
-          observaciones: observaciones || undefined,
+          observaciones: observacionesOperacion || undefined,
         });
-        mostrarExito('Fiado registrado exitosamente');
+        // mensaje de éxito en pie inferior
       }
 
       setMostrarModalVenta(false);
@@ -396,13 +493,41 @@ export default function RepartidorRapido() {
       setEnvasesDevueltos([]);
       setObservaciones('');
       
+      let cuentaActual = resumenCuenta;
+      let envasesActual = resumenEnvases;
+
       try {
-        if (clienteSeleccionado) {
-          await cargarFichaCliente(clienteSeleccionado.id, clienteSeleccionado);
-        }
+        const ficha = await cargarFichaCliente(clienteOperacion.id, clienteOperacion);
+        cuentaActual = ficha.cuenta;
+        envasesActual = ficha.envases;
       } catch {
         // La venta ya se guardó; si falla la recarga se conserva la información actual.
       }
+
+      const mensajeWhatsapp = construirMensajeResumenCliente({
+        operacion: operacionActual,
+        clienteNombre: clienteOperacion.nombre,
+        cuenta: cuentaActual,
+        saldoActual: cuentaActual?.saldo_actual,
+        envases: envasesActual,
+        productosCatalogo: productos,
+        productosVenta: productosOperacion,
+        montoTotal: totalOperacion,
+        montoPagado:
+          operacionActual === 'venta'
+            ? formaPagoOperacion === 'total'
+              ? totalOperacion
+              : pagadoOperacion
+            : undefined,
+        formaPago: operacionActual === 'venta' ? formaPagoOperacion : undefined,
+        medioPago: operacionActual === 'venta' ? medioPagoOperacion : undefined,
+        observaciones: observacionesOperacion || undefined,
+      });
+      mostrarExitoConPie(
+        operacionActual === 'venta' ? 'Venta registrada exitosamente' : 'Fiado registrado exitosamente',
+        clienteOperacion.telefono,
+        mensajeWhatsapp
+      );
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar la venta');
     } finally {
@@ -416,13 +541,18 @@ export default function RepartidorRapido() {
       return;
     }
 
+    const clienteOperacion = clienteSeleccionado;
+    const montoOperacion = montoCobro;
+    const medioPagoOperacion = medioPago;
+    const observacionesOperacion = observaciones;
+
     setCargando(true);
     try {
       const resultadoCobro = await repartidorRapidoService.registrarCobro({
-        cliente_id: clienteSeleccionado.id,
-        monto: montoCobro,
-        medio_pago: medioPago,
-        observaciones: observaciones || undefined,
+        cliente_id: clienteOperacion.id,
+        monto: montoOperacion,
+        medio_pago: medioPagoOperacion,
+        observaciones: observacionesOperacion || undefined,
       });
 
       setResumenCuenta((prev) =>
@@ -435,21 +565,39 @@ export default function RepartidorRapido() {
           : prev
       );
       
-      mostrarExito('Cobro registrado exitosamente');
       setMostrarModalCobro(false);
       setMontoCobro(0);
       setObservaciones('');
       
+      let cuentaActual = resumenCuenta;
+      let envasesActual = resumenEnvases;
+
       try {
-        if (clienteSeleccionado) {
-          await cargarFichaCliente(clienteSeleccionado.id, {
-            ...clienteSeleccionado,
-            deuda: resultadoCobro.saldo_actual,
-          });
-        }
+        const ficha = await cargarFichaCliente(clienteOperacion.id, {
+          ...clienteOperacion,
+          deuda: resultadoCobro.saldo_actual,
+        });
+        cuentaActual = ficha.cuenta;
+        envasesActual = ficha.envases;
       } catch {
         // El cobro ya se registró; si falla la recarga se conserva el saldo actualizado.
       }
+
+      const mensajeWhatsapp = construirMensajeResumenCliente({
+        operacion: 'cobro',
+        clienteNombre: clienteOperacion.nombre,
+        cuenta: cuentaActual,
+        saldoActual: resultadoCobro.saldo_actual,
+        envases: envasesActual,
+        montoCobro: montoOperacion,
+        medioPago: medioPagoOperacion,
+        observaciones: observacionesOperacion || undefined,
+      });
+      mostrarExitoConPie(
+        'Cobro registrado exitosamente',
+        clienteOperacion.telefono,
+        mensajeWhatsapp
+      );
     } catch (error: any) {
       mostrarError(error.message || 'Error al procesar el cobro');
     } finally {
@@ -460,27 +608,57 @@ export default function RepartidorRapido() {
   const procesarMovimientoEnvases = async (payload: RegistrarMovimientoEnvasesPayload) => {
     if (!clienteSeleccionado) return;
 
+    const clienteOperacion = clienteSeleccionado;
+    const observacionesOperacion = payload.observaciones;
+
     setCargando(true);
     try {
       const resultado = await repartidorRapidoService.registrarMovimientoEnvases(
-        clienteSeleccionado.id,
+        clienteOperacion.id,
         payload
       );
 
-      setResumenEnvases({
-        cliente_id: clienteSeleccionado.id,
+      const envasesActualizados: ResumenEnvases = {
+        cliente_id: clienteOperacion.id,
         saldo_actual: resultado.saldo_actual,
         cantidad_total: resultado.cantidad_total,
         ultimo_movimiento_at: resultado.ultimo_movimiento_at,
-      });
+      };
+
+      setResumenEnvases(envasesActualizados);
       setMostrarModalEnvases(false);
-      mostrarExito('Movimiento de envases registrado exitosamente');
+
+      let cuentaActual = resumenCuenta;
 
       try {
-        await cargarFichaCliente(clienteSeleccionado.id, clienteSeleccionado);
+        const ficha = await cargarFichaCliente(clienteOperacion.id, clienteOperacion);
+        cuentaActual = ficha.cuenta;
       } catch {
         // El movimiento ya quedó persistido; se conserva el resumen actualizado localmente.
       }
+
+      const itemsEnvase = payload.items.map((item) => ({
+        producto_id: item.producto_id,
+        cantidad: item.cantidad,
+        producto_nombre: productos.find((p) => p.id === item.producto_id)?.nombreProducto,
+      }));
+
+      const mensajeWhatsapp = construirMensajeResumenCliente({
+        operacion: 'envase',
+        clienteNombre: clienteOperacion.nombre,
+        cuenta: cuentaActual,
+        saldoActual: cuentaActual?.saldo_actual,
+        envases: envasesActualizados,
+        productosCatalogo: productos,
+        tipoMovimientoEnvase: payload.tipo,
+        itemsEnvase,
+        observaciones: observacionesOperacion || undefined,
+      });
+      mostrarExitoConPie(
+        'Movimiento de envases registrado exitosamente',
+        clienteOperacion.telefono,
+        mensajeWhatsapp
+      );
     } catch (error: any) {
       mostrarError(error.message || 'Error al registrar el movimiento de envases');
     } finally {
@@ -489,8 +667,9 @@ export default function RepartidorRapido() {
   };
 
   const mostrarExito = (mensaje: string) => {
-    setMensajeExito(mensaje);
-    setTimeout(() => setMensajeExito(''), 3000);
+    if (clienteSeleccionado) {
+      mostrarExitoConPie(mensaje, clienteSeleccionado.telefono, mensaje);
+    }
   };
 
   const mostrarError = (mensaje: string) => {
@@ -572,7 +751,11 @@ export default function RepartidorRapido() {
   }, [router, searchParams]);
 
   return (
-    <div className="pb-20 min-h-screen bg-gray-50">
+    <div
+      className={`min-h-screen bg-gray-50 ${
+        pieExito && !operacionModalActiva ? 'pb-56' : 'pb-4'
+      }`}
+    >
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white shadow-sm">
         <div className="px-4 py-3">
@@ -609,12 +792,6 @@ export default function RepartidorRapido() {
         </div>
       </div>
 
-      {/* Mensajes */}
-      {mensajeExito && (
-        <div className="p-3 mx-4 mt-4 text-green-700 bg-green-100 rounded-lg border border-green-400">
-          {mensajeExito}
-        </div>
-      )}
       {mensajeError && (
         <div className="p-3 mx-4 mt-4 text-red-700 bg-red-100 rounded-lg border border-red-400">
           {mensajeError}
@@ -890,14 +1067,12 @@ export default function RepartidorRapido() {
           saldoFinal={saldoFinal}
           medioPago={medioPago}
           setMedioPago={setMedioPago}
-          envasesPrestados={envasesPrestados}
-          setEnvasesPrestados={setEnvasesPrestados}
-          envasesDevueltos={envasesDevueltos}
-          setEnvasesDevueltos={setEnvasesDevueltos}
           observaciones={observaciones}
           setObservaciones={setObservaciones}
+          saldoActualCliente={saldoActualCliente}
+          totalEnvasesCliente={totalEnvasesCliente}
           onProcesar={procesarVenta}
-          onCerrar={() => setMostrarModalVenta(false)}
+          onCerrar={() => cerrarModalOperacion(() => setMostrarModalVenta(false))}
           cargando={cargando}
         />
       )}
@@ -908,12 +1083,14 @@ export default function RepartidorRapido() {
           cliente={clienteSeleccionado}
           montoCobro={montoCobro}
           setMontoCobro={setMontoCobro}
+          saldoActualCliente={saldoActualCliente}
+          totalEnvasesCliente={totalEnvasesCliente}
           medioPago={medioPago}
           setMedioPago={setMedioPago}
           observaciones={observaciones}
           setObservaciones={setObservaciones}
           onProcesar={procesarCobro}
-          onCerrar={() => setMostrarModalCobro(false)}
+          onCerrar={() => cerrarModalOperacion(() => setMostrarModalCobro(false))}
           cargando={cargando}
         />
       )}
@@ -924,10 +1101,30 @@ export default function RepartidorRapido() {
           cliente={clienteSeleccionado}
           productos={productos}
           resumenEnvases={resumenEnvases}
+          saldoActualCliente={saldoActualCliente}
           onProcesar={procesarMovimientoEnvases}
-          onCerrar={() => setMostrarModalEnvases(false)}
+          onCerrar={() => cerrarModalOperacion(() => setMostrarModalEnvases(false))}
           cargando={cargando}
         />
+      )}
+
+      {pieExito && !operacionModalActiva && (
+        <div
+          className={`fixed left-0 right-0 z-[55] lg:left-64 transition-[bottom] duration-300 ${
+            navInferiorVisible ? 'bottom-16 lg:bottom-0' : 'bottom-0'
+          }`}
+        >
+          <PieResumenOperacion
+            tipo="exito"
+            mensajeExito={pieExito.mensaje}
+            saldoActual={saldoActualCliente}
+            totalEnvases={totalEnvasesCliente}
+            mostrarWhatsapp={Boolean(normalizarTelefonoWhatsApp(pieExito.telefono))}
+            whatsappInvalido={!normalizarTelefonoWhatsApp(pieExito.telefono)}
+            onWhatsapp={enviarResumenWhatsApp}
+            mostrarHintNav
+          />
+        </div>
       )}
 
       {/* Modal Historial de ventas y pagos */}
@@ -1044,19 +1241,50 @@ function ModalVenta({
   formaPago,
   setFormaPago,
   saldoFinal,
+  saldoActualCliente,
+  totalEnvasesCliente,
   medioPago,
   setMedioPago,
-  envasesPrestados,
-  setEnvasesPrestados,
-  envasesDevueltos,
-  setEnvasesDevueltos,
   observaciones,
   setObservaciones,
   onProcesar,
   onCerrar,
   cargando,
-}: any) {
+}: {
+  cliente: Cliente;
+  tipoOperacion: TipoOperacion;
+  productos: Producto[];
+  productosVenta: ProductoVenta[];
+  onAgregarProducto: (producto: Producto) => void;
+  onActualizarCantidad: (productoId: string, cantidad: number) => void;
+  montoTotal: number;
+  montoPagado: number;
+  setMontoPagado: (n: number) => void;
+  formaPago: 'total' | 'parcial';
+  setFormaPago: (f: 'total' | 'parcial') => void;
+  saldoFinal: number;
+  saldoActualCliente: number;
+  totalEnvasesCliente: number;
+  medioPago: MedioPago;
+  setMedioPago: (m: MedioPago) => void;
+  observaciones: string;
+  setObservaciones: (v: string) => void;
+  onProcesar: () => void;
+  onCerrar: () => void;
+  cargando: boolean;
+}) {
+  const { registrarScrollOperacion } = useRepartidorUi();
   const [busquedaProducto, setBusquedaProducto] = useState('');
+
+  const itemsOperacion = productosVenta.reduce((total, item) => total + item.cantidad, 0);
+  const saldoProyectado =
+    tipoOperacion === 'fiado' ? saldoActualCliente + montoTotal : saldoFinal;
+  const montoPagadoMostrar =
+    tipoOperacion === 'venta'
+      ? formaPago === 'total'
+        ? montoTotal
+        : montoPagado
+      : undefined;
 
   const productosOrdenados = useMemo(() => {
     const idsConEnvase = new Set(
@@ -1156,17 +1384,20 @@ function ModalVenta({
   };
 
   return (
-    <div className="flex fixed inset-0 z-50 justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col">
-        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+    <div className="flex fixed inset-0 z-[70] justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full h-[100dvh] sm:h-auto sm:max-h-[92dvh] flex flex-col overflow-hidden">
+        <div className="flex flex-shrink-0 sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">
             {tipoOperacion === 'venta' ? 'Nueva Venta' : 'Nuevo Fiado'} - {cliente.nombre}
           </h2>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+        <div
+          className="overflow-y-auto flex-1 p-4 space-y-4"
+          onScroll={(event) => registrarScrollOperacion(event.currentTarget.scrollTop)}
+        >
           <div className="space-y-2">
             <h3 className="font-semibold text-gray-800">Productos</h3>
             <div className="relative">
@@ -1263,12 +1494,6 @@ function ModalVenta({
                   ))}
                 </div>
               </div>
-              <div className="flex justify-between pt-2 border-t">
-                <span className="font-semibold">Saldo final:</span>
-                <span className={`font-bold text-lg ${saldoFinal > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  ${saldoFinal.toLocaleString()}
-                </span>
-              </div>
             </div>
           )}
 
@@ -1284,19 +1509,22 @@ function ModalVenta({
             />
           </div>
         </div>
-        <div className="sticky bottom-0 left-0 right-0 px-4 pt-3 pb-24 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-          <button
-            type="button"
-            onClick={onProcesar}
-            disabled={cargando || productosVenta.length === 0}
-            className="px-4 py-4 w-full text-base font-semibold text-white bg-green-600 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700 active:bg-green-800"
-          >
-            {cargando
-              ? 'Guardando...'
-              : tipoOperacion === 'venta'
-                ? 'Guardar venta'
-                : 'Guardar fiado'}
-          </button>
+        <div className="flex-shrink-0">
+          <PieResumenOperacion
+            tipo={tipoOperacion}
+            clienteNombre={cliente.nombre}
+            saldoActual={saldoActualCliente}
+            totalEnvases={totalEnvasesCliente}
+            montoTotal={montoTotal}
+            montoPagado={montoPagadoMostrar}
+            saldoProyectado={saldoProyectado}
+            itemsOperacion={itemsOperacion}
+            onConfirmar={onProcesar}
+            onCancelar={onCerrar}
+            confirmarLabel={tipoOperacion === 'venta' ? 'Guardar venta' : 'Guardar fiado'}
+            confirmarDisabled={productosVenta.length === 0}
+            cargando={cargando}
+          />
         </div>
       </div>
     </div>
@@ -1308,6 +1536,8 @@ function ModalCobro({
   cliente,
   montoCobro,
   setMontoCobro,
+  saldoActualCliente,
+  totalEnvasesCliente,
   medioPago,
   setMedioPago,
   observaciones,
@@ -1315,17 +1545,35 @@ function ModalCobro({
   onProcesar,
   onCerrar,
   cargando,
-}: any) {
+}: {
+  cliente: Cliente;
+  montoCobro: number;
+  setMontoCobro: (n: number) => void;
+  saldoActualCliente: number;
+  totalEnvasesCliente: number;
+  medioPago: MedioPago;
+  setMedioPago: (m: MedioPago) => void;
+  observaciones: string;
+  setObservaciones: (v: string) => void;
+  onProcesar: () => void;
+  onCerrar: () => void;
+  cargando: boolean;
+}) {
+  const { registrarScrollOperacion } = useRepartidorUi();
+
   return (
-    <div className="flex fixed inset-0 z-50 justify-center items-end p-4 bg-black bg-opacity-50 sm:items-center">
-      <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl">
-        <div className="flex sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+    <div className="flex fixed inset-0 z-[70] justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md h-[100dvh] sm:h-auto sm:max-h-[92dvh] flex flex-col overflow-hidden">
+        <div className="flex flex-shrink-0 sticky top-0 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">Cobrar - {cliente.nombre}</h2>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
-        <div className="p-4 space-y-4">
+        <div
+          className="overflow-y-auto flex-1 p-4 space-y-4"
+          onScroll={(event) => registrarScrollOperacion(event.currentTarget.scrollTop)}
+        >
           <div>
             <label htmlFor="montoCobro" className="block mb-1 text-sm font-medium text-gray-700">Monto a cobrar</label>
             <input
@@ -1364,21 +1612,21 @@ function ModalCobro({
               placeholder="Notas adicionales..."
             />
           </div>
-          <div className="flex pt-4 space-x-3">
-            <button
-              onClick={onCerrar}
-              className="flex-1 px-4 py-3 font-semibold text-gray-800 bg-gray-200 rounded-lg"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={onProcesar}
-              disabled={cargando || montoCobro <= 0}
-              className="flex-1 px-4 py-3 font-semibold text-white bg-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {cargando ? 'Procesando...' : 'Confirmar Cobro'}
-            </button>
-          </div>
+        </div>
+        <div className="flex-shrink-0">
+          <PieResumenOperacion
+            tipo="cobro"
+            clienteNombre={cliente.nombre}
+            saldoActual={saldoActualCliente}
+            totalEnvases={totalEnvasesCliente}
+            montoCobro={montoCobro}
+            saldoProyectado={Math.max(0, saldoActualCliente - montoCobro)}
+            onConfirmar={onProcesar}
+            onCancelar={onCerrar}
+            confirmarLabel="Confirmar cobro"
+            confirmarDisabled={montoCobro <= 0}
+            cargando={cargando}
+          />
         </div>
       </div>
     </div>
@@ -1401,6 +1649,7 @@ function ModalEnvases({
   cliente,
   productos,
   resumenEnvases,
+  saldoActualCliente,
   onProcesar,
   onCerrar,
   cargando,
@@ -1408,10 +1657,12 @@ function ModalEnvases({
   cliente: Cliente;
   productos: Producto[];
   resumenEnvases: ResumenEnvases | null;
+  saldoActualCliente: number;
   onProcesar: (payload: RegistrarMovimientoEnvasesPayload) => Promise<void>;
   onCerrar: () => void;
   cargando: boolean;
 }) {
+  const { registrarScrollOperacion } = useRepartidorUi();
   const [tipoMovimiento, setTipoMovimiento] = useState<'PRESTAMO' | 'DEVOLUCION' | 'AJUSTE'>('PRESTAMO');
   const [observaciones, setObservaciones] = useState('');
   const [cantidades, setCantidades] = useState<Record<number, string>>({});
@@ -1529,19 +1780,22 @@ function ModalEnvases({
   };
 
   return (
-    <div className="flex fixed inset-0 z-50 justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
-        <div className="flex sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
+    <div className="flex fixed inset-0 z-[70] justify-center items-end p-0 bg-black bg-opacity-50 sm:items-center sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg h-[100dvh] sm:h-auto sm:max-h-[92dvh] flex flex-col overflow-hidden">
+        <div className="flex flex-shrink-0 sticky top-0 z-10 justify-between items-center px-4 py-3 bg-white border-b border-gray-200">
           <div>
             <h2 className="text-lg font-semibold text-gray-800">Gestionar envases</h2>
             <p className="text-sm text-gray-500">{cliente.nombre}</p>
           </div>
-          <button onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onCerrar} className="p-1 text-gray-400 hover:text-gray-600">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+        <div
+          className="overflow-y-auto flex-1 p-4 space-y-4"
+          onScroll={(event) => registrarScrollOperacion(event.currentTarget.scrollTop)}
+        >
           <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Saldo actual</span>
@@ -1680,24 +1934,19 @@ function ModalEnvases({
           </div>
         </div>
 
-        <div className="sticky bottom-0 px-4 py-3 bg-white border-t border-gray-200">
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onCerrar}
-              className="flex-1 px-4 py-3 font-semibold text-gray-800 bg-gray-200 rounded-lg"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleProcesar}
-              disabled={cargando}
-              className="flex-1 px-4 py-3 font-semibold text-white bg-teal-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {cargando ? 'Guardando...' : 'Guardar movimiento'}
-            </button>
-          </div>
+        <div className="flex-shrink-0">
+          <PieResumenOperacion
+            tipo="envase"
+            clienteNombre={cliente.nombre}
+            saldoActual={saldoActualCliente}
+            totalEnvases={resumenEnvases?.cantidad_total ?? 0}
+            itemsOperacion={items.length}
+            onConfirmar={handleProcesar}
+            onCancelar={onCerrar}
+            confirmarLabel="Guardar"
+            confirmarDisabled={items.length === 0}
+            cargando={cargando}
+          />
         </div>
       </div>
     </div>

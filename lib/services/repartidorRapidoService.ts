@@ -211,6 +211,38 @@ export interface RegistrarMovimientoEnvasesResponse {
   }>;
 }
 
+export type CategoriaMovimientoRepartidor = 'venta' | 'fiado' | 'cobro' | 'envase';
+
+export type FiltroMovimientoRepartidor = 'todos' | CategoriaMovimientoRepartidor;
+
+export interface MovimientoOperativoRepartidor {
+  id: string;
+  categoria: CategoriaMovimientoRepartidor;
+  fecha: string;
+  titulo: string;
+  subtitulo?: string;
+  monto: number | null;
+  esCredito: boolean;
+  clienteId?: number;
+  clienteNombre?: string;
+  detalleExtra?: string;
+}
+
+interface MovimientoAuditoria {
+  id: number;
+  tipo: string;
+  descripcion: string;
+  fecha: string;
+  monto?: string | number;
+  detalles?: {
+    cliente_id?: number;
+    cliente_nombre?: string;
+    producto_nombre?: string;
+    cantidad?: number;
+    tipo_envase?: string;
+  };
+}
+
 class RepartidorRapidoService {
   private buildApiUrl(path: string): string {
     return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
@@ -651,6 +683,171 @@ class RepartidorRapidoService {
       console.error('Error al obtener registros no encontrado:', error);
       return [];
     }
+  }
+
+  private parseMontoValor(valor: string | number | null | undefined): number | null {
+    if (valor == null) return null;
+    const numero = typeof valor === 'string' ? Number(valor) : valor;
+    return typeof numero === 'number' && !Number.isNaN(numero) ? numero : null;
+  }
+
+  private clasificarTipoAuditoria(tipo: string): CategoriaMovimientoRepartidor | null {
+    const normalizado = tipo.toUpperCase();
+    if (
+      normalizado === 'VENTA_RAPIDA' ||
+      normalizado === 'VENTA_LOCAL' ||
+      normalizado === 'CIERRE_VENTA'
+    ) {
+      return 'venta';
+    }
+    if (normalizado === 'FIADO_RAPIDO') return 'fiado';
+    if (normalizado === 'COBRO_RAPIDO') return 'cobro';
+    if (normalizado === 'MOVIMIENTO_ENVASE' || normalizado.includes('ENVASE')) return 'envase';
+    return null;
+  }
+
+  private async ejecutarEnLotes<T, R>(
+    items: T[],
+    tamanoLote: number,
+    ejecutar: (item: T) => Promise<R>
+  ): Promise<R[]> {
+    const resultados: R[] = [];
+    for (let i = 0; i < items.length; i += tamanoLote) {
+      const lote = items.slice(i, i + tamanoLote);
+      const loteResultados = await Promise.all(lote.map(ejecutar));
+      resultados.push(...loteResultados);
+    }
+    return resultados;
+  }
+
+  /**
+   * Agrega ventas/cobros (cuenta corriente + auditoría) y movimientos de envases
+   * para el listado operativo del módulo repartidor.
+   */
+  async obtenerMovimientosOperativos(): Promise<MovimientoOperativoRepartidor[]> {
+    const movimientos: MovimientoOperativoRepartidor[] = [];
+
+    try {
+      const searchParams = new URLSearchParams({ pagina: '1', porPagina: '150' });
+      const response = await fetch(this.buildApiUrl(`/api/movimientos?${searchParams.toString()}`));
+      if (response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
+        for (const mov of lista) {
+          const categoria = this.clasificarTipoAuditoria(mov.tipo);
+          if (!categoria) continue;
+          const monto = this.parseMontoValor(mov.monto);
+          movimientos.push({
+            id: `auditoria-${mov.id}`,
+            categoria,
+            fecha: mov.fecha,
+            titulo: mov.descripcion || mov.tipo,
+            monto: monto != null ? Math.abs(monto) : null,
+            esCredito: categoria === 'cobro',
+            clienteId: mov.detalles?.cliente_id,
+            clienteNombre: mov.detalles?.cliente_nombre,
+            detalleExtra: mov.detalles?.producto_nombre
+              ? `${mov.detalles.producto_nombre}${mov.detalles.cantidad ? ` × ${mov.detalles.cantidad}` : ''}`
+              : undefined,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error al obtener movimientos de auditoría:', error);
+    }
+
+    try {
+      const { clientes: deudores } = await this.obtenerClientesDeudores({ page: 1, limit: 60 });
+      const movimientosCuenta = await this.ejecutarEnLotes(deudores, 8, async (deudor) => {
+        try {
+          const { movimientos: lista } = await this.obtenerCuentaCorriente(deudor.cliente_id, {
+            page: 1,
+            limit: 20,
+          });
+          return lista.map((mov) => {
+            const esCobro = mov.tipo === 'CREDITO_COBRO';
+            const monto = esCobro ? mov.credito : mov.debito;
+            const esFiado = !esCobro && /fiado/i.test(mov.descripcion);
+            return {
+              id: `cuenta-${mov.id}`,
+              categoria: (esCobro ? 'cobro' : esFiado ? 'fiado' : 'venta') as CategoriaMovimientoRepartidor,
+              fecha: mov.fecha,
+              titulo: mov.descripcion,
+              subtitulo: mov.origen === 'COBRO' ? 'Cobro en cuenta corriente' : 'Venta en cuenta corriente',
+              monto: monto > 0 ? monto : null,
+              esCredito: esCobro,
+              clienteId: deudor.cliente_id,
+              clienteNombre: deudor.nombre,
+              detalleExtra: mov.medio_pago
+                ? `Medio: ${mov.medio_pago}`
+                : mov.observaciones || undefined,
+            } satisfies MovimientoOperativoRepartidor;
+          });
+        } catch {
+          return [];
+        }
+      });
+
+      movimientos.push(...movimientosCuenta.flat());
+    } catch (error) {
+      console.error('Error al obtener movimientos de cuenta corriente:', error);
+    }
+
+    try {
+      const clientes = await this.obtenerTodosClientes();
+      const clientesConEnvases = clientes
+        .map((cliente) => ({
+          cliente,
+          cantidad: (cliente.envases_prestados || []).reduce(
+            (total, envase) => total + (Number(envase.cantidad) || 0),
+            0
+          ),
+        }))
+        .filter((item) => item.cantidad > 0)
+        .sort((a, b) => b.cantidad - a.cantidad)
+        .slice(0, 40);
+
+      const movimientosEnvases = await this.ejecutarEnLotes(clientesConEnvases, 6, async ({ cliente }) => {
+        try {
+          const { movimientos: lista } = await this.obtenerMovimientosEnvases(cliente.id, {
+            page: 1,
+            limit: 12,
+          });
+          return lista.map((mov) => ({
+            id: `envase-${mov.id}`,
+            categoria: 'envase' as const,
+            fecha: mov.fecha_movimiento,
+            titulo:
+              mov.tipo === 'PRESTAMO'
+                ? 'Préstamo de envase'
+                : mov.tipo === 'DEVOLUCION'
+                  ? 'Devolución de envase'
+                  : 'Ajuste de envase',
+            subtitulo: `${mov.producto_nombre} (${mov.capacidad}L)`,
+            monto: mov.cantidad,
+            esCredito: mov.tipo === 'DEVOLUCION',
+            clienteId: cliente.id,
+            clienteNombre: cliente.nombre,
+            detalleExtra: mov.observaciones || undefined,
+          }));
+        } catch {
+          return [];
+        }
+      });
+
+      movimientos.push(...movimientosEnvases.flat());
+    } catch (error) {
+      console.error('Error al obtener movimientos de envases:', error);
+    }
+
+    const unicos = new Map<string, MovimientoOperativoRepartidor>();
+    for (const mov of movimientos) {
+      unicos.set(mov.id, mov);
+    }
+
+    return Array.from(unicos.values()).sort(
+      (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
   }
 
   /** Registra que el cliente no fue encontrado en la visita (dejar registro) */

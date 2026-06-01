@@ -1,12 +1,14 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { RepartidorUiProvider, useRepartidorUi } from '@/contexts/RepartidorUiContext';
 import { 
   HomeIcon, 
   ShoppingCartIcon, 
   CreditCardIcon, 
   CubeIcon, 
   UserGroupIcon,
+  ClipboardDocumentListIcon,
   Bars3Icon,
   XMarkIcon,
   BoltIcon
@@ -43,10 +45,13 @@ const isRouteActive = (pathname: string, href: string) => {
   return pathname === href || pathname.startsWith(`${href}/`);
 };
 
-const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
   const currentPathname = pathname ?? '';
+  const { modalOperacionAbierto, enOperacion, navInferiorVisible } = useRepartidorUi();
+  const ocultarNavInferior =
+    modalOperacionAbierto || (enOperacion && !navInferiorVisible);
   const [fechaActual, setFechaActual] = useState('');
   const [horaActual, setHoraActual] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -102,10 +107,16 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       href: '/repartidor/clientes',
       label: 'Clientes',
       icon: <UserGroupIcon className="w-6 h-6" />
+    },
+    {
+      href: '/repartidor/movimientos',
+      label: 'Movimientos',
+      icon: <ClipboardDocumentListIcon className="w-6 h-6" />
     }
   ];
 
   const tituloActual =
+    navItems.find((item) => isRouteActive(currentPathname, item.href) && item.href !== '/repartidor')?.label ||
     navItems.find((item) => item.href === currentPathname)?.label ||
     (currentPathname.startsWith('/repartidor/clientes/') ? 'Clientes' : 'Repartidor');
 
@@ -116,6 +127,7 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
     if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
     if (currentPathname.startsWith('/repartidor/clientes')) return 'Listado y ficha de clientes';
+    if (currentPathname === '/repartidor/movimientos') return 'Ventas, cobros, fiados y envases';
     return 'Operación diaria';
   })();
 
@@ -208,14 +220,22 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
       )}
 
       {/* Contenido principal */}
-      <main className="pt-20 pb-20 lg:pl-64">
+      <main
+        className={`pt-20 lg:pl-64 transition-[padding] duration-300 ${
+          ocultarNavInferior ? 'pb-4' : 'pb-20'
+        }`}
+      >
         <div className="px-4 sm:px-6 lg:px-8">
           {children}
         </div>
       </main>
 
       {/* Bottom navigation para todas las pantallas */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 lg:left-64">
+      <nav
+        className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 lg:left-64 transition-transform duration-300 ease-out ${
+          ocultarNavInferior ? 'translate-y-full pointer-events-none' : 'translate-y-0'
+        }`}
+      >
         <div className="flex justify-around py-2">
           {navItems.map((item) => (
             <NavItem
@@ -232,5 +252,11 @@ const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children })
     </div>
   );
 };
+
+const RepartidorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <RepartidorUiProvider>
+    <RepartidorLayoutContent>{children}</RepartidorLayoutContent>
+  </RepartidorUiProvider>
+);
 
 export default RepartidorLayout;
