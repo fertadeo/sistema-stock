@@ -14,6 +14,7 @@ import {
   UserPlusIcon,
   ArrowLeftIcon,
   MapPinIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinIconSolid } from '@heroicons/react/24/solid';
 import {
@@ -33,6 +34,7 @@ import {
 } from '@/lib/whatsappResumenCliente';
 import { useRepartidorUi } from '@/contexts/RepartidorUiContext';
 import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
+import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -93,6 +95,7 @@ export default function RepartidorRapido() {
   const [mostrarModalVenta, setMostrarModalVenta] = useState(false);
   const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
+  const [mostrarModalMovimientos, setMostrarModalMovimientos] = useState(false);
   const [mostrarModalEnvases, setMostrarModalEnvases] = useState(false);
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>('venta');
   const [medioPago, setMedioPago] = useState<MedioPago>('efectivo');
@@ -750,6 +753,7 @@ export default function RepartidorRapido() {
     }
 
     const accion = searchParams.get('accion');
+    const abrirMovimientos = searchParams.get('movimientos') === '1';
 
     const abrirDesdeRuta = async () => {
       setCargando(true);
@@ -769,6 +773,8 @@ export default function RepartidorRapido() {
           abrirModalCobro();
         } else if (accion === 'envases') {
           abrirModalEnvases();
+        } else if (abrirMovimientos) {
+          setMostrarModalMovimientos(true);
         }
       } catch {
         mostrarError('No se pudo abrir el cliente solicitado');
@@ -992,7 +998,23 @@ export default function RepartidorRapido() {
                 </div>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">Toque para ver cuenta corriente y cobros</p>
+            <p className="mt-2 text-xs text-gray-500">Toque para ver cuenta corriente</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMostrarModalMovimientos(true)}
+            className="flex gap-3 items-center p-4 w-full text-left bg-white rounded-lg border border-teal-100 shadow-sm transition-colors hover:bg-teal-50"
+          >
+            <div className="flex justify-center items-center w-10 h-10 bg-teal-100 rounded-full">
+              <ClipboardDocumentListIcon className="w-5 h-5 text-teal-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-gray-800">Movimientos</p>
+              <p className="text-xs text-gray-500">
+                Ventas, fiados, cobros y préstamos o devoluciones de envases
+              </p>
+            </div>
           </button>
 
           {/* Botones de Acción */}
@@ -1159,6 +1181,14 @@ export default function RepartidorRapido() {
             mostrarHintNav
           />
         </div>
+      )}
+
+      {mostrarModalMovimientos && clienteSeleccionado && (
+        <MovimientosCliente
+          clienteId={clienteSeleccionado.id}
+          clienteNombre={clienteSeleccionado.nombre}
+          onCerrar={() => setMostrarModalMovimientos(false)}
+        />
       )}
 
       {/* Modal Historial de ventas y pagos */}

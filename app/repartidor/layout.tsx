@@ -8,7 +8,6 @@ import {
   CreditCardIcon, 
   CubeIcon, 
   UserGroupIcon,
-  ClipboardDocumentListIcon,
   Bars3Icon,
   XMarkIcon,
   BoltIcon
@@ -108,11 +107,6 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       label: 'Clientes',
       icon: <UserGroupIcon className="w-6 h-6" />
     },
-    {
-      href: '/repartidor/movimientos',
-      label: 'Movimientos',
-      icon: <ClipboardDocumentListIcon className="w-6 h-6" />
-    }
   ];
 
   const tituloActual =
@@ -127,7 +121,6 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
     if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
     if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
     if (currentPathname.startsWith('/repartidor/clientes')) return 'Listado y ficha de clientes';
-    if (currentPathname === '/repartidor/movimientos') return 'Ventas, cobros, fiados y envases';
     return 'Operación diaria';
   })();
 

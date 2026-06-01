@@ -138,7 +138,7 @@ export default function RepartidorDashboard() {
 
       <section className="rounded-xl bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">Acciones rápidas</h2>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <button
             onClick={() => router.push('/repartidor/rapido')}
             className="rounded-xl bg-teal-600 px-4 py-4 text-left text-white transition-colors hover:bg-teal-700"
@@ -170,14 +170,6 @@ export default function RepartidorDashboard() {
             <CubeIcon className="h-6 w-6" />
             <p className="mt-3 font-semibold">Envases</p>
             <p className="mt-1 text-xs text-purple-100">Seguimiento y ajustes</p>
-          </button>
-          <button
-            onClick={() => router.push('/repartidor/movimientos')}
-            className="rounded-xl bg-gray-800 px-4 py-4 text-left text-white transition-colors hover:bg-gray-900"
-          >
-            <ClipboardDocumentListIcon className="h-6 w-6" />
-            <p className="mt-3 font-semibold">Movimientos</p>
-            <p className="mt-1 text-xs text-gray-300">Ventas, cobros, fiados y envases</p>
           </button>
         </div>
       </section>

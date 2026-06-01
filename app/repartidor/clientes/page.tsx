@@ -14,6 +14,7 @@ import {
   CubeIcon,
   ArrowRightIcon,
   ArrowLeftIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import {
   repartidorRapidoService,
@@ -22,6 +23,7 @@ import {
   ResumenEnvases,
   ZonaCliente,
 } from '@/lib/services/repartidorRapidoService';
+import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 
 type ClienteDetalleState = {
   cliente: ClienteBasico;
@@ -46,6 +48,7 @@ export default function ClientesPage() {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [error, setError] = useState('');
   const [detalle, setDetalle] = useState<ClienteDetalleState | null>(null);
+  const [mostrarMovimientos, setMostrarMovimientos] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -211,7 +214,18 @@ export default function ClientesPage() {
 
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">Acciones rápidas</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setMostrarMovimientos(true)}
+              className="rounded-xl border-2 border-teal-200 bg-teal-50 p-4 text-left hover:bg-teal-100"
+            >
+              <ClipboardDocumentListIcon className="h-6 w-6 text-teal-700" />
+              <p className="mt-3 font-semibold text-teal-900">Ver movimientos</p>
+              <p className="mt-1 text-xs text-teal-700">
+                Ventas, fiados, cobros y envases de este cliente
+              </p>
+            </button>
             <button
               onClick={() => router.push(`/repartidor/rapido?cliente=${detalle.cliente.id}&accion=venta`)}
               className="rounded-xl bg-green-600 p-4 text-left text-white hover:bg-green-700"
@@ -235,6 +249,14 @@ export default function ClientesPage() {
             </button>
           </div>
         </div>
+
+        {mostrarMovimientos && (
+          <MovimientosCliente
+            clienteId={detalle.cliente.id}
+            clienteNombre={detalle.cliente.nombre}
+            onCerrar={() => setMostrarMovimientos(false)}
+          />
+        )}
       </div>
     );
   }
