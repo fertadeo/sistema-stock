@@ -11,6 +11,8 @@ type PieResumenOperacionProps = {
   saldoActual?: number;
   totalEnvases?: number;
   montoTotal?: number;
+  montoFiadoFijo?: number;
+  montoSubtotalProductos?: number;
   montoPagado?: number;
   saldoProyectado?: number;
   montoCobro?: number;
@@ -37,6 +39,8 @@ export default function PieResumenOperacion({
   saldoActual = 0,
   totalEnvases = 0,
   montoTotal = 0,
+  montoFiadoFijo = 0,
+  montoSubtotalProductos = 0,
   montoPagado,
   saldoProyectado,
   montoCobro = 0,
@@ -96,8 +100,24 @@ export default function PieResumenOperacion({
               <p className="font-bold text-blue-700 tabular-nums">{totalEnvases} u.</p>
             </div>
 
-            {(tipo === 'venta' || tipo === 'fiado') && itemsOperacion > 0 && (
+            {(tipo === 'venta' || tipo === 'fiado') && montoTotal > 0 && (
               <>
+                {tipo === 'fiado' && montoSubtotalProductos > 0 && (
+                  <div className="col-span-2 p-2 rounded-lg border border-orange-100 bg-orange-50">
+                    <p className="text-xs text-orange-700">Subtotal productos</p>
+                    <p className="font-bold text-orange-900 tabular-nums">
+                      {formatearMonto(montoSubtotalProductos)}
+                    </p>
+                  </div>
+                )}
+                {tipo === 'fiado' && montoFiadoFijo > 0 && (
+                  <div className="col-span-2 p-2 rounded-lg border border-orange-100 bg-orange-50">
+                    <p className="text-xs text-orange-700">Monto fijo</p>
+                    <p className="font-bold text-orange-900 tabular-nums">
+                      {formatearMonto(montoFiadoFijo)}
+                    </p>
+                  </div>
+                )}
                 <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
                   <p className="text-xs text-gray-500">
                     {tipo === 'venta' ? 'Total venta' : 'Total fiado'}

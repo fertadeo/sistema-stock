@@ -63,6 +63,16 @@ interface Producto {
 type MedioPago = 'efectivo' | 'transferencia' | 'debito' | 'credito';
 type TipoOperacion = 'venta' | 'fiado' | 'cobro';
 
+function valorInputNumerico(valor: number): string {
+  return valor === 0 ? '' : String(valor);
+}
+
+function parsearInputNumerico(raw: string): number {
+  if (raw === '' || raw === undefined) return 0;
+  const numero = parseFloat(raw);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
 export default function RepartidorRapido() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,6 +99,7 @@ export default function RepartidorRapido() {
   const [montoPagado, setMontoPagado] = useState(0);
   const [formaPago, setFormaPago] = useState<'total' | 'parcial'>('total');
   const [montoCobro, setMontoCobro] = useState(0);
+  const [montoFiadoFijo, setMontoFiadoFijo] = useState(0);
   const [observaciones, setObservaciones] = useState('');
   const [envasesPrestados, setEnvasesPrestados] = useState<EnvaseMovimiento[]>([]);
   const [envasesDevueltos, setEnvasesDevueltos] = useState<EnvaseMovimiento[]>([]);
@@ -360,6 +371,7 @@ export default function RepartidorRapido() {
     setEnvasesPrestados([]);
     setEnvasesDevueltos([]);
     setObservaciones('');
+    setMontoFiadoFijo(0);
     setMostrarModalVenta(true);
   };
 
@@ -422,9 +434,18 @@ export default function RepartidorRapido() {
     }
   };
 
+  const montoSubtotalProductos = useMemo(
+    () => productosVenta.reduce((sum, p) => sum + p.precio_unitario * p.cantidad, 0),
+    [productosVenta]
+  );
+
   const montoTotal = useMemo(() => {
-    return productosVenta.reduce((sum, p) => sum + p.precio_unitario * p.cantidad, 0);
-  }, [productosVenta]);
+    const totalProductos = montoSubtotalProductos;
+    if (tipoOperacion === 'fiado') {
+      return totalProductos + montoFiadoFijo;
+    }
+    return totalProductos;
+  }, [montoSubtotalProductos, montoFiadoFijo, tipoOperacion]);
 
   const saldoFinal = useMemo(() => {
     const deudaAnterior = resumenCuenta?.saldo_actual ?? clienteSeleccionado?.deuda ?? 0;
@@ -445,13 +466,21 @@ export default function RepartidorRapido() {
   }, [resumenEnvases, clienteSeleccionado?.envases_prestados]);
 
   const procesarVenta = async () => {
-    if (!clienteSeleccionado || productosVenta.length === 0) {
+    if (!clienteSeleccionado) return;
+
+    if (tipoOperacion === 'venta' && productosVenta.length === 0) {
       mostrarError('Debe agregar al menos un producto');
+      return;
+    }
+
+    if (tipoOperacion === 'fiado' && productosVenta.length === 0 && montoFiadoFijo <= 0) {
+      mostrarError('Debe agregar productos o ingresar un monto fijo');
       return;
     }
 
     const clienteOperacion = clienteSeleccionado;
     const productosOperacion = [...productosVenta];
+    const montoFijoOperacion = montoFiadoFijo;
     const totalOperacion = montoTotal;
     const pagadoOperacion = montoPagado;
     const formaPagoOperacion = formaPago;
@@ -492,6 +521,7 @@ export default function RepartidorRapido() {
       setEnvasesPrestados([]);
       setEnvasesDevueltos([]);
       setObservaciones('');
+      setMontoFiadoFijo(0);
       
       let cuentaActual = resumenCuenta;
       let envasesActual = resumenEnvases;
@@ -512,6 +542,7 @@ export default function RepartidorRapido() {
         envases: envasesActual,
         productosCatalogo: productos,
         productosVenta: productosOperacion,
+        montoFiadoFijo: operacionActual === 'fiado' ? montoFijoOperacion : undefined,
         montoTotal: totalOperacion,
         montoPagado:
           operacionActual === 'venta'
@@ -1060,6 +1091,9 @@ export default function RepartidorRapido() {
           onAgregarProducto={agregarProducto}
           onActualizarCantidad={actualizarCantidadProducto}
           montoTotal={montoTotal}
+          montoSubtotalProductos={montoSubtotalProductos}
+          montoFiadoFijo={montoFiadoFijo}
+          setMontoFiadoFijo={setMontoFiadoFijo}
           montoPagado={montoPagado}
           setMontoPagado={setMontoPagado}
           formaPago={formaPago}
@@ -1236,6 +1270,9 @@ function ModalVenta({
   onAgregarProducto,
   onActualizarCantidad,
   montoTotal,
+  montoSubtotalProductos,
+  montoFiadoFijo,
+  setMontoFiadoFijo,
   montoPagado,
   setMontoPagado,
   formaPago,
@@ -1258,6 +1295,9 @@ function ModalVenta({
   onAgregarProducto: (producto: Producto) => void;
   onActualizarCantidad: (productoId: string, cantidad: number) => void;
   montoTotal: number;
+  montoSubtotalProductos: number;
+  montoFiadoFijo: number;
+  setMontoFiadoFijo: (n: number) => void;
   montoPagado: number;
   setMontoPagado: (n: number) => void;
   formaPago: 'total' | 'parcial';
@@ -1419,6 +1459,66 @@ function ModalVenta({
             </div>
           </div>
 
+          {tipoOperacion === 'fiado' && (
+            <div className="p-4 space-y-3 bg-orange-50 rounded-lg border border-orange-100">
+              <h3 className="font-semibold text-gray-800">Monto fijo</h3>
+              <p className="text-xs text-gray-600">
+                Podés fiar un importe sin detallar productos, o sumarlo a los ítems de la lista.
+              </p>
+              <div>
+                <label htmlFor="montoFiadoFijo" className="block mb-1 text-sm font-medium text-gray-700">
+                  Importe a fiar
+                </label>
+                <input
+                  id="montoFiadoFijo"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={valorInputNumerico(montoFiadoFijo)}
+                  onChange={(e) => setMontoFiadoFijo(parsearInputNumerico(e.target.value))}
+                  className="px-3 py-2 w-full text-lg rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500"
+                  placeholder="0"
+                />
+              </div>
+              {montoTotal > 0 && (
+                <div className="pt-3 space-y-2 text-sm border-t border-orange-200">
+                  {montoSubtotalProductos > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal productos</span>
+                      <span className="font-semibold tabular-nums">
+                        ${montoSubtotalProductos.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  )}
+                  {montoFiadoFijo > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Monto fijo</span>
+                      <span className="font-semibold tabular-nums">
+                        ${montoFiadoFijo.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-1 border-t border-orange-200">
+                    <span className="font-semibold text-gray-800">Total fiado</span>
+                    <span className="text-lg font-bold text-orange-700 tabular-nums">
+                      ${montoTotal.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Saldo proyectado</span>
+                    <span
+                      className={`font-bold tabular-nums ${
+                        saldoProyectado > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}
+                    >
+                      ${saldoProyectado.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Pago (solo para ventas) */}
           {tipoOperacion === 'venta' && productosVenta.length > 0 && (
             <div className="p-4 space-y-3 bg-blue-50 rounded-lg">
@@ -1461,16 +1561,9 @@ function ModalVenta({
                   <input
                     type="number"
                     min={0}
-                    value={montoPagado === 0 ? '' : String(montoPagado)}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === '' || raw === undefined) {
-                        setMontoPagado(0);
-                        return;
-                      }
-                      const n = parseFloat(raw);
-                      setMontoPagado(Number.isFinite(n) ? n : 0);
-                    }}
+                    step="any"
+                    value={valorInputNumerico(montoPagado)}
+                    onChange={(e) => setMontoPagado(parsearInputNumerico(e.target.value))}
                     className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                   />
@@ -1516,13 +1609,19 @@ function ModalVenta({
             saldoActual={saldoActualCliente}
             totalEnvases={totalEnvasesCliente}
             montoTotal={montoTotal}
+            montoFiadoFijo={montoFiadoFijo}
+            montoSubtotalProductos={montoSubtotalProductos}
             montoPagado={montoPagadoMostrar}
             saldoProyectado={saldoProyectado}
             itemsOperacion={itemsOperacion}
             onConfirmar={onProcesar}
             onCancelar={onCerrar}
             confirmarLabel={tipoOperacion === 'venta' ? 'Guardar venta' : 'Guardar fiado'}
-            confirmarDisabled={productosVenta.length === 0}
+            confirmarDisabled={
+              tipoOperacion === 'venta'
+                ? productosVenta.length === 0
+                : productosVenta.length === 0 && montoFiadoFijo <= 0
+            }
             cargando={cargando}
           />
         </div>
@@ -1578,8 +1677,10 @@ function ModalCobro({
             <label htmlFor="montoCobro" className="block mb-1 text-sm font-medium text-gray-700">Monto a cobrar</label>
             <input
               type="number"
-              value={montoCobro}
-              onChange={(e) => setMontoCobro(parseFloat(e.target.value) || 0)}
+              min={0}
+              step="any"
+              value={valorInputNumerico(montoCobro)}
+              onChange={(e) => setMontoCobro(parsearInputNumerico(e.target.value))}
               className="px-3 py-2 w-full text-lg rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
               placeholder="0"
             />
@@ -1855,6 +1956,7 @@ function ModalEnvases({
                   </div>
                   <input
                     type="number"
+                    step="any"
                     value={cantidades[producto.id] ?? ''}
                     onChange={(e) =>
                       setCantidades((prev) => ({

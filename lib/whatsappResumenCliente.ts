@@ -25,6 +25,7 @@ export interface DatosResumenWhatsApp {
   envases: ResumenEnvases | null;
   productosCatalogo?: ProductoCatalogoMinimo[];
   productosVenta?: ProductoVenta[];
+  montoFiadoFijo?: number;
   montoTotal?: number;
   montoPagado?: number;
   formaPago?: 'total' | 'parcial';
@@ -122,6 +123,9 @@ export function construirMensajeResumenCliente(datos: DatosResumenWhatsApp): str
       lineas.push('*Detalle*');
       lineas.push(lineasProductosVenta(productos, datos.productosCatalogo || []));
       lineas.push('');
+    }
+    if (datos.montoFiadoFijo != null && datos.montoFiadoFijo > 0) {
+      lineas.push(`Monto fijo: ${formatearMonto(datos.montoFiadoFijo)}`);
     }
     if (datos.montoTotal != null) {
       lineas.push(`Total: ${formatearMonto(datos.montoTotal)}`);
