@@ -15,6 +15,7 @@ import {
   ArrowLeftIcon,
   MapPinIcon,
   ClipboardDocumentListIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinIconSolid } from '@heroicons/react/24/solid';
 import {
@@ -36,6 +37,7 @@ import { useRepartidorUi } from '@/contexts/RepartidorUiContext';
 import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
+import ModalReporteWhatsApp from '@/components/repartidor/ModalReporteWhatsApp';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -97,6 +99,7 @@ export default function RepartidorRapido() {
   const [mostrarModalCobro, setMostrarModalCobro] = useState(false);
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
   const [mostrarModalMovimientos, setMostrarModalMovimientos] = useState(false);
+  const [mostrarModalReporteWhatsApp, setMostrarModalReporteWhatsApp] = useState(false);
   const [mostrarModalEnvases, setMostrarModalEnvases] = useState(false);
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>('venta');
   const [medioPago, setMedioPago] = useState<MedioPago>('efectivo');
@@ -478,6 +481,7 @@ export default function RepartidorRapido() {
     !mostrarModalHistorial &&
     !mostrarModalMovimientos &&
     !mostrarModalCliente &&
+    !mostrarModalReporteWhatsApp &&
     !pieExito;
 
   const totalEnvasesCliente = useMemo(() => {
@@ -1089,6 +1093,14 @@ export default function RepartidorRapido() {
               <PencilIcon className="w-6 h-6" />
               <span>Editar</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setMostrarModalReporteWhatsApp(true)}
+              className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-[#25D366] rounded-lg hover:bg-[#1ebe57] active:bg-[#128C7E]"
+            >
+              <ChatBubbleLeftRightIcon className="w-6 h-6" />
+              <span>WhatsApp</span>
+            </button>
           </div>
 
           <button
@@ -1200,6 +1212,7 @@ export default function RepartidorRapido() {
           <BarraEnviarEstadoWhatsApp
             datos={datosEstadoWhatsApp}
             telefono={clienteSeleccionado.telefono}
+            clienteId={clienteSeleccionado.id}
             onErrorTelefono={mostrarError}
           />
         </div>
@@ -1224,11 +1237,25 @@ export default function RepartidorRapido() {
         </div>
       )}
 
+      {mostrarModalReporteWhatsApp && clienteSeleccionado && datosEstadoWhatsApp && (
+        <ModalReporteWhatsApp
+          abierto={mostrarModalReporteWhatsApp}
+          onCerrar={() => setMostrarModalReporteWhatsApp(false)}
+          telefono={clienteSeleccionado.telefono}
+          datos={datosEstadoWhatsApp}
+          clienteId={clienteSeleccionado.id}
+          onErrorTelefono={mostrarError}
+        />
+      )}
+
       {mostrarModalMovimientos && clienteSeleccionado && (
         <MovimientosCliente
           clienteId={clienteSeleccionado.id}
           clienteNombre={clienteSeleccionado.nombre}
+          telefono={clienteSeleccionado.telefono}
+          saldoActual={saldoActualCliente}
           onCerrar={() => setMostrarModalMovimientos(false)}
+          onErrorTelefono={mostrarError}
         />
       )}
 

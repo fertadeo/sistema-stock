@@ -25,6 +25,60 @@ export interface DatosEstadoCuentaWhatsApp {
   direccion?: string;
 }
 
+export type TipoReporteWhatsApp = 'simple' | 'completo';
+
+export interface OpcionesReporteWhatsApp {
+  tipo: TipoReporteWhatsApp;
+  incluirMovimientos: boolean;
+  incluirEnvases: boolean;
+}
+
+export const OPCIONES_REPORTE_WHATSAPP_DEFECTO: OpcionesReporteWhatsApp = {
+  tipo: 'simple',
+  incluirMovimientos: false,
+  incluirEnvases: false,
+};
+
+export interface MovimientoReporteWhatsApp {
+  categoria: 'venta' | 'fiado' | 'cobro' | 'envase';
+  fecha: string;
+  titulo: string;
+  subtitulo?: string;
+  monto: number | null;
+  esCredito: boolean;
+  detalleExtra?: string;
+}
+
+const ETIQUETA_CATEGORIA_REPORTE: Record<MovimientoReporteWhatsApp['categoria'], string> = {
+  venta: 'Venta',
+  fiado: 'Fiado',
+  cobro: 'Cobro',
+  envase: 'Envase',
+};
+
+function formatearFechaCorta(fecha: string) {
+  try {
+    return new Date(fecha).toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return fecha;
+  }
+}
+
+function formatearMontoMovimiento(mov: MovimientoReporteWhatsApp): string {
+  if (mov.monto == null) return '';
+  if (mov.categoria === 'envase') {
+    return `${mov.esCredito ? '-' : '+'}${mov.monto} u.`;
+  }
+  const signo = mov.esCredito ? '+' : '-';
+  return `${signo}$${mov.monto.toLocaleString('es-AR')}`;
+}
+
 export interface DatosResumenWhatsApp {
   operacion: OperacionResumenWhatsApp;
   clienteNombre: string;
@@ -184,8 +238,129 @@ export function construirMensajeResumenCliente(datos: DatosResumenWhatsApp): str
   return lineas.join('\n');
 }
 
+/** Reporte configurable: simple (abreviado) o completo con opciones. */
+export function construirMensajeReporteCliente(
+  datos: DatosEstadoCuentaWhatsApp,
+  opciones: OpcionesReporteWhatsApp,
+  movimientos: MovimientoReporteWhatsApp[] = []
+): string {
+  const saldo = datos.saldoActual ?? datos.cuenta?.saldo_actual ?? 0;
+  const totalEnvases = datos.envases?.cantidad_total ?? 0;
+
+  if (opciones.tipo === 'simple') {
+    const lineas = [
+      `Hola ${datos.clienteNombre}!`,
+      '',
+      `*${NOMBRE_COMERCIO}*`,
+      `Saldo: ${formatearMonto(saldo)}`,
+      `Envases: ${totalEnvases} u.`,
+      '',
+      'Gracias.',
+    ];
+    return lineas.join('\n');
+  }
+
+  const lineas: string[] = [
+    `Hola ${datos.clienteNombre}!`,
+    '',
+    `*Estado de cuenta* — ${NOMBRE_COMERCIO}`,
+    `Fecha: ${formatearFechaCorta(new Date().toISOString())}`,
+    '',
+  ];
+
+  if (datos.direccion?.trim()) {
+    lineas.push(`Dirección: ${datos.direccion.trim()}`);
+    lineas.push('');
+  }
+
+  lineas.push('*Cuenta corriente*');
+  lineas.push(`Saldo actual: ${formatearMonto(saldo)}`);
+
+  if (datos.cuenta) {
+    lineas.push(`Total débitos: ${formatearMonto(datos.cuenta.total_debitos)}`);
+    lineas.push(`Total cobrado: ${formatearMonto(datos.cuenta.total_creditos)}`);
+    if (datos.cuenta.ultimo_movimiento_at) {
+      lineas.push(`Último movimiento: ${formatearFechaCorta(datos.cuenta.ultimo_movimiento_at)}`);
+    }
+  }
+
+  if (opciones.incluirMovimientos && movimientos.length > 0) {
+    lineas.push('');
+    lineas.push('*Movimientos*');
+    const recientes = [...movimientos]
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+      .slice(0, 25);
+    for (const mov of recientes) {
+      const montoTxt = formatearMontoMovimiento(mov);
+      const extra = [mov.subtitulo, mov.detalleExtra].filter(Boolean).join(' · ');
+      lineas.push(
+        `• ${formatearFechaCorta(mov.fecha)} — ${ETIQUETA_CATEGORIA_REPORTE[mov.categoria]}: ${mov.titulo}${
+          montoTxt ? ` (${montoTxt})` : ''
+        }${extra ? ` — ${extra}` : ''}`
+      );
+    }
+    if (movimientos.length > 25) {
+      lineas.push(`… y ${movimientos.length - 25} movimientos más.`);
+    }
+  }
+
+  if (opciones.incluirEnvases) {
+    lineas.push('');
+    lineas.push('*Envases prestados*');
+    lineas.push(`Total: ${totalEnvases} unidad${totalEnvases === 1 ? '' : 'es'}`);
+    lineas.push(lineasSaldoEnvases(datos.envases));
+  }
+
+  lineas.push('');
+  lineas.push('Cualquier consulta, estamos a disposición.');
+  lineas.push('Gracias por confiar en nosotros.');
+
+  return lineas.join('\n');
+}
+
+/** Informe de un movimiento puntual (histórico). */
+export function construirMensajeMovimientoIndividual(
+  movimiento: MovimientoReporteWhatsApp,
+  clienteNombre: string,
+  saldoActual?: number
+): string {
+  const lineas = [
+    `Hola ${clienteNombre}!`,
+    '',
+    `*${ETIQUETA_CATEGORIA_REPORTE[movimiento.categoria]}* — ${NOMBRE_COMERCIO}`,
+    `Fecha del movimiento: ${formatearFechaCorta(movimiento.fecha)}`,
+    '',
+    movimiento.titulo,
+  ];
+
+  if (movimiento.subtitulo) lineas.push(movimiento.subtitulo);
+  if (movimiento.detalleExtra) lineas.push(movimiento.detalleExtra);
+
+  const montoTxt = formatearMontoMovimiento(movimiento);
+  if (montoTxt) {
+    lineas.push('');
+    lineas.push(`Importe: ${montoTxt}`);
+  }
+
+  if (saldoActual != null) {
+    lineas.push('');
+    lineas.push(`Saldo actual de su cuenta: ${formatearMonto(saldoActual)}`);
+  }
+
+  lineas.push('');
+  lineas.push('Gracias por confiar en nosotros.');
+
+  return lineas.join('\n');
+}
+
 /** Reporte completo de estado de cuenta y envases (sin operación reciente). */
 export function construirMensajeEstadoCuentaCliente(datos: DatosEstadoCuentaWhatsApp): string {
+  return construirMensajeReporteCliente(
+    datos,
+    { tipo: 'completo', incluirMovimientos: false, incluirEnvases: true },
+    []
+  );
+}
   const saldo = datos.saldoActual ?? datos.cuenta?.saldo_actual ?? 0;
   const lineas: string[] = [
     `Hola ${datos.clienteNombre}!`,

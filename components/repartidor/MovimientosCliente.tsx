@@ -4,12 +4,18 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowPathIcon,
   BanknotesIcon,
+  ChatBubbleLeftRightIcon,
   ClipboardDocumentListIcon,
   CreditCardIcon,
   CubeIcon,
   ShoppingCartIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
+import {
+  abrirWhatsAppConMensaje,
+  construirMensajeMovimientoIndividual,
+  normalizarTelefonoWhatsApp,
+} from '@/lib/whatsappResumenCliente';
 import {
   repartidorRapidoService,
   MovimientoOperativoRepartidor,
@@ -81,20 +87,56 @@ function etiquetaGrupoFecha(fechaIso: string) {
 type MovimientosClienteProps = {
   clienteId: number;
   clienteNombre: string;
+  telefono?: string;
+  saldoActual?: number;
   onCerrar?: () => void;
+  onErrorTelefono?: (mensaje: string) => void;
   modo?: 'modal' | 'embedded';
 };
 
 export default function MovimientosCliente({
   clienteId,
   clienteNombre,
+  telefono = '',
+  saldoActual,
   onCerrar,
+  onErrorTelefono,
   modo = 'modal',
 }: MovimientosClienteProps) {
   const [movimientos, setMovimientos] = useState<MovimientoOperativoRepartidor[]>([]);
   const [tab, setTab] = useState<FiltroMovimientoRepartidor>('todos');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [movimientoSeleccionado, setMovimientoSeleccionado] =
+    useState<MovimientoOperativoRepartidor | null>(null);
+
+  const telefonoValido = Boolean(normalizarTelefonoWhatsApp(telefono));
+
+  const enviarMovimientoPorWhatsApp = (mov: MovimientoOperativoRepartidor) => {
+    if (!telefonoValido) {
+      onErrorTelefono?.('El teléfono del cliente no es válido para WhatsApp.');
+      return;
+    }
+    const mensaje = construirMensajeMovimientoIndividual(
+      {
+        categoria: mov.categoria,
+        fecha: mov.fecha,
+        titulo: mov.titulo,
+        subtitulo: mov.subtitulo,
+        monto: mov.monto,
+        esCredito: mov.esCredito,
+        detalleExtra: mov.detalleExtra,
+      },
+      clienteNombre,
+      saldoActual
+    );
+    const ok = abrirWhatsAppConMensaje(telefono, mensaje);
+    if (!ok) {
+      onErrorTelefono?.('No se pudo abrir WhatsApp.');
+      return;
+    }
+    setMovimientoSeleccionado(null);
+  };
 
   const cargarMovimientos = useCallback(async () => {
     setCargando(true);
@@ -242,10 +284,12 @@ export default function MovimientosCliente({
                   {grupo.items.map((movimiento) => {
                     const Icono = ICONO_CATEGORIA[movimiento.categoria];
                     return (
-                      <li
-                        key={movimiento.id}
-                        className="flex gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm"
-                      >
+                      <li key={movimiento.id}>
+                        <button
+                          type="button"
+                          onClick={() => setMovimientoSeleccionado(movimiento)}
+                          className="flex gap-3 p-3 w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+                        >
                         <div
                           className={`flex flex-shrink-0 justify-center items-center w-10 h-10 rounded-full border ${
                             ESTILO_CATEGORIA[movimiento.categoria]
