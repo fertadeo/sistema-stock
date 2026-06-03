@@ -31,12 +31,27 @@ export interface OpcionesReporteWhatsApp {
   tipo: TipoReporteWhatsApp;
   incluirMovimientos: boolean;
   incluirEnvases: boolean;
+  incluirSaldoActual: boolean;
+  incluirTotalDebitos: boolean;
+  incluirTotalCobrado: boolean;
 }
 
 export const OPCIONES_REPORTE_WHATSAPP_DEFECTO: OpcionesReporteWhatsApp = {
   tipo: 'simple',
   incluirMovimientos: false,
   incluirEnvases: false,
+  incluirSaldoActual: false,
+  incluirTotalDebitos: false,
+  incluirTotalCobrado: false,
+};
+
+export const OPCIONES_REPORTE_WHATSAPP_COMPLETO: OpcionesReporteWhatsApp = {
+  tipo: 'completo',
+  incluirMovimientos: true,
+  incluirEnvases: true,
+  incluirSaldoActual: true,
+  incluirTotalDebitos: true,
+  incluirTotalCobrado: true,
 };
 
 export interface MovimientoReporteWhatsApp {
@@ -273,13 +288,22 @@ export function construirMensajeReporteCliente(
     lineas.push('');
   }
 
-  lineas.push('*Cuenta corriente*');
-  lineas.push(`Saldo actual: ${formatearMonto(saldo)}`);
-
-  if (datos.cuenta) {
-    lineas.push(`Total débitos: ${formatearMonto(datos.cuenta.total_debitos)}`);
-    lineas.push(`Total cobrado: ${formatearMonto(datos.cuenta.total_creditos)}`);
-    if (datos.cuenta.ultimo_movimiento_at) {
+  const lineasCuenta: string[] = [];
+  if (opciones.incluirSaldoActual) {
+    lineasCuenta.push(`Saldo actual: ${formatearMonto(saldo)}`);
+  }
+  if (opciones.incluirTotalDebitos && datos.cuenta) {
+    lineasCuenta.push(`Total débitos: ${formatearMonto(datos.cuenta.total_debitos)}`);
+  }
+  if (opciones.incluirTotalCobrado && datos.cuenta) {
+    lineasCuenta.push(`Total cobrado: ${formatearMonto(datos.cuenta.total_creditos)}`);
+  }
+  if (lineasCuenta.length > 0) {
+    lineas.push('*Cuenta corriente*');
+    for (const linea of lineasCuenta) {
+      lineas.push(linea);
+    }
+    if (datos.cuenta?.ultimo_movimiento_at) {
       lineas.push(`Último movimiento: ${formatearFechaCorta(datos.cuenta.ultimo_movimiento_at)}`);
     }
   }
@@ -371,7 +395,10 @@ export function construirMensajeNoEncontrado(clienteNombre: string): string {
 export function construirMensajeEstadoCuentaCliente(datos: DatosEstadoCuentaWhatsApp): string {
   return construirMensajeReporteCliente(
     datos,
-    { tipo: 'completo', incluirMovimientos: false, incluirEnvases: true },
+    {
+      ...OPCIONES_REPORTE_WHATSAPP_COMPLETO,
+      incluirMovimientos: false,
+    },
     []
   );
 }

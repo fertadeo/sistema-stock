@@ -6,6 +6,7 @@ import {
   abrirWhatsAppConMensaje,
   construirMensajeReporteCliente,
   normalizarTelefonoWhatsApp,
+  OPCIONES_REPORTE_WHATSAPP_COMPLETO,
   OPCIONES_REPORTE_WHATSAPP_DEFECTO,
   type DatosEstadoCuentaWhatsApp,
   type MovimientoReporteWhatsApp,
@@ -97,11 +98,13 @@ export default function ModalReporteWhatsApp({
 
   const setTipo = (tipo: OpcionesReporteWhatsApp['tipo']) => {
     if (tipo === 'simple') {
-      setOpciones({ tipo: 'simple', incluirMovimientos: false, incluirEnvases: false });
+      setOpciones(OPCIONES_REPORTE_WHATSAPP_DEFECTO);
     } else {
-      setOpciones({ tipo: 'completo', incluirMovimientos: true, incluirEnvases: true });
+      setOpciones(OPCIONES_REPORTE_WHATSAPP_COMPLETO);
     }
   };
+
+  const tieneResumenCuenta = Boolean(datos.cuenta);
 
   return (
     <div className="flex fixed inset-0 z-[75] justify-center items-end p-0 bg-black/50 sm:items-center sm:p-4">
@@ -146,7 +149,7 @@ export default function ModalReporteWhatsApp({
               >
                 <p className="font-semibold text-gray-900">Completo</p>
                 <p className="mt-1 text-xs text-gray-600">
-                  Detalle de cuenta con opciones de movimientos y envases.
+                  Cuenta, movimientos y envases; cada dato se elige aparte.
                 </p>
               </button>
             </div>
@@ -155,6 +158,52 @@ export default function ModalReporteWhatsApp({
           {opciones.tipo === 'completo' && (
             <div className="p-3 space-y-3 bg-gray-50 rounded-xl border border-gray-200">
               <p className="text-sm font-medium text-gray-800">Incluir en el mensaje</p>
+              <p className="text-xs font-medium text-gray-600">Cuenta corriente</p>
+              <label className="flex gap-3 items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={opciones.incluirSaldoActual}
+                  onChange={(e) =>
+                    setOpciones((prev) => ({ ...prev, incluirSaldoActual: e.target.checked }))
+                  }
+                  className="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-sm text-gray-700">Saldo actual</span>
+              </label>
+              <label
+                className={`flex gap-3 items-center ${tieneResumenCuenta ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={opciones.incluirTotalDebitos}
+                  disabled={!tieneResumenCuenta}
+                  onChange={(e) =>
+                    setOpciones((prev) => ({ ...prev, incluirTotalDebitos: e.target.checked }))
+                  }
+                  className="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-sm text-gray-700">Total débitos</span>
+              </label>
+              <label
+                className={`flex gap-3 items-center ${tieneResumenCuenta ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={opciones.incluirTotalCobrado}
+                  disabled={!tieneResumenCuenta}
+                  onChange={(e) =>
+                    setOpciones((prev) => ({ ...prev, incluirTotalCobrado: e.target.checked }))
+                  }
+                  className="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-sm text-gray-700">Total cobrado</span>
+              </label>
+              {!tieneResumenCuenta && (
+                <p className="text-xs text-gray-500">
+                  Débitos y cobrados requieren resumen de cuenta cargado.
+                </p>
+              )}
+              <p className="pt-1 text-xs font-medium text-gray-600">Otros</p>
               <label className="flex gap-3 items-center cursor-pointer">
                 <input
                   type="checkbox"
