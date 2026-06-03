@@ -272,6 +272,7 @@ export default function ClientesPage() {
             <BarraEnviarEstadoWhatsApp
               datos={datosWhatsApp}
               telefono={detalle.cliente.telefono}
+              clienteId={detalle.cliente.id}
               onErrorTelefono={(msg) => setError(msg)}
             />
           </div>

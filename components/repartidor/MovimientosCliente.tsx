@@ -337,6 +337,7 @@ export default function MovimientosCliente({
                             )}
                           </div>
                         )}
+                        </button>
                       </li>
                     );
                   })}
@@ -349,15 +350,96 @@ export default function MovimientosCliente({
     </div>
   );
 
+  const panelDetalleMovimiento = movimientoSeleccionado && (
+    <div
+      className="flex fixed inset-0 z-[80] justify-center items-end p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="detalle-movimiento-titulo"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/40"
+        aria-label="Cerrar detalle"
+        onClick={() => setMovimientoSeleccionado(null)}
+      />
+      <div className="relative z-[1] bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg shadow-xl">
+        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200">
+          <h3 id="detalle-movimiento-titulo" className="text-base font-semibold text-gray-900">
+            Detalle del movimiento
+          </h3>
+          <button
+            type="button"
+            onClick={() => setMovimientoSeleccionado(null)}
+            className="p-1 text-gray-400 hover:text-gray-600"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span
+              className={`inline-block px-2 py-0.5 text-xs font-semibold rounded border ${
+                ESTILO_CATEGORIA[movimientoSeleccionado.categoria]
+              }`}
+            >
+              {ETIQUETA_CATEGORIA[movimientoSeleccionado.categoria]}
+            </span>
+            <span className="text-xs text-gray-500">
+              {formatearFechaHora(movimientoSeleccionado.fecha)}
+            </span>
+          </div>
+          <p className="font-medium text-gray-900">{movimientoSeleccionado.titulo}</p>
+          {movimientoSeleccionado.subtitulo && (
+            <p className="text-sm text-gray-600">{movimientoSeleccionado.subtitulo}</p>
+          )}
+          {movimientoSeleccionado.detalleExtra && (
+            <p className="text-sm text-gray-500">{movimientoSeleccionado.detalleExtra}</p>
+          )}
+          {movimientoSeleccionado.monto != null && (
+            <p className="text-lg font-bold text-gray-900">
+              {movimientoSeleccionado.categoria === 'envase'
+                ? `${movimientoSeleccionado.esCredito ? '−' : '+'}${movimientoSeleccionado.monto} u.`
+                : `${movimientoSeleccionado.esCredito ? '+' : '−'}$${movimientoSeleccionado.monto.toLocaleString('es-AR')}`}
+            </p>
+          )}
+          {telefonoValido ? (
+            <button
+              type="button"
+              onClick={() => enviarMovimientoPorWhatsApp(movimientoSeleccionado)}
+              className="flex gap-2 justify-center items-center px-4 py-3 mt-2 w-full text-sm font-semibold text-white bg-[#25D366] rounded-xl hover:bg-[#1ebe57]"
+            >
+              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+              Enviar informe de este movimiento
+            </button>
+          ) : (
+            <p className="text-sm text-center text-amber-800">
+              Cargá un teléfono válido para enviar por WhatsApp.
+            </p>
+          )}
+        </div>
+        <div className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))]" />
+      </div>
+    </div>
+  );
+
   if (modo === 'embedded') {
-    return <div className="rounded-xl bg-gray-50 border border-gray-200 shadow-sm">{contenido}</div>;
+    return (
+      <div className="rounded-xl bg-gray-50 border border-gray-200 shadow-sm">
+        {contenido}
+        {panelDetalleMovimiento}
+      </div>
+    );
   }
 
   return (
-    <div className="flex fixed inset-0 z-[70] justify-center items-end p-0 bg-black/50 sm:items-center sm:p-4">
-      <div className="bg-gray-50 rounded-t-2xl sm:rounded-2xl w-full max-w-lg h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
-        {contenido}
+    <>
+      <div className="flex fixed inset-0 z-[70] justify-center items-end p-0 bg-black/50 sm:items-center sm:p-4">
+        <div className="bg-gray-50 rounded-t-2xl sm:rounded-2xl w-full max-w-lg h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+          {contenido}
+        </div>
       </div>
-    </div>
+      {panelDetalleMovimiento}
+    </>
   );
 }

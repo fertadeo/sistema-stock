@@ -361,55 +361,6 @@ export function construirMensajeEstadoCuentaCliente(datos: DatosEstadoCuentaWhat
     []
   );
 }
-  const saldo = datos.saldoActual ?? datos.cuenta?.saldo_actual ?? 0;
-  const lineas: string[] = [
-    `Hola ${datos.clienteNombre}!`,
-    '',
-    `*Estado de cuenta* — ${NOMBRE_COMERCIO}`,
-    `Fecha: ${new Date().toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`,
-    '',
-  ];
-
-  if (datos.direccion?.trim()) {
-    lineas.push(`Dirección: ${datos.direccion.trim()}`);
-    lineas.push('');
-  }
-
-  lineas.push('*Cuenta corriente*');
-  lineas.push(`Saldo actual: ${formatearMonto(saldo)}`);
-
-  if (datos.cuenta) {
-    lineas.push(`Total débitos: ${formatearMonto(datos.cuenta.total_debitos)}`);
-    lineas.push(`Total cobrado: ${formatearMonto(datos.cuenta.total_creditos)}`);
-    if (datos.cuenta.ultimo_movimiento_at) {
-      lineas.push(
-        `Último movimiento: ${new Date(datos.cuenta.ultimo_movimiento_at).toLocaleString('es-AR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })}`
-      );
-    }
-  }
-
-  lineas.push('');
-  lineas.push('*Envases prestados*');
-  const totalEnvases = datos.envases?.cantidad_total ?? 0;
-  lineas.push(`Total: ${totalEnvases} unidad${totalEnvases === 1 ? '' : 'es'}`);
-  lineas.push(lineasSaldoEnvases(datos.envases));
-
-  lineas.push('');
-  lineas.push('Cualquier consulta, estamos a disposición.');
-  lineas.push('Gracias por confiar en nosotros.');
-
-  return lineas.join('\n');
-}
 
 function esDispositivoMovil(): boolean {
   if (typeof navigator === 'undefined') return false;
