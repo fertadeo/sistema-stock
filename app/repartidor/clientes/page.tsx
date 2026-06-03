@@ -127,8 +127,16 @@ export default function ClientesPage() {
       zonas.find((zona) => zona.id === detalle.cliente.zona)?.nombre ||
       (detalle.cliente.zona != null ? `Zona ${detalle.cliente.zona}` : 'Sin zona');
 
+    const datosWhatsApp = {
+      clienteNombre: detalle.cliente.nombre,
+      cuenta: detalle.resumenCuenta,
+      saldoActual: detalle.resumenCuenta?.saldo_actual,
+      envases: detalle.resumenEnvases,
+      direccion: detalle.cliente.direccion,
+    };
+
     return (
-      <div className="space-y-4">
+      <div className="relative pb-32 space-y-4">
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-3">
             <button
@@ -272,16 +280,8 @@ export default function ClientesPage() {
     );
   }
 
-    const datosWhatsApp = {
-      clienteNombre: detalle.cliente.nombre,
-      cuenta: detalle.resumenCuenta,
-      saldoActual: detalle.resumenCuenta?.saldo_actual,
-      envases: detalle.resumenEnvases,
-      direccion: detalle.cliente.direccion,
-    };
-
-    return (
-      <div className="relative pb-32 space-y-6">
+  return (
+    <div className="space-y-6">
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
