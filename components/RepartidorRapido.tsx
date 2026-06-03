@@ -30,6 +30,7 @@ import {
 } from '@/lib/services/repartidorRapidoService';
 import {
   abrirWhatsAppConMensaje,
+  construirMensajeNoEncontrado,
   construirMensajeResumenCliente,
   normalizarTelefonoWhatsApp,
 } from '@/lib/whatsappResumenCliente';
@@ -1109,9 +1110,22 @@ export default function RepartidorRapido() {
               if (!clienteSeleccionado) return;
               setCargando(true);
               try {
-                const result = await repartidorRapidoService.registrarNoEncontrado(clienteSeleccionado.id);
+                const result = await repartidorRapidoService.registrarNoEncontrado(
+                  clienteSeleccionado.id
+                );
                 if (result.success) {
-                  mostrarExito('Registro guardado: cliente no encontrado');
+                  const mensaje = construirMensajeNoEncontrado(clienteSeleccionado.nombre);
+                  const whatsappOk = abrirWhatsAppConMensaje(
+                    clienteSeleccionado.telefono,
+                    mensaje
+                  );
+                  if (whatsappOk) {
+                    mostrarExito('Registro guardado. WhatsApp abierto para avisar al cliente.');
+                  } else {
+                    mostrarError(
+                      'Registro guardado, pero el teléfono no es válido para abrir WhatsApp.'
+                    );
+                  }
                   resetearSeleccion();
                 } else {
                   mostrarError(result.message || 'No se pudo registrar');

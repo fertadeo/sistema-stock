@@ -353,6 +353,20 @@ export function construirMensajeMovimientoIndividual(
   return lineas.join('\n');
 }
 
+/** Aviso de visita sin encontrar al cliente en el domicilio. */
+export function construirMensajeNoEncontrado(clienteNombre: string): string {
+  const nombre = clienteNombre.trim() || 'Cliente';
+  return [
+    `Hola ${nombre}!`,
+    '',
+    `Tu repartidor de *${NOMBRE_COMERCIO}* pasó por tu domicilio y no te encontró.`,
+    '',
+    'Por favor ponete en contacto con nosotros o esperá tu visita semanal habitual.',
+    '',
+    'Gracias por confiar en nosotros.',
+  ].join('\n');
+}
+
 /** Reporte completo de estado de cuenta y envases (sin operación reciente). */
 export function construirMensajeEstadoCuentaCliente(datos: DatosEstadoCuentaWhatsApp): string {
   return construirMensajeReporteCliente(
