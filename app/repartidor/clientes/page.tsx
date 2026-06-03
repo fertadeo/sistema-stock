@@ -24,6 +24,7 @@ import {
   ZonaCliente,
 } from '@/lib/services/repartidorRapidoService';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
+import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
 
 type ClienteDetalleState = {
   cliente: ClienteBasico;
@@ -257,12 +258,30 @@ export default function ClientesPage() {
             onCerrar={() => setMostrarMovimientos(false)}
           />
         )}
+
+        {!mostrarMovimientos && (
+          <div className="fixed bottom-16 left-0 right-0 z-40 lg:left-64">
+            <BarraEnviarEstadoWhatsApp
+              datos={datosWhatsApp}
+              telefono={detalle.cliente.telefono}
+              onErrorTelefono={(msg) => setError(msg)}
+            />
+          </div>
+        )}
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
+    const datosWhatsApp = {
+      clienteNombre: detalle.cliente.nombre,
+      cuenta: detalle.resumenCuenta,
+      saldoActual: detalle.resumenCuenta?.saldo_actual,
+      envases: detalle.resumenEnvases,
+      direccion: detalle.cliente.direccion,
+    };
+
+    return (
+      <div className="relative pb-32 space-y-6">
       <div className="rounded-xl bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>

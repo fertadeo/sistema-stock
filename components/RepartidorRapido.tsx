@@ -35,6 +35,7 @@ import {
 import { useRepartidorUi } from '@/contexts/RepartidorUiContext';
 import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
+import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -457,6 +458,28 @@ export default function RepartidorRapido() {
 
   const saldoActualCliente = resumenCuenta?.saldo_actual ?? clienteSeleccionado?.deuda ?? 0;
 
+  const datosEstadoWhatsApp = useMemo(
+    () =>
+      clienteSeleccionado
+        ? {
+            clienteNombre: clienteSeleccionado.nombre,
+            cuenta: resumenCuenta,
+            saldoActual: saldoActualCliente,
+            envases: resumenEnvases,
+            direccion: clienteSeleccionado.direccion,
+          }
+        : null,
+    [clienteSeleccionado, resumenCuenta, saldoActualCliente, resumenEnvases]
+  );
+
+  const mostrarBarraWhatsAppPersistente =
+    Boolean(clienteSeleccionado && datosEstadoWhatsApp) &&
+    !operacionModalActiva &&
+    !mostrarModalHistorial &&
+    !mostrarModalMovimientos &&
+    !mostrarModalCliente &&
+    !pieExito;
+
   const totalEnvasesCliente = useMemo(() => {
     if (resumenEnvases) {
       return resumenEnvases.cantidad_total;
@@ -790,7 +813,11 @@ export default function RepartidorRapido() {
   return (
     <div
       className={`min-h-screen bg-gray-50 ${
-        pieExito && !operacionModalActiva ? 'pb-56' : 'pb-4'
+        pieExito && !operacionModalActiva
+          ? 'pb-56'
+          : mostrarBarraWhatsAppPersistente
+            ? 'pb-36'
+            : 'pb-4'
       }`}
     >
       {/* Header */}
@@ -1162,6 +1189,20 @@ export default function RepartidorRapido() {
           onCerrar={() => cerrarModalOperacion(() => setMostrarModalEnvases(false))}
           cargando={cargando}
         />
+      )}
+
+      {mostrarBarraWhatsAppPersistente && datosEstadoWhatsApp && clienteSeleccionado && (
+        <div
+          className={`fixed left-0 right-0 z-[54] lg:left-64 transition-[bottom] duration-300 ${
+            navInferiorVisible ? 'bottom-16 lg:bottom-0' : 'bottom-0'
+          }`}
+        >
+          <BarraEnviarEstadoWhatsApp
+            datos={datosEstadoWhatsApp}
+            telefono={clienteSeleccionado.telefono}
+            onErrorTelefono={mostrarError}
+          />
+        </div>
       )}
 
       {pieExito && !operacionModalActiva && (

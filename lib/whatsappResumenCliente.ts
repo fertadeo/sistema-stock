@@ -17,6 +17,14 @@ export interface ItemEnvaseResumen {
   producto_nombre?: string;
 }
 
+export interface DatosEstadoCuentaWhatsApp {
+  clienteNombre: string;
+  cuenta: CuentaCorrienteResumen | null;
+  saldoActual?: number;
+  envases: ResumenEnvases | null;
+  direccion?: string;
+}
+
 export interface DatosResumenWhatsApp {
   operacion: OperacionResumenWhatsApp;
   clienteNombre: string;
@@ -176,7 +184,66 @@ export function construirMensajeResumenCliente(datos: DatosResumenWhatsApp): str
   return lineas.join('\n');
 }
 
-/** Normaliza teléfono argentino para wa.me (solo dígitos, prefijo 54). */
+/** Reporte completo de estado de cuenta y envases (sin operación reciente). */
+export function construirMensajeEstadoCuentaCliente(datos: DatosEstadoCuentaWhatsApp): string {
+  const saldo = datos.saldoActual ?? datos.cuenta?.saldo_actual ?? 0;
+  const lineas: string[] = [
+    `Hola ${datos.clienteNombre}!`,
+    '',
+    `*Estado de cuenta* — ${NOMBRE_COMERCIO}`,
+    `Fecha: ${new Date().toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`,
+    '',
+  ];
+
+  if (datos.direccion?.trim()) {
+    lineas.push(`Dirección: ${datos.direccion.trim()}`);
+    lineas.push('');
+  }
+
+  lineas.push('*Cuenta corriente*');
+  lineas.push(`Saldo actual: ${formatearMonto(saldo)}`);
+
+  if (datos.cuenta) {
+    lineas.push(`Total débitos: ${formatearMonto(datos.cuenta.total_debitos)}`);
+    lineas.push(`Total cobrado: ${formatearMonto(datos.cuenta.total_creditos)}`);
+    if (datos.cuenta.ultimo_movimiento_at) {
+      lineas.push(
+        `Último movimiento: ${new Date(datos.cuenta.ultimo_movimiento_at).toLocaleString('es-AR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })}`
+      );
+    }
+  }
+
+  lineas.push('');
+  lineas.push('*Envases prestados*');
+  const totalEnvases = datos.envases?.cantidad_total ?? 0;
+  lineas.push(`Total: ${totalEnvases} unidad${totalEnvases === 1 ? '' : 'es'}`);
+  lineas.push(lineasSaldoEnvases(datos.envases));
+
+  lineas.push('');
+  lineas.push('Cualquier consulta, estamos a disposición.');
+  lineas.push('Gracias por confiar en nosotros.');
+
+  return lineas.join('\n');
+}
+
+function esDispositivoMovil(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+}
+
+/** Normaliza teléfono argentino (solo dígitos, prefijo 54). */
 export function normalizarTelefonoWhatsApp(telefono: string): string | null {
   let digitos = telefono.replace(/\D/g, '');
   if (digitos.length < 8) return null;
@@ -196,11 +263,24 @@ export function normalizarTelefonoWhatsApp(telefono: string): string | null {
   return digitos.length >= 10 ? digitos : null;
 }
 
+/**
+ * Abre WhatsApp personal (no Business): app en móvil, WhatsApp Web en escritorio.
+ */
 export function abrirWhatsAppConMensaje(telefono: string, mensaje: string): boolean {
   const numero = normalizarTelefonoWhatsApp(telefono);
   if (!numero) return false;
 
-  const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const textoCodificado = encodeURIComponent(mensaje);
+
+  if (esDispositivoMovil()) {
+    window.location.href = `whatsapp://send?phone=${numero}&text=${textoCodificado}`;
+    return true;
+  }
+
+  window.open(
+    `https://web.whatsapp.com/send?phone=${numero}&text=${textoCodificado}`,
+    '_blank',
+    'noopener,noreferrer'
+  );
   return true;
 }
