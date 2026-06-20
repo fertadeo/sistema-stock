@@ -217,6 +217,30 @@ export default function ClientesPage() {
                   </p>
                 </div>
               </div>
+              {detalle.cliente.cliente_vinculado && detalle.cliente.resumen_domicilio && (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+                  <p className="font-semibold text-blue-900">Mismo domicilio</p>
+                  <p className="mt-1 text-gray-700">
+                    Vinculado con {detalle.cliente.cliente_vinculado.nombre}
+                  </p>
+                  <p className="mt-1 font-semibold text-red-700">
+                    Deuda total del domicilio: $
+                    {detalle.cliente.resumen_domicilio.saldo_total.toLocaleString('es-AR')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void abrirDetalle({
+                      id: detalle.cliente.cliente_vinculado!.id,
+                      nombre: detalle.cliente.cliente_vinculado!.nombre,
+                      telefono: detalle.cliente.cliente_vinculado!.telefono,
+                      direccion: detalle.cliente.cliente_vinculado!.direccion,
+                    })}
+                    className="mt-2 text-blue-700 underline"
+                  >
+                    Ver ficha vinculada
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

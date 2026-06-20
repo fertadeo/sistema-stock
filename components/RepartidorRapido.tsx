@@ -56,6 +56,23 @@ interface Cliente {
   deuda?: number;
   envases_prestados?: EnvasePrestadoCliente[];
   activo?: boolean;
+  cliente_vinculado?: {
+    id: number;
+    nombre: string;
+    telefono: string;
+    direccion: string;
+    saldo_actual: number;
+  } | null;
+  resumen_domicilio?: {
+    clientes: Array<{
+      id: number;
+      nombre: string;
+      telefono: string;
+      direccion: string;
+      saldo_actual: number;
+    }>;
+    saldo_total: number;
+  } | null;
 }
 
 interface Producto {
@@ -1032,6 +1049,37 @@ export default function RepartidorRapido() {
             </div>
             <p className="mt-2 text-xs text-gray-500">Toque para ver cuenta corriente</p>
           </button>
+
+          {clienteSeleccionado.cliente_vinculado && clienteSeleccionado.resumen_domicilio && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <h3 className="mb-2 text-sm font-semibold text-blue-900">Mismo domicilio</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Integrante vinculado:</span>
+                  <span className="font-medium text-right">{clienteSeleccionado.cliente_vinculado.nombre}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Deuda vinculado:</span>
+                  <span className={`font-semibold ${clienteSeleccionado.cliente_vinculado.saldo_actual > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${clienteSeleccionado.cliente_vinculado.saldo_actual.toLocaleString('es-AR')}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-blue-200">
+                  <span className="font-medium text-blue-900">Deuda total domicilio:</span>
+                  <span className={`font-bold ${clienteSeleccionado.resumen_domicilio.saldo_total > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                    ${clienteSeleccionado.resumen_domicilio.saldo_total.toLocaleString('es-AR')}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void cargarFichaCliente(clienteSeleccionado.cliente_vinculado!.id)}
+                className="mt-3 w-full py-2 text-sm font-medium text-blue-700 bg-white rounded-lg border border-blue-200"
+              >
+                Ver ficha de {clienteSeleccionado.cliente_vinculado.nombre}
+              </button>
+            </div>
+          )}
 
           <button
             type="button"

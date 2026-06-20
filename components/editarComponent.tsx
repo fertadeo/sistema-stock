@@ -4,6 +4,14 @@ import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
 
+interface ClienteVinculado {
+  id: number;
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  saldo_actual: number;
+}
+
 interface Producto {
   id: number;
   nombreProducto: string;
@@ -53,6 +61,12 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [selectedProducto, setSelectedProducto] = useState("");
   const [cantidad, setCantidad] = useState("1");
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
+  const [clienteVinculado, setClienteVinculado] = useState<ClienteVinculado | null>(null);
+  const [resumenDomicilio, setResumenDomicilio] = useState<{ clientes: ClienteVinculado[]; saldo_total: number } | null>(null);
+  const [busquedaVinculo, setBusquedaVinculo] = useState("");
+  const [candidatosVinculo, setCandidatosVinculo] = useState<ClienteVinculado[]>([]);
+  const [vinculando, setVinculando] = useState(false);
+  const [mensajeVinculo, setMensajeVinculo] = useState("");
 
   // Efecto para cargar productos y actualizar envases prestados
   useEffect(() => {
@@ -112,8 +126,99 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setZona(cliente.zona?.toString() || "");
       setRepartidor(cliente.repartidor || "");
       setDiaReparto(cliente.dia_reparto || "");
+      setClienteVinculado(cliente.cliente_vinculado || null);
+      setResumenDomicilio(cliente.resumen_domicilio || null);
+      setBusquedaVinculo("");
+      setCandidatosVinculo([]);
+      setMensajeVinculo("");
     }
   }, [cliente, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !cliente?.id || busquedaVinculo.trim().length < 2) {
+      setCandidatosVinculo([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/clientes?search=${encodeURIComponent(busquedaVinculo.trim())}`
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        const filtrados = (Array.isArray(data) ? data : [])
+          .filter((c: { id: number }) => c.id !== cliente.id)
+          .slice(0, 8)
+          .map((c: ClienteVinculado) => ({
+            id: c.id,
+            nombre: c.nombre,
+            telefono: c.telefono,
+            direccion: c.direccion,
+            saldo_actual: 0,
+          }));
+        setCandidatosVinculo(filtrados);
+      } catch {
+        setCandidatosVinculo([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [busquedaVinculo, isOpen, cliente?.id]);
+
+  const handleVincular = async (otroClienteId: number) => {
+    if (!cliente?.id) return;
+    setVinculando(true);
+    setMensajeVinculo("");
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}/vincular`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cliente_vinculado_id: otroClienteId }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Error al vincular clientes");
+      }
+      setClienteVinculado(data.data?.cliente?.cliente_vinculado || null);
+      setResumenDomicilio(data.data?.resumen_domicilio || null);
+      setBusquedaVinculo("");
+      setCandidatosVinculo([]);
+      setMensajeVinculo("Clientes vinculados correctamente");
+      onSave();
+    } catch (error) {
+      setMensajeVinculo(error instanceof Error ? error.message : "Error al vincular");
+    } finally {
+      setVinculando(false);
+    }
+  };
+
+  const handleDesvincular = async () => {
+    if (!cliente?.id) return;
+    setVinculando(true);
+    setMensajeVinculo("");
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}/vincular`,
+        { method: "DELETE" }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Error al desvincular clientes");
+      }
+      setClienteVinculado(null);
+      setResumenDomicilio(null);
+      setMensajeVinculo("Vinculación eliminada");
+      onSave();
+    } catch (error) {
+      setMensajeVinculo(error instanceof Error ? error.message : "Error al desvincular");
+    } finally {
+      setVinculando(false);
+    }
+  };
 
   const handleAgregarEnvase = () => {
     if (!selectedProducto || !cantidad) return;
@@ -264,6 +369,70 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
                 </SelectItem>
               ))}
             </Select>
+          </div>
+
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <h3 className="mb-2 text-lg font-bold text-blue-900">Vinculación de domicilio</h3>
+            <p className="mb-4 text-sm text-blue-800">
+              Vincule otro integrante del mismo domicilio que tenga cuenta corriente o movimientos por separado.
+            </p>
+
+            {clienteVinculado ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-white rounded border border-blue-200">
+                  <p className="font-semibold text-gray-800">{clienteVinculado.nombre}</p>
+                  <p className="text-sm text-gray-600">{clienteVinculado.telefono}</p>
+                  <p className="text-sm text-gray-500">{clienteVinculado.direccion}</p>
+                  <p className="mt-1 text-sm font-medium text-red-600">
+                    Deuda: ${clienteVinculado.saldo_actual.toLocaleString("es-AR")}
+                  </p>
+                </div>
+                {resumenDomicilio && (
+                  <p className="text-sm font-semibold text-blue-900">
+                    Deuda total del domicilio: ${resumenDomicilio.saldo_total.toLocaleString("es-AR")}
+                  </p>
+                )}
+                <Button color="danger" variant="flat" size="sm" isLoading={vinculando} onClick={handleDesvincular}>
+                  Desvincular
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Input
+                  label="Buscar cliente a vincular"
+                  placeholder="Nombre, teléfono o dirección..."
+                  value={busquedaVinculo}
+                  onChange={(e) => setBusquedaVinculo(e.target.value)}
+                />
+                {candidatosVinculo.length > 0 && (
+                  <div className="overflow-y-auto max-h-40 space-y-2">
+                    {candidatosVinculo.map((candidato) => (
+                      <div
+                        key={candidato.id}
+                        className="flex justify-between items-center p-2 bg-white rounded border border-gray-200"
+                      >
+                        <div>
+                          <p className="text-sm font-medium">{candidato.nombre}</p>
+                          <p className="text-xs text-gray-500">{candidato.direccion}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          color="primary"
+                          variant="flat"
+                          isLoading={vinculando}
+                          onClick={() => handleVincular(candidato.id)}
+                        >
+                          Vincular
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {mensajeVinculo && (
+              <p className="mt-2 text-sm text-gray-700">{mensajeVinculo}</p>
+            )}
           </div>
 
           <div className="mt-6">

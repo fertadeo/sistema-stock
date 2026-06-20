@@ -58,6 +58,22 @@ export interface ClienteBasico {
     tipo: 'LOCAL' | 'REPARTIDOR' | 'REVENDEDOR';
     observaciones?: string | null;
   }>;
+  cliente_vinculado_id?: number | null;
+  cliente_vinculado?: ClienteVinculadoResumen | null;
+  resumen_domicilio?: ResumenDomicilio | null;
+}
+
+export interface ClienteVinculadoResumen {
+  id: number;
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  saldo_actual: number;
+}
+
+export interface ResumenDomicilio {
+  clientes: ClienteVinculadoResumen[];
+  saldo_total: number;
 }
 
 export interface ClienteDeudor {
@@ -396,6 +412,39 @@ class RepartidorRapidoService {
       console.error('Error al obtener cliente:', error);
       throw error;
     }
+  }
+
+  async vincularCliente(clienteId: number, clienteVinculadoId: number): Promise<ClienteBasico> {
+    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cliente_vinculado_id: clienteVinculadoId }),
+    });
+
+    const data = await this.parseResponse<{
+      success: boolean;
+      data: { cliente: ClienteBasico };
+    }>(response);
+
+    return data.data.cliente;
+  }
+
+  async desvincularCliente(clienteId: number): Promise<ClienteBasico> {
+    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
+      method: 'DELETE',
+    });
+
+    const data = await this.parseResponse<{
+      success: boolean;
+      data: { cliente: ClienteBasico };
+    }>(response);
+
+    return data.data.cliente;
+  }
+
+  async obtenerResumenDomicilio(clienteId: number): Promise<ResumenDomicilio> {
+    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/domicilio/resumen`));
+    return this.parseWrappedResponse<ResumenDomicilio>(response);
   }
 
   async obtenerZonas(): Promise<ZonaCliente[]> {

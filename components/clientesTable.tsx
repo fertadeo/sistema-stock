@@ -31,6 +31,7 @@ type User = {
   repartidor: string;
   dia_reparto: string;
   envases_prestados: EnvasePrestado[];
+  cliente_vinculado?: { id: number; nombre: string } | null;
 };
 
 interface Props {
@@ -199,7 +200,16 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             <User
               avatarProps={{ radius: "lg" }}
               description={user.email}
-              name={user.nombre}
+              name={
+                <span>
+                  {user.nombre}
+                  {user.cliente_vinculado && (
+                    <span className="ml-2 text-xs font-normal text-blue-600">
+                      (vinc. {user.cliente_vinculado.nombre})
+                    </span>
+                  )}
+                </span>
+              }
               className="text-left cursor-pointer"
               classNames={{
                 name: "text-left",
