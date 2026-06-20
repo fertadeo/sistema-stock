@@ -1,4 +1,5 @@
 import ConditionalLayout from '../components/conditionalLayout';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { Metadata } from 'next'
 import '../styles/globals.css'
 
@@ -31,11 +32,11 @@ export default function RootLayout({
     return (
       <html lang="es">
         <body>
-        <ConditionalLayout>
-          <main>{children}</main>
-        </ConditionalLayout>
-      
-          
+          <AuthProvider>
+            <ConditionalLayout>
+              <main>{children}</main>
+            </ConditionalLayout>
+          </AuthProvider>
         </body>
       </html>
     )

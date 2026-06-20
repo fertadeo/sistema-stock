@@ -3,6 +3,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input
 import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface ClienteVinculado {
   id: number;
@@ -72,7 +73,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
         if (!response.ok) throw new Error('Error al cargar productos');
         const data = await response.json();
         setProductos(data);
@@ -101,7 +102,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   useEffect(() => {
     const fetchRepartidores = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
         if (!response.ok) throw new Error('Error al cargar repartidores');
         const data = await response.json();
         setRepartidores(data);
@@ -142,7 +143,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
 
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(
+        const response = await authFetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/clientes?search=${encodeURIComponent(busquedaVinculo.trim())}`
         );
         if (!response.ok) return;
@@ -171,7 +172,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
     setVinculando(true);
     setMensajeVinculo("");
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}/vincular`,
         {
           method: "POST",
@@ -201,7 +202,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
     setVinculando(true);
     setMensajeVinculo("");
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}/vincular`,
         { method: "DELETE" }
       );
@@ -277,7 +278,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
           }))
         };
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}`, {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datosActualizados),

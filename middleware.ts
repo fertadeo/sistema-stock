@@ -1,21 +1,54 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+const PUBLIC_PATHS = ['/', '/recuperar-password'];
+
+const getRole = (request: NextRequest) => request.cookies.get('user_role')?.value || null;
 
 export default function middleware(request: NextRequest) {
-  // Obtener el token de las cookies
-  const token = request.cookies.get("token");
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get('token');
+  const role = getRole(request);
 
-  // Si no hay token, redirigir al login
-  if (!token) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (PUBLIC_PATHS.includes(pathname)) {
+    if (token && pathname === '/') {
+      const destination = role === 'repartidor' ? '/repartidor/rapido' : '/home';
+      return NextResponse.redirect(new URL(destination, request.url));
+    }
+    return NextResponse.next();
   }
 
-  console.log("El token en middleware es:", token)
+  if (!token) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
 
-  // Continua al siguiente middleware o al request original
+  if (role === 'repartidor') {
+    if (pathname === '/repartidor/rapido') {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL('/repartidor/rapido', request.url));
+  }
+
+  if (pathname.startsWith('/salubridad') || pathname.startsWith('/usuarios')) {
+    if (role !== 'superadmin') {
+      return NextResponse.redirect(new URL('/home', request.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/home", "/clientes", "/control-stock", "/ventas/balance", "/repartidor/:path*" ],
+  matcher: [
+    '/',
+    '/home',
+    '/clientes/:path*',
+    '/productos/:path*',
+    '/ventas/:path*',
+    '/zonasyrepartos/:path*',
+    '/metricas/:path*',
+    '/salubridad/:path*',
+    '/usuarios/:path*',
+    '/repartidor/:path*',
+  ],
 };

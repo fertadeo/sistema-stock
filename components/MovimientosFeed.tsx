@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import { UserPlusIcon, ShoppingCartIcon, MinusCircleIcon } from '@heroicons/react/24/solid';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 import NuevoClienteModal from "./nuevoClienteModal";
 import VentaLocalModal from "./ventaLocalModal";
 import GastoEgresoModal from "./gastoEgresoModal";
@@ -110,7 +111,7 @@ const MovimientosFeed: React.FC = () => {
   const fetchMovimientos = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
       const data: ApiResponse = await response.json();
       
       if (data.success) {

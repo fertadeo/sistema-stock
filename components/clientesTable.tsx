@@ -1,4 +1,4 @@
-import '../styles/globals.css';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 import React, { useState, useCallback, useEffect } from "react";
 import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tooltip, useDisclosure, Pagination, Button, User, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from "@heroui/react";
 import ModalToTable from "@/components/modalToTable";
@@ -115,12 +115,12 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
 
     try {
       // Eliminamos el cliente y todos sus datos asociados
-      const deleteClienteResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${userToDelete.id}`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${userToDelete.id}`, {
         method: 'DELETE',
       });
 
-      if (!deleteClienteResponse.ok) {
-        const errorData = await deleteClienteResponse.json();
+      if (!response.ok) {
+        const errorData = await response.json();
         throw new Error(errorData.message || 'Error al eliminar el cliente');
       }
 
@@ -142,7 +142,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
 
   const fetchClientes = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
       if (!response.ok) {
         throw new Error("Error al obtener los clientes");
       }

@@ -1,14 +1,34 @@
 "use client"
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
+import { useAuth } from '@/contexts/AuthContext';
 
 export const SideBar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const sidebarRef = useRef<HTMLDivElement>(null);
+  const { user, logout, canAccessSalubridad } = useAuth();
+
+  const navItems = useMemo(() => {
+    const items = [
+      { href: '/home', label: 'Inicio' },
+      { href: '/clientes', label: 'Clientes' },
+      { href: '/zonasyrepartos', label: 'Zonas y Repartos' },
+      { href: '/productos', label: 'Productos' },
+      { href: '/ventas', label: 'Ventas' },
+      { href: '/repartidor', label: 'Repartidor' },
+      { href: '/repartidor/rapido', label: 'Repartidor Rápido' },
+    ];
+
+    if (canAccessSalubridad) {
+      items.push({ href: '/salubridad', label: 'Salubridad' });
+      items.push({ href: '/usuarios', label: 'Usuarios' });
+    }
+
+    return items;
+  }, [canAccessSalubridad]);
 
   // Cerrar sidebar cuando cambia la ruta
   useEffect(() => {
@@ -50,155 +70,29 @@ export const SideBar = () => {
               >
                 Eduard Pantazi
               </h2>
-              <p className="hidden text-xs text-center text-gray-500">Administrador/Empleado</p>
+              <p className="hidden text-xs text-center text-gray-500">
+                {user?.role_label || 'Usuario'}
+              </p>
+              {user?.email && (
+                <p className="hidden text-xs text-center text-gray-400">{user.email}</p>
+              )}
             </div>
           </div>
           <div id="menu" className="flex flex-col self-end space-y-2">
-            <Link
-              href="/home"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/home"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg
-                className="inline-block w-6 h-6 fill-current"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`
+                  px-2 py-2 text-sm font-medium rounded-md block
+                  ${pathname === item.href || (item.href !== '/home' && pathname?.startsWith(item.href))
+                    ? 'bg-teal-500 text-white'
+                    : 'text-gray-700 hover:bg-teal-200 hover:text-teal-900'}
+                `}
               >
-                <path
-                  d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                ></path>
-              </svg>
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Inicio</span>
-            </Link>
-            {/*
-            <Link
-              href="/metricas"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/metricas"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg
-                className="inline-block w-6 h-6 fill-current"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zm6-4a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1h-2a1 1 0 01-1-1V7zm6-6a1 1 0 011-1h2a1 1 0 011 1v16a1 1 0 01-1 1h-2a1 1 0 01-1-1V1z" />
-              </svg>
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Métricas</span>
-            </Link>
-            */}
-            <Link
-              href="/clientes"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/clientes"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg
-                className="inline-block w-6 h-6 fill-current"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"
-                ></path>
-              </svg>
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }} >Clientes</span>
-            </Link>
-            <Link
-              href="/zonasyrepartos"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/zonasyrepartos"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="inline-block w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" />
-              </svg>
-              <span className="inline-flex items-center pl-2" style={{ fontSize: '1.1rem' }} >Zonas y Repartos</span>
-            </Link>
-            <Link
-              href="/productos"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/productos"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="inline-block w-6 h-6 fill-current">
-                <path d="M12.378 1.602a.75.75 0 0 0-.756 0L3 6.632l9 5.25 9-5.25-8.622-5.03ZM21.75 7.93l-9 5.25v9l8.628-5.032a.75.75 0 0 0 .372-.648V7.93ZM11.25 22.18v-9l-9-5.25v8.57a.75.75 0 0 0 .372.648l8.628 5.033Z" />
-              </svg>
-
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }} >Productos</span>
-            </Link>
-
-            <Link
-              href="/ventas"
-              className={`
-                px-2 py-2 text-sm font-medium rounded-md
-                ${pathname === "/ventas"
-                  ? "bg-teal-500 text-white"
-                  : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-              `}
-            >
-              <svg
-                className="inline-block w-6 h-6 fill-current"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 10h2v6H3v-6zm4-4h2v10H7V6zm4-2h2v12h-2V4zm4 4h2v8h-2V8z"
-                ></path>
-              </svg>
-              <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Ventas</span>
-            </Link>
-
-                         <Link
-               href="/repartidor"
-               className={`
-                 px-2 py-2 text-sm font-medium rounded-md
-                 ${pathname?.startsWith("/repartidor") && pathname !== "/repartidor/rapido"
-                   ? "bg-teal-500 text-white"
-                   : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-               `}
-             >
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="inline-block w-6 h-6">
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-               </svg>
-               <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Repartidor</span>
-             </Link>
-             <Link
-               href="/repartidor/rapido"
-               className={`
-                 px-2 py-2 text-sm font-medium rounded-md
-                 ${pathname === "/repartidor/rapido"
-                   ? "bg-teal-500 text-white"
-                   : "text-gray-700 hover:bg-teal-200 hover:text-teal-900"}
-               `}
-             >
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="inline-block w-6 h-6">
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-               </svg>
-               <span className="justify-center pl-2 align-middle" style={{ fontSize: '1.1rem' }}>Repartidor Rápido</span>
-             </Link>
-
-           
+                <span className="pl-2 align-middle" style={{ fontSize: '1.1rem' }}>{item.label}</span>
+              </Link>
+            ))}
 
             <Link
               href="https://api.whatsapp.com/send?phone=5493517552258"
@@ -228,9 +122,8 @@ export const SideBar = () => {
             <div className="mt-auto">
               <button
                 onClick={() => {
-                  // Eliminar la cookie del token
-                  document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                  handleNavigation('/');
+                  logout();
+                  router.push('/');
                 }}
                 className="flex gap-2 items-center px-4 py-2 text-sm font-medium text-red-700 rounded-md transition duration-150 ease-in-out hover:bg-red-500 hover:text-white hover:scale-105"
               >

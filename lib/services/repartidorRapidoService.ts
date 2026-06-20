@@ -1,3 +1,5 @@
+import { authFetch } from '@/lib/api/fetchWithAuth';
+
 const API_BASE_URL = (() => {
   const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
   return rawUrl.replace(/\/+$/, '').replace(/\/api$/, '');
@@ -290,7 +292,7 @@ class RepartidorRapidoService {
 
   async registrarVenta(data: VentaRapidaData): Promise<any> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/venta'), {
+      const response = await authFetch(this.buildApiUrl('/api/repartidor-rapido/venta'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -316,7 +318,7 @@ class RepartidorRapidoService {
   async registrarCobro(data: CobroRapidoData): Promise<{ cobro: CobroCliente; saldo_actual: number }> {
     try {
       const { cliente_id, ...payload } = data;
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${cliente_id}/cobros`), {
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${cliente_id}/cobros`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -336,7 +338,7 @@ class RepartidorRapidoService {
 
   async registrarFiado(data: FiadoRapidoData): Promise<any> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/fiado'), {
+      const response = await authFetch(this.buildApiUrl('/api/repartidor-rapido/fiado'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -361,7 +363,7 @@ class RepartidorRapidoService {
 
   async obtenerEnvasesCliente(clienteId: number): Promise<any> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/repartidor-rapido/envases/${clienteId}`));
+      const response = await authFetch(this.buildApiUrl(`/api/repartidor-rapido/envases/${clienteId}`));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -376,7 +378,7 @@ class RepartidorRapidoService {
 
   async buscarClientes(termino: string): Promise<ClienteBasico[]> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes?search=${encodeURIComponent(termino)}`));
+      const response = await authFetch(this.buildApiUrl(`/api/clientes?search=${encodeURIComponent(termino)}`));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -393,7 +395,7 @@ class RepartidorRapidoService {
   /** Obtiene todos los clientes (para búsqueda por coincidencias cercanas cuando search no devuelve resultados) */
   async obtenerTodosClientes(): Promise<ClienteBasico[]> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/clientes'));
+      const response = await authFetch(this.buildApiUrl('/api/clientes'));
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -405,7 +407,7 @@ class RepartidorRapidoService {
 
   async obtenerCliente(clienteId: number): Promise<ClienteBasico> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}`));
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}`));
 
       return await this.parseResponse<ClienteBasico>(response);
     } catch (error) {
@@ -415,7 +417,7 @@ class RepartidorRapidoService {
   }
 
   async vincularCliente(clienteId: number, clienteVinculadoId: number): Promise<ClienteBasico> {
-    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
+    const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cliente_vinculado_id: clienteVinculadoId }),
@@ -430,7 +432,7 @@ class RepartidorRapidoService {
   }
 
   async desvincularCliente(clienteId: number): Promise<ClienteBasico> {
-    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
+    const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/vincular`), {
       method: 'DELETE',
     });
 
@@ -443,13 +445,13 @@ class RepartidorRapidoService {
   }
 
   async obtenerResumenDomicilio(clienteId: number): Promise<ResumenDomicilio> {
-    const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/domicilio/resumen`));
+    const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/domicilio/resumen`));
     return this.parseWrappedResponse<ResumenDomicilio>(response);
   }
 
   async obtenerZonas(): Promise<ZonaCliente[]> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/clientes/zonas'));
+      const response = await authFetch(this.buildApiUrl('/api/clientes/zonas'));
       if (!response.ok) return [];
       const data = await response.json();
       return Array.isArray(data) ? data : [];
@@ -475,7 +477,7 @@ class RepartidorRapidoService {
       if (params?.limit) searchParams.set('limit', String(params.limit));
 
       const query = searchParams.toString();
-      const response = await fetch(
+      const response = await authFetch(
         this.buildApiUrl(`/api/clientes/deudores${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<ClienteDeudor[]>>(response);
@@ -498,7 +500,7 @@ class RepartidorRapidoService {
     dni?: string;
   }): Promise<any> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/clientes'), {
+      const response = await authFetch(this.buildApiUrl('/api/clientes'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -520,7 +522,7 @@ class RepartidorRapidoService {
     email?: string;
   }): Promise<any> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -537,7 +539,7 @@ class RepartidorRapidoService {
 
   async obtenerCuentaCorrienteResumen(clienteId: number): Promise<CuentaCorrienteResumen> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente/resumen`));
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente/resumen`));
       return await this.parseWrappedResponse<CuentaCorrienteResumen>(response);
     } catch (error) {
       console.error('Error al obtener resumen de cuenta corriente:', error);
@@ -567,7 +569,7 @@ class RepartidorRapidoService {
       if (params?.limit) searchParams.set('limit', String(params.limit));
 
       const query = searchParams.toString();
-      const response = await fetch(
+      const response = await authFetch(
         this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<{
@@ -607,7 +609,7 @@ class RepartidorRapidoService {
       if (params?.limit) searchParams.set('limit', String(params.limit));
 
       const query = searchParams.toString();
-      const response = await fetch(
+      const response = await authFetch(
         this.buildApiUrl(`/api/clientes/${clienteId}/cobros${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<CobroCliente[]>>(response);
@@ -624,7 +626,7 @@ class RepartidorRapidoService {
 
   async obtenerResumenEnvases(clienteId: number): Promise<ResumenEnvases> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/resumen`));
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/resumen`));
       return await this.parseWrappedResponse<ResumenEnvases>(response);
     } catch (error) {
       console.error('Error al obtener resumen de envases:', error);
@@ -651,7 +653,7 @@ class RepartidorRapidoService {
       if (params?.tipo) searchParams.set('tipo', params.tipo);
 
       const query = searchParams.toString();
-      const response = await fetch(
+      const response = await authFetch(
         this.buildApiUrl(`/api/clientes/${clienteId}/envases/movimientos${query ? `?${query}` : ''}`)
       );
       const data = await this.parseResponse<ApiEnvelope<MovimientoEnvaseDetalle[]>>(response);
@@ -671,7 +673,7 @@ class RepartidorRapidoService {
     payload: RegistrarMovimientoEnvasesPayload
   ): Promise<RegistrarMovimientoEnvasesResponse> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/movimientos`), {
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/envases/movimientos`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -691,7 +693,7 @@ class RepartidorRapidoService {
 
   async obtenerProductos(): Promise<any[]> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/productos'));
+      const response = await authFetch(this.buildApiUrl('/api/productos'));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
@@ -707,7 +709,7 @@ class RepartidorRapidoService {
 
   async obtenerMovimientosCliente(clienteId: number): Promise<any[]> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/movimientos/cliente/${clienteId}`));
+      const response = await authFetch(this.buildApiUrl(`/api/movimientos/cliente/${clienteId}`));
       if (!response.ok) return [];
       const data = await response.json();
       if (data.success && data.movimientos) return data.movimientos;
@@ -722,7 +724,7 @@ class RepartidorRapidoService {
   /** Obtiene los registros "no encontrado" de un cliente para el historial */
   async obtenerNoEncontradoPorCliente(clienteId: number): Promise<any[]> {
     try {
-      const response = await fetch(this.buildApiUrl(`/api/repartidor-rapido/no-encontrado?cliente_id=${clienteId}`));
+      const response = await authFetch(this.buildApiUrl(`/api/repartidor-rapido/no-encontrado?cliente_id=${clienteId}`));
       if (!response.ok) return [];
       const data = await response.json();
       if (Array.isArray(data)) return data;
@@ -911,7 +913,7 @@ class RepartidorRapidoService {
 
     try {
       const searchParams = new URLSearchParams({ pagina: '1', porPagina: '150' });
-      const response = await fetch(this.buildApiUrl(`/api/movimientos?${searchParams.toString()}`));
+      const response = await authFetch(this.buildApiUrl(`/api/movimientos?${searchParams.toString()}`));
       if (response.ok) {
         const data = await response.json().catch(() => ({}));
         const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
@@ -998,7 +1000,7 @@ class RepartidorRapidoService {
   /** Registra que el cliente no fue encontrado en la visita (dejar registro) */
   async registrarNoEncontrado(clienteId: number, observaciones?: string): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await fetch(this.buildApiUrl('/api/repartidor-rapido/no-encontrado'), {
+      const response = await authFetch(this.buildApiUrl('/api/repartidor-rapido/no-encontrado'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

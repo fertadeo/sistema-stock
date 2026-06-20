@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { RepartidorUiProvider, useRepartidorUi } from '@/contexts/RepartidorUiContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   HomeIcon, 
   ShoppingCartIcon, 
@@ -48,6 +49,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const router = useRouter();
   const pathname = usePathname();
   const currentPathname = pathname ?? '';
+  const { isRepartidor, user, logout } = useAuth();
   const { modalOperacionAbierto, enOperacion, navInferiorVisible } = useRepartidorUi();
   const ocultarNavInferior =
     modalOperacionAbierto || (enOperacion && !navInferiorVisible);
@@ -76,7 +78,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => clearInterval(interval);
   }, []);
 
-  const navItems = [
+  const allNavItems = [
     {
       href: '/repartidor',
       label: 'Inicio',
@@ -108,6 +110,16 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       icon: <UserGroupIcon className="w-6 h-6" />
     },
   ];
+
+  const navItems = isRepartidor
+    ? allNavItems.filter((item) => item.href === '/repartidor/rapido')
+    : allNavItems;
+
+  useEffect(() => {
+    if (isRepartidor && currentPathname !== '/repartidor/rapido') {
+      router.replace('/repartidor/rapido');
+    }
+  }, [isRepartidor, currentPathname, router]);
 
   const tituloActual =
     navItems.find((item) => isRouteActive(currentPathname, item.href) && item.href !== '/repartidor')?.label ||
@@ -196,7 +208,9 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
                 <UserGroupIcon className="w-5 h-5 text-teal-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-800">Módulo Repartidor</p>
+                <p className="text-sm font-medium text-gray-800">
+                  {isRepartidor ? user?.email || 'Repartidor' : 'Módulo Repartidor'}
+                </p>
                 <p className="text-xs text-gray-500">{subtituloActual}</p>
               </div>
             </div>
