@@ -1,9 +1,12 @@
 import { getStoredToken } from '@/lib/auth/session';
 
 export const createApiUrl = (path: string): string => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || 'http://localhost:8080';
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080')
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '');
   const cleanPath = path.replace(/^\/+/, '');
-  return `${baseUrl}/${cleanPath}`;
+  const normalizedPath = cleanPath.startsWith('api/') ? cleanPath : `api/${cleanPath}`;
+  return `${baseUrl}/${normalizedPath}`;
 };
 
 export const getAuthHeaders = (headers?: HeadersInit): HeadersInit => {

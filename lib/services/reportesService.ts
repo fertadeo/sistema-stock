@@ -50,7 +50,7 @@ export async function fetchReporte(
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || 'Error al cargar el reporte');
+    throw new Error(err.message || err.error || 'Error al cargar el reporte');
   }
 
   const data = await response.json();
