@@ -10,8 +10,12 @@ import { DeleteIcon } from "@/components/utils/deleteIcon";
 import EditarComponent from "@/components/editarComponent"
 import Alert from "@/components/shared/alert";
 import zonas from "@/components/soderia-data/zonas.json";
-import repartidoresData from "@/components/soderia-data/repartidores.json";
 import diasRepartoData from "@/components/soderia-data/diareparto.json";
+
+type Repartidor = {
+  id: number;
+  nombre: string;
+};
 
 type EnvasePrestado = {
   producto_id: number;
@@ -58,6 +62,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [filtroDiaReparto, setFiltroDiaReparto] = useState("");
   const [filtroRepartidor, setFiltroRepartidor] = useState("");
   const [filtroZona, setFiltroZona] = useState("");
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
 
   const columns = [
     { uid: "name", name: "Nombre" },
@@ -165,6 +170,20 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   // Efecto para cargar clientes inicialmente
   useEffect(() => {
     fetchClientes();
+  }, []);
+
+  useEffect(() => {
+    const fetchRepartidores = async () => {
+      try {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        if (!response.ok) throw new Error('Error al cargar repartidores');
+        const data = await response.json();
+        setRepartidores(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error al cargar repartidores:', error);
+      }
+    };
+    fetchRepartidores();
   }, []);
 
   // Efecto para actualizar los datos cada 30 segundos
@@ -504,9 +523,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 onChange={(e) => setFiltroRepartidor(e.target.value)}
               >
                 <option value="">Todos los repartidores</option>
-                {repartidoresData.repartidores.map((repartidor) => (
-                  <option key={repartidor} value={repartidor}>
-                    {repartidor}
+                {repartidores.map((rep) => (
+                  <option key={rep.id} value={rep.nombre}>
+                    {rep.nombre}
                   </option>
                 ))}
               </select>

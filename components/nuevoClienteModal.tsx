@@ -13,10 +13,14 @@ import {
 } from "@heroui/react";
 import Notification from "./notification"; // Importa el componente de notificación
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import zonas from "./soderia-data/zonas.json"; // Importamos el archivo de zonas
-import repartidoresData from "./soderia-data/repartidores.json";
+import zonas from "./soderia-data/zonas.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import AddressAutocomplete from "./AddressAutocomplete";
+
+type Repartidor = {
+  id: number;
+  nombre: string;
+};
 
 // Estilos CSS para mejorar la experiencia en mobile
 const mobileStyles = `
@@ -96,6 +100,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   onClienteAgregado,
 }) => {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [idCliente, setIdCliente] = useState<number | null>(null); // Estado para el ID del cliente
   const [dni, setDni] = useState("");
   const [nombre, setNombre] = useState("");
@@ -145,6 +150,20 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       fetchProductos();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const fetchRepartidores = async () => {
+      try {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        if (!response.ok) throw new Error('Error al cargar repartidores');
+        const data = await response.json();
+        setRepartidores(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error al cargar repartidores:', error);
+      }
+    };
+    fetchRepartidores();
+  }, []);
 
   // Fetch para obtener el próximo ID
   const fetchNextClienteId = async () => {
@@ -525,9 +544,9 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   onChange={(e) => handleInputChange(e.target.value, "repartidor")}
                   size="sm"
                 >
-                  {repartidoresData.repartidores.map((rep, index) => (
-                    <SelectItem key={rep} value={rep}>
-                      {rep}
+                  {repartidores.map((rep) => (
+                    <SelectItem key={rep.nombre} value={rep.nombre}>
+                      {rep.nombre}
                     </SelectItem>
                   ))}
                 </Select>
