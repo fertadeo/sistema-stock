@@ -11,6 +11,44 @@ interface AddressAutocompleteProps {
   className?: string;
 }
 
+function obtenerDetallesLugar(
+  place: google.maps.places.PlaceResult
+): Promise<{ address: string; lat: number; lng: number } | null> {
+  if (place.geometry?.location) {
+    return Promise.resolve({
+      address: place.formatted_address || place.name || '',
+      lat: place.geometry.location.lat(),
+      lng: place.geometry.location.lng(),
+    });
+  }
+
+  if (!place.place_id) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    const service = new google.maps.places.PlacesService(document.createElement('div'));
+    service.getDetails(
+      {
+        placeId: place.place_id,
+        fields: ['formatted_address', 'geometry', 'name'],
+      },
+      (result, status) => {
+        if (
+          status !== google.maps.places.PlacesServiceStatus.OK ||
+          !result?.geometry?.location
+        ) {
+          resolve(null);
+          return;
+        }
+        resolve({
+          address: result.formatted_address || result.name || '',
+          lat: result.geometry.location.lat(),
+          lng: result.geometry.location.lng(),
+        });
+      }
+    );
+  });
+}
+
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   value,
   onChange,
@@ -20,10 +58,33 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const onChangeRef = useRef(onChange);
+  const selectingPlaceRef = useRef(false);
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
   useEffect(() => {
-    autocompleteRef.current = null;
+    const style = document.createElement('style');
+    style.setAttribute('data-address-autocomplete', 'true');
+    style.textContent = `
+      .pac-container {
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      inputRef.current.value = value;
+    }
   }, [value]);
 
   useEffect(() => {
@@ -34,24 +95,49 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       { lat: RIO_CUARTO_BOUNDS.north, lng: RIO_CUARTO_BOUNDS.east }
     );
 
-    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
+    const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       componentRestrictions: { country: 'ar' },
       bounds,
-      fields: ['formatted_address', 'geometry', 'name'],
+      fields: ['formatted_address', 'geometry', 'name', 'place_id'],
       types: ['address'],
     });
 
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current?.getPlace();
-      if (!place?.geometry?.location) return;
+    autocompleteRef.current = autocomplete;
 
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      const address = place.formatted_address || place.name || '';
+    const listener = autocomplete.addListener('place_changed', () => {
+      void (async () => {
+        const place = autocomplete.getPlace();
+        const detalles = await obtenerDetallesLugar(place);
+        if (!detalles) return;
 
-      onChange(address, String(lat), String(lng));
+        selectingPlaceRef.current = true;
+
+        if (inputRef.current) {
+          inputRef.current.value = detalles.address;
+        }
+
+        onChangeRef.current(
+          detalles.address,
+          String(detalles.lat),
+          String(detalles.lng)
+        );
+
+        window.setTimeout(() => {
+          selectingPlaceRef.current = false;
+        }, 200);
+      })();
     });
-  }, [isLoaded, onChange, value]);
+
+    return () => {
+      google.maps.event.removeListener(listener);
+      autocompleteRef.current = null;
+    };
+  }, [isLoaded]);
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (selectingPlaceRef.current) return;
+    onChangeRef.current(event.target.value, '', '');
+  };
 
   if (loadError) {
     return (
@@ -64,7 +150,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           onChange={(e) => onChange(e.target.value, '', '')}
           className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
         />
-        <p className="mt-1 text-xs text-gray-500">Google Maps no disponible. Ingrese la dirección manualmente.</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Google Maps no disponible. Ingrese la dirección manualmente.
+        </p>
       </div>
     );
   }
@@ -85,15 +173,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   }
 
   return (
-    <div className={className} key={value || 'new-address'}>
+    <div className={className}>
       <label className="block mb-1 text-sm text-gray-600">{label}</label>
       <input
         ref={inputRef}
-        key={value || 'new'}
         type="text"
         defaultValue={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value, '', '')}
+        onChange={handleInputChange}
         className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
         autoComplete="off"
       />

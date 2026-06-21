@@ -89,7 +89,16 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     // console.log('User seleccionado', user)
   };
 
-  const handleSave = async () => {
+  const handleSave = async (clienteActualizado?: User) => {
+    if (clienteActualizado?.id) {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === clienteActualizado.id ? { ...u, ...clienteActualizado } : u))
+      );
+      setSelectedUser((prev) =>
+        prev?.id === clienteActualizado.id ? { ...prev, ...clienteActualizado } : prev
+      );
+      return;
+    }
     await fetchClientes();
   };
 

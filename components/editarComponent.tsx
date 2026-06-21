@@ -4,6 +4,7 @@ import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 
 interface ClienteVinculado {
   id: number;
@@ -42,7 +43,7 @@ interface ModalEditarProps {
   cliente: any;
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (clienteActualizado?: any) => void | Promise<void>;
 }
 
 const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onSave }) => {
@@ -122,8 +123,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setTelefono(cliente.telefono || "");
       setEmail(cliente.email || "");
       setDireccion(cliente.direccion || "");
-      setLatitud(cliente.latitud || "");
-      setLongitud(cliente.longitud || "");
+      setLatitud(cliente.latitud != null && cliente.latitud !== "" ? String(cliente.latitud) : "");
+      setLongitud(cliente.longitud != null && cliente.longitud !== "" ? String(cliente.longitud) : "");
       setZona(cliente.zona?.toString() || "");
       setRepartidor(cliente.repartidor || "");
       setDiaReparto(cliente.dia_reparto || "");
@@ -256,17 +257,31 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const handleSave = async () => {
     if (cliente) {
       try {
-        // Asegurarse de que zona sea un número
         const zonaNumero = parseInt(zona);
+
+        let latitudFinal = latitud;
+        let longitudFinal = longitud;
+        let direccionFinal = direccion;
+
+        if (direccion.trim() && (!latitudFinal || !longitudFinal)) {
+          const coords = await geocodificarDireccion(direccion);
+          if (coords) {
+            latitudFinal = coords.latitud;
+            longitudFinal = coords.longitud;
+            if (coords.direccion) {
+              direccionFinal = coords.direccion;
+            }
+          }
+        }
 
         const datosActualizados = {
           dni,
           nombre,
           email,
           telefono,
-          direccion,
-          latitud,
-          longitud,
+          direccion: direccionFinal,
+          latitud: latitudFinal || null,
+          longitud: longitudFinal || null,
           zona: zonaNumero,
           repartidor,
           dia_reparto: diaReparto,
@@ -289,7 +304,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
           throw new Error(errorData.message || "Error al actualizar el cliente");
         }
 
-        onSave();
+        const clienteActualizado = await response.json();
+        await onSave(clienteActualizado);
         onClose();
       } catch (error) {
         console.error("Error al actualizar el cliente:", error);
@@ -299,7 +315,15 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} backdrop="opaque" size="2xl" scrollBehavior="inside" classNames={{ base: "mx-2 sm:mx-auto max-h-[90dvh]" }}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      isDismissable={false}
+      backdrop="opaque"
+      size="2xl"
+      scrollBehavior="inside"
+      classNames={{ base: "mx-2 sm:mx-auto max-h-[90dvh]" }}
+    >
       <ModalContent>
         <ModalHeader>Editar datos de cliente</ModalHeader>
         <ModalBody>
@@ -334,6 +358,16 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
               onChange={handleDireccionChange}
               placeholder="Ingrese dirección"
             />
+            {latitud && longitud && (
+              <p className="text-xs text-green-600 sm:col-span-2">
+                Ubicación detectada: {Number(latitud).toFixed(5)}, {Number(longitud).toFixed(5)}
+              </p>
+            )}
+            {direccion.trim() && !latitud && (
+              <p className="text-xs text-gray-500 sm:col-span-2">
+                Elegí una sugerencia de Google para guardar las coordenadas en el mapa.
+              </p>
+            )}
             <Select
               label="Zona"
               placeholder="Seleccione la zona"
