@@ -22,13 +22,14 @@ function obtenerDetallesLugar(
     });
   }
 
-  if (!place.place_id) return Promise.resolve(null);
+  const placeId = place.place_id;
+  if (!placeId) return Promise.resolve(null);
 
   return new Promise((resolve) => {
     const service = new google.maps.places.PlacesService(document.createElement('div'));
     service.getDetails(
       {
-        placeId: place.place_id,
+        placeId,
         fields: ['formatted_address', 'geometry', 'name'],
       },
       (result, status) => {
