@@ -39,6 +39,8 @@ import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
 import ModalReporteWhatsApp from '@/components/repartidor/ModalReporteWhatsApp';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -47,12 +49,56 @@ interface EnvasePrestadoCliente {
   cantidad: number;
 }
 
+interface ClienteFormData {
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  email: string;
+  latitud: string;
+  longitud: string;
+}
+
+const CLIENTE_FORM_VACIO: ClienteFormData = {
+  nombre: '',
+  telefono: '',
+  direccion: '',
+  email: '',
+  latitud: '',
+  longitud: '',
+};
+
+async function prepararPayloadCliente(form: ClienteFormData) {
+  let latitud = form.latitud;
+  let longitud = form.longitud;
+  let direccion = form.direccion;
+
+  if (direccion.trim() && (!latitud || !longitud)) {
+    const coords = await geocodificarDireccion(direccion);
+    if (coords) {
+      latitud = coords.latitud;
+      longitud = coords.longitud;
+      direccion = coords.direccion || direccion;
+    }
+  }
+
+  return {
+    nombre: form.nombre,
+    telefono: form.telefono,
+    direccion,
+    email: form.email,
+    latitud: latitud || undefined,
+    longitud: longitud || undefined,
+  };
+}
+
 interface Cliente {
   id: number;
   nombre: string;
   telefono: string;
   direccion?: string;
   email?: string;
+  latitud?: number | null;
+  longitud?: number | null;
   deuda?: number;
   envases_prestados?: EnvasePrestadoCliente[];
   activo?: boolean;
@@ -138,12 +184,7 @@ export default function RepartidorRapido() {
   } | null>(null);
 
   // Datos del cliente para crear/editar
-  const [clienteForm, setClienteForm] = useState({
-    nombre: '',
-    telefono: '',
-    direccion: '',
-    email: '',
-  });
+  const [clienteForm, setClienteForm] = useState<ClienteFormData>(CLIENTE_FORM_VACIO);
 
   // Clientes fijados (a visitar) - persistido en localStorage (se cargan tras montar para evitar hydration mismatch)
   const STORAGE_KEY_FIJADOS = 'repartidor-rapido-clientes-fijados';
@@ -338,10 +379,20 @@ export default function RepartidorRapido() {
 
   const abrirModalCrearCliente = () => {
     setClienteForm({
+      ...CLIENTE_FORM_VACIO,
       nombre: busquedaCliente,
-      telefono: '',
-      direccion: '',
-      email: '',
+    });
+    setMostrarModalCliente(true);
+  };
+
+  const abrirModalEditarCliente = (cliente: Cliente) => {
+    setClienteForm({
+      nombre: cliente.nombre,
+      telefono: cliente.telefono,
+      direccion: cliente.direccion || '',
+      email: cliente.email || '',
+      latitud: cliente.latitud != null ? String(cliente.latitud) : '',
+      longitud: cliente.longitud != null ? String(cliente.longitud) : '',
     });
     setMostrarModalCliente(true);
   };
@@ -354,7 +405,8 @@ export default function RepartidorRapido() {
 
     setCargando(true);
     try {
-      const nuevoCliente = await repartidorRapidoService.crearCliente(clienteForm);
+      const payload = await prepararPayloadCliente(clienteForm);
+      const nuevoCliente = await repartidorRapidoService.crearCliente(payload);
       setClienteSeleccionado(nuevoCliente);
       setMostrarModalCliente(false);
       setBusquedaCliente('');
@@ -371,9 +423,10 @@ export default function RepartidorRapido() {
 
     setCargando(true);
     try {
+      const payload = await prepararPayloadCliente(clienteForm);
       const clienteActualizado = await repartidorRapidoService.actualizarCliente(
         clienteSeleccionado.id,
-        clienteForm
+        payload
       );
       setClienteSeleccionado(clienteActualizado);
       setMostrarModalCliente(false);
@@ -776,12 +829,7 @@ export default function RepartidorRapido() {
     setResumenEnvases(null);
     setClientesEncontrados([]);
     setBusquedaCliente('');
-    setClienteForm({
-      nombre: '',
-      telefono: '',
-      direccion: '',
-      email: '',
-    });
+    setClienteForm(CLIENTE_FORM_VACIO);
     setMostrarModalCliente(true);
     router.replace('/repartidor/rapido');
   }, [router, searchParams]);
@@ -858,15 +906,7 @@ export default function RepartidorRapido() {
                 <p className="text-sm text-gray-600">{clienteSeleccionado.telefono}</p>
               </div>
               <button
-                onClick={() => {
-                  setClienteForm({
-                    nombre: clienteSeleccionado.nombre,
-                    telefono: clienteSeleccionado.telefono,
-                    direccion: clienteSeleccionado.direccion || '',
-                    email: clienteSeleccionado.email || '',
-                  });
-                  setMostrarModalCliente(true);
-                }}
+                onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
                 className="p-2 text-blue-600 hover:text-blue-800"
               >
                 <PencilIcon className="w-6 h-6" />
@@ -939,7 +979,7 @@ export default function RepartidorRapido() {
           <button
             type="button"
             onClick={() => {
-              setClienteForm({ nombre: '', telefono: '', direccion: '', email: '' });
+              setClienteForm(CLIENTE_FORM_VACIO);
               setMostrarModalCliente(true);
             }}
             className="mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100"
@@ -1128,15 +1168,7 @@ export default function RepartidorRapido() {
               <span>Envases</span>
             </button>
             <button
-              onClick={() => {
-                setClienteForm({
-                  nombre: clienteSeleccionado.nombre,
-                  telefono: clienteSeleccionado.telefono,
-                  direccion: clienteSeleccionado.direccion || '',
-                  email: clienteSeleccionado.email || '',
-                });
-                setMostrarModalCliente(true);
-              }}
+              onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
               className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-gray-600 rounded-lg"
             >
               <PencilIcon className="w-6 h-6" />
@@ -1342,8 +1374,8 @@ function ModalCliente({
   cargando,
 }: {
   cliente: Cliente | null;
-  clienteForm: any;
-  setClienteForm: any;
+  clienteForm: ClienteFormData;
+  setClienteForm: React.Dispatch<React.SetStateAction<ClienteFormData>>;
   onGuardar: () => void;
   onCerrar: () => void;
   cargando: boolean;
@@ -1381,14 +1413,29 @@ function ModalCliente({
             />
           </div>
           <div>
-            <label htmlFor="direccion" className="block mb-1 text-sm font-medium text-gray-700">Dirección</label>
-            <input
-              type="text"
+            <AddressAutocomplete
+              label="Dirección"
+              placeholder="Buscar dirección en Río Cuarto"
               value={clienteForm.direccion}
-              onChange={(e) => setClienteForm({ ...clienteForm, direccion: e.target.value })}
-              className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-              placeholder="Dirección"
+              onChange={(address, lat, lon) =>
+                setClienteForm({
+                  ...clienteForm,
+                  direccion: address,
+                  latitud: lat,
+                  longitud: lon,
+                })
+              }
             />
+            {clienteForm.latitud && clienteForm.longitud && (
+              <p className="mt-1 text-xs text-green-600">
+                Ubicación detectada: {Number(clienteForm.latitud).toFixed(5)}, {Number(clienteForm.longitud).toFixed(5)}
+              </p>
+            )}
+            {clienteForm.direccion.trim() && !clienteForm.latitud && (
+              <p className="mt-1 text-xs text-gray-500">
+                Si no elegís una sugerencia, se geocodificará al guardar.
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="email" className="block mb-1 text-sm font-medium text-gray-700">Email</label>

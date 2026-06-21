@@ -26,7 +26,6 @@ interface RepartidorOption {
 interface EditFormState {
   role: UserRole;
   repartidor_id: string;
-  password: string;
 }
 
 const roleBadgeClass: Record<UserRole, string> = {
@@ -81,9 +80,13 @@ export default function CentroCuentasPage() {
   const [editForm, setEditForm] = useState<EditFormState>({
     role: USER_ROLES.ADMIN,
     repartidor_id: '',
-    password: '',
   });
   const [updating, setUpdating] = useState(false);
+
+  const [passwordChangeUser, setPasswordChangeUser] = useState<SessionUser | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const assignableRoles = useMemo(
     () => (currentUser?.role ? assignableRolesFor(currentUser.role) : []),
@@ -209,7 +212,6 @@ export default function CentroCuentasPage() {
     setEditForm({
       role: user.role,
       repartidor_id: user.repartidor_id || '',
-      password: '',
     });
     setError('');
     setSuccess('');
@@ -217,10 +219,24 @@ export default function CentroCuentasPage() {
 
   const closeEdit = () => {
     setEditingUser(null);
-    setEditForm({ role: USER_ROLES.ADMIN, repartidor_id: '', password: '' });
+    setEditForm({ role: USER_ROLES.ADMIN, repartidor_id: '' });
   };
 
-  const canEditUser = (user: SessionUser): boolean => {
+  const openPasswordChange = (user: SessionUser) => {
+    setPasswordChangeUser(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
+    setSuccess('');
+  };
+
+  const closePasswordChange = () => {
+    setPasswordChangeUser(null);
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const canManageUser = (user: SessionUser): boolean => {
     if (!currentUser) return false;
     if (currentUser.role === USER_ROLES.SUPERADMIN) return true;
     return user.role !== USER_ROLES.SUPERADMIN;
@@ -243,10 +259,6 @@ export default function CentroCuentasPage() {
         payload.repartidor_id = editForm.repartidor_id;
       }
 
-      if (editForm.password.trim()) {
-        payload.password = editForm.password;
-      }
-
       const response = await authFetch(createApiUrl(`api/users/${editingUser.id}`), {
         method: 'PUT',
         body: JSON.stringify(payload),
@@ -267,6 +279,44 @@ export default function CentroCuentasPage() {
     }
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordChangeUser) return;
+
+    if (newPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setChangingPassword(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await authFetch(createApiUrl(`api/users/${passwordChangeUser.id}`), {
+        method: 'PUT',
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'No se pudo cambiar la contraseña');
+      }
+
+      setSuccess(`Contraseña actualizada para ${passwordChangeUser.email}.`);
+      closePasswordChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cambiar la contraseña');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (!canManageAccounts) {
     return (
       <div className="p-6 bg-white rounded-xl shadow-sm">
@@ -284,7 +334,8 @@ export default function CentroCuentasPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Centro de cuentas</h1>
         <p className="mt-2 text-sm text-gray-600">
           Creá y administrá los accesos al sistema: repartidores, administradores
-          {isSuperAdmin ? ' y superadministradores' : ''}.
+          {isSuperAdmin ? ' y superadministradores' : ''}. Podés cambiar contraseñas de las cuentas
+          que tengas permiso para gestionar.
         </p>
       </div>
 
@@ -418,15 +469,24 @@ export default function CentroCuentasPage() {
                           : '—'}
                       </p>
                     </div>
-                    <div className="mt-3">
-                      {canEditUser(user) ? (
-                        <button
-                          type="button"
-                          onClick={() => openEdit(user)}
-                          className="w-full px-3 py-2 text-sm font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100"
-                        >
-                          Editar
-                        </button>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      {canManageUser(user) ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(user)}
+                            className="flex-1 px-3 py-2 text-sm font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPasswordChange(user)}
+                            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          >
+                            Cambiar contraseña
+                          </button>
+                        </>
                       ) : (
                         <span className="text-xs text-gray-400">Sin permiso para editar</span>
                       )}
@@ -471,14 +531,23 @@ export default function CentroCuentasPage() {
                           : '—'}
                       </td>
                       <td className="py-3">
-                        {canEditUser(user) ? (
-                          <button
-                            type="button"
-                            onClick={() => openEdit(user)}
-                            className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100"
-                          >
-                            Editar
-                          </button>
+                        {canManageUser(user) ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(user)}
+                              className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openPasswordChange(user)}
+                              className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                            >
+                              Cambiar contraseña
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-xs text-gray-400">Sin permiso</span>
                         )}
@@ -548,23 +617,6 @@ export default function CentroCuentasPage() {
               </div>
             )}
 
-            <div>
-              <label htmlFor="edit-password" className="block mb-1 text-sm font-medium text-gray-700">
-                Nueva contraseña (opcional)
-              </label>
-              <input
-                id="edit-password"
-                type="password"
-                value={editForm.password}
-                onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, password: e.target.value }))
-                }
-                className="w-full px-3 py-2 rounded-lg border border-gray-300"
-                minLength={6}
-                placeholder="Dejar vacío para no cambiar"
-              />
-            </div>
-
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
@@ -579,6 +631,69 @@ export default function CentroCuentasPage() {
                 className="flex-1 px-4 py-2 font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-60"
               >
                 {updating ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {passwordChangeUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <form
+            onSubmit={handlePasswordChange}
+            className="w-full max-w-md p-6 space-y-4 bg-white rounded-xl shadow-xl"
+          >
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Cambiar contraseña</h3>
+              <p className="text-sm text-gray-600">{passwordChangeUser.email}</p>
+            </div>
+
+            <div>
+              <label htmlFor="new-password" className="block mb-1 text-sm font-medium text-gray-700">
+                Nueva contraseña
+              </label>
+              <input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                minLength={6}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirm-password" className="block mb-1 text-sm font-medium text-gray-700">
+                Confirmar contraseña
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                minLength={6}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={closePasswordChange}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={changingPassword}
+                className="flex-1 px-4 py-2 font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-60"
+              >
+                {changingPassword ? 'Guardando...' : 'Actualizar contraseña'}
               </button>
             </div>
           </form>

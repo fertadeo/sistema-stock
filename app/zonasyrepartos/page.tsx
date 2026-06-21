@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import { coincideRepartidor } from '@/lib/map/repartidorMarkers';
+import { coincideRepartidor, buildRepartidorPalette } from '@/lib/map/repartidorMarkers';
+import { normalizarClienteConCoords } from '@/lib/map/clienteCoords';
 
 interface Cliente {
   id: number;
@@ -15,6 +16,13 @@ interface Cliente {
   dia_reparto: string;
   latitud: number;
   longitud: number;
+}
+
+interface Repartidor {
+  id: number;
+  nombre: string;
+  zona_reparto?: string;
+  activo?: boolean;
 }
 
 // Coordenadas de la empresa
@@ -71,6 +79,7 @@ const PageZonasyRepartos = () => {
   // Estados de negocio
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([]);
+  const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mostrarRuta, setMostrarRuta] = useState(false);
@@ -123,6 +132,18 @@ const PageZonasyRepartos = () => {
     }
   }, [filtroRepartidor]);
 
+  const fetchRepartidores = async () => {
+    try {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const lista = Array.isArray(data) ? data : [];
+      setRepartidores(lista.filter((item: Repartidor) => item.nombre?.trim()));
+    } catch (error) {
+      console.error('Error al cargar repartidores:', error);
+    }
+  };
+
   // Función para obtener los clientes
   const fetchClientes = async () => {
     try {
@@ -136,10 +157,9 @@ const PageZonasyRepartos = () => {
       const data = await response.json();
       console.log('Clientes obtenidos:', data);
       
-      // Filtrar solo los clientes que tienen coordenadas
-      const clientesConCoordenadas = data.filter((cliente: Cliente) => 
-        cliente.latitud && cliente.longitud
-      );
+      const clientesConCoordenadas = data
+        .map((cliente: Cliente) => normalizarClienteConCoords(cliente))
+        .filter((cliente: Cliente | null): cliente is Cliente => cliente !== null);
       
       setClientes(clientesConCoordenadas);
       setClientesFiltrados(clientesConCoordenadas);
@@ -162,10 +182,21 @@ const PageZonasyRepartos = () => {
     aplicarFiltros();
   }, [filtroDia, filtroRepartidor, filtroZona, busqueda]);
 
-  // Cargar clientes al montar el componente
+  // Cargar clientes y repartidores al montar el componente
   useEffect(() => {
-    fetchClientes();
+    void fetchClientes();
+    void fetchRepartidores();
   }, []);
+
+  const repartidorPalette = useMemo(
+    () => buildRepartidorPalette(repartidores.map((r) => r.nombre)),
+    [repartidores]
+  );
+
+  const repartidoresOptions = useMemo(
+    () => ['todos', ...repartidores.map((r) => r.nombre)],
+    [repartidores]
+  );
 
   useEffect(() => {
     if (!mostrarRuta) {
@@ -180,10 +211,6 @@ const PageZonasyRepartos = () => {
 
   // Obtener valores únicos para los selectores
   const diasUnicos = ['todos', ...Array.from(new Set(clientes.map(c => c.dia_reparto)))];
-  const repartidoresUnicos = ['todos', ...Array.from(new Set(clientes.map(c => {
-    if (c.repartidor && c.repartidor.toLowerCase().includes('david')) return 'David Schenatti';
-    return c.repartidor;
-  })))] ;
   const zonasUnicas = ['todos', ...Array.from(new Set(clientes.map(c => c.zona)))];
 
   // Agrega esta función para actualizar las coordenadas
@@ -603,7 +630,7 @@ const PageZonasyRepartos = () => {
               onChange={(e) => setFiltroRepartidor(e.target.value)}
               disabled={cargandoRuta}
             >
-              {repartidoresUnicos.map((repartidor) => (
+              {repartidoresOptions.map((repartidor) => (
                 <option key={repartidor} value={repartidor}>
                   {repartidor === 'todos' ? 'Todos los repartidores' : repartidor}
                 </option>
@@ -663,18 +690,15 @@ const PageZonasyRepartos = () => {
             <div className="p-3 mt-4 bg-gray-50 rounded-lg">
               <h3 className="mb-2 text-sm font-semibold">Leyenda de repartidores:</h3>
               <ul className="space-y-2 text-sm">
-                <li className="flex gap-2 items-center">
-                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                  <span>Axel</span>
-                </li>
-                <li className="flex gap-2 items-center">
-                  <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                  <span>Gustavo Careaga</span>
-                </li>
-                <li className="flex gap-2 items-center">
-                  <div className="w-4 h-4 bg-red-500 rounded-full"></div>
-                  <span>David Schenatti</span>
-                </li>
+                {repartidorPalette.map((item) => (
+                  <li key={item.nombre} className="flex gap-2 items-center">
+                    <div className={`w-4 h-4 rounded-full ${item.legendClass}`}></div>
+                    <span>{item.nombre}</span>
+                  </li>
+                ))}
+                {repartidorPalette.length === 0 && (
+                  <li className="text-gray-500">No hay repartidores registrados.</li>
+                )}
                 <li className="flex gap-2 items-center">
                   <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
                   <span>Clientes filtrados / pendientes de visita</span>
@@ -711,6 +735,7 @@ const PageZonasyRepartos = () => {
             rutaDetallada={rutaDetallada}
             onActualizarCoordenadas={actualizarCoordenadas}
             clientesAtendidos={clientesAtendidos}
+            repartidorPalette={repartidorPalette}
           />
         </div>
       </div>

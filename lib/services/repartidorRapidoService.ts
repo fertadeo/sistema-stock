@@ -498,6 +498,8 @@ class RepartidorRapidoService {
     direccion?: string;
     email?: string;
     dni?: string;
+    latitud?: string | number;
+    longitud?: string | number;
   }): Promise<any> {
     try {
       const response = await authFetch(this.buildApiUrl('/api/clientes'), {
@@ -520,6 +522,8 @@ class RepartidorRapidoService {
     telefono?: string;
     direccion?: string;
     email?: string;
+    latitud?: string | number;
+    longitud?: string | number;
   }): Promise<any> {
     try {
       const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {

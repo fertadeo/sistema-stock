@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GoogleMap, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { EMPRESA_COORDENADAS } from './GoogleMapsProvider';
-import { getMarkerIcon, MARKER_ICONS } from '@/lib/map/repartidorMarkers';
+import { getMarkerIcon, MARKER_ICONS, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
+import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
 
 interface Cliente {
   id: number;
@@ -30,6 +31,7 @@ interface MapComponentProps {
   rutaDetallada: [number, number][];
   onActualizarCoordenadas: (clienteId: number, lat: number, lon: number) => void;
   clientesAtendidos?: number[];
+  repartidorPalette?: RepartidorPaletteItem[];
 }
 
 const mapContainerStyle = { width: '100%', height: '100%' };
@@ -44,6 +46,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   rutaDetallada,
   onActualizarCoordenadas,
   clientesAtendidos = [],
+  repartidorPalette = [],
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -54,6 +57,30 @@ const MapComponent: React.FC<MapComponentProps> = ({
     direccion: string;
   } | null>(null);
   const [dragPosition, setDragPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  const clientesConCoords = useMemo(
+    () =>
+      clientes
+        .map((cliente) => {
+          const coords = tieneCoordenadasValidas(cliente.latitud, cliente.longitud);
+          if (!coords) return null;
+          return { ...cliente, latitud: coords.latitud, longitud: coords.longitud };
+        })
+        .filter((cliente): cliente is Cliente => cliente !== null),
+    [clientes]
+  );
+
+  useEffect(() => {
+    if (!map || clientesConCoords.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(EMPRESA_COORDENADAS);
+    clientesConCoords.forEach((cliente) => {
+      bounds.extend({ lat: cliente.latitud, lng: cliente.longitud });
+    });
+    map.fitBounds(bounds, 48);
+  }, [map, clientesConCoords]);
 
   const obtenerDireccion = async (lat: number, lon: number) => {
     try {
@@ -124,6 +151,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         mapContainerStyle={mapContainerStyle}
         center={EMPRESA_COORDENADAS}
         zoom={13}
+        onLoad={setMap}
         options={{
           streetViewControl: false,
           mapTypeControl: false,
@@ -153,7 +181,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           title="Sodería - Punto de partida"
         />
 
-        {clientes.map((cliente) => {
+        {clientesConCoords.map((cliente) => {
           const isEditing = editingClienteId === cliente.id;
           const position =
             isEditing && dragPosition
@@ -169,6 +197,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             mostrarRuta,
             enRuta,
             atendido,
+            palette: repartidorPalette,
           });
 
           return (
