@@ -1,49 +1,56 @@
-export const MARKER_ICONS = {
-  gris: 'http://maps.google.com/mapfiles/ms/icons/grey-dot.png',
-  empresa: 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
-} as const;
+import {
+  createPinIcon,
+  MarkerIconConfig,
+  PIN_ICONS,
+  REPARTIDOR_PIN_COLORS,
+} from './markerPinIcon';
+import { clienteCoincideFiltros, FiltrosCliente } from './clienteFiltros';
 
-const MARKER_ICON_URLS = [
-  'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/purple-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/orange-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/pink-dot.png',
-  'http://maps.google.com/mapfiles/ms/icons/lightblue-dot.png',
-] as const;
+export type { MarkerIconConfig };
+export const MARKER_ICONS = PIN_ICONS;
 
 export const LEGEND_COLOR_CLASSES = [
-  'bg-blue-500',
-  'bg-green-500',
-  'bg-red-500',
-  'bg-yellow-500',
-  'bg-purple-500',
-  'bg-orange-500',
-  'bg-pink-500',
-  'bg-sky-400',
+  'bg-blue-600',
+  'bg-green-600',
+  'bg-red-600',
+  'bg-purple-600',
+  'bg-orange-600',
+  'bg-pink-600',
+  'bg-cyan-600',
+  'bg-indigo-600',
 ] as const;
 
 export type RepartidorPaletteItem = {
   nombre: string;
-  iconUrl: string;
+  color: string;
+  icon: MarkerIconConfig;
   legendClass: string;
 };
 
-export function buildRepartidorPalette(nombres: string[]): RepartidorPaletteItem[] {
-  return nombres.map((nombre, index) => ({
-    nombre,
-    iconUrl: MARKER_ICON_URLS[index % MARKER_ICON_URLS.length],
-    legendClass: LEGEND_COLOR_CLASSES[index % LEGEND_COLOR_CLASSES.length],
-  }));
+export function buildRepartidorPalette(nombres: Array<string | null | undefined>): RepartidorPaletteItem[] {
+  return nombres
+    .map((nombre) => (typeof nombre === 'string' ? nombre.trim() : ''))
+    .filter((nombre): nombre is string => nombre.length > 0)
+    .map((nombre, index) => {
+    const color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
+    return {
+      nombre,
+      color,
+      icon: createPinIcon(color, 'cliente'),
+      legendClass: LEGEND_COLOR_CLASSES[index % LEGEND_COLOR_CLASSES.length],
+    };
+  });
 }
 
-function normalizeRepartidorName(name: string): string {
+function normalizeRepartidorName(name: string | null | undefined): string {
+  if (name == null || typeof name !== 'string') return '';
   return name.trim().toLowerCase();
 }
 
-export function nombresCoinciden(a: string, b: string): boolean {
+export function nombresCoinciden(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
   const nombreA = normalizeRepartidorName(a);
   const nombreB = normalizeRepartidorName(b);
   if (!nombreA || !nombreB) return false;
@@ -51,62 +58,84 @@ export function nombresCoinciden(a: string, b: string): boolean {
   return nombreA.includes(nombreB) || nombreB.includes(nombreA);
 }
 
-export function coincideRepartidor(clienteRepartidor: string, filtroRepartidor: string): boolean {
+export function coincideRepartidor(
+  clienteRepartidor: string | null | undefined,
+  filtroRepartidor: string | null | undefined
+): boolean {
   if (!filtroRepartidor || filtroRepartidor === 'todos') return true;
   if (!clienteRepartidor?.trim()) return false;
   return nombresCoinciden(clienteRepartidor, filtroRepartidor);
 }
 
 function findPaletteItem(
-  repartidor: string,
+  repartidor: string | null | undefined,
   palette: RepartidorPaletteItem[]
 ): RepartidorPaletteItem | undefined {
+  if (!normalizeRepartidorName(repartidor)) return undefined;
   return palette.find((item) => nombresCoinciden(repartidor, item.nombre));
 }
 
 export function getRepartidorIcon(
-  repartidor: string,
+  repartidor: string | null | undefined,
   palette: RepartidorPaletteItem[] = []
-): string {
+): MarkerIconConfig {
+  if (!normalizeRepartidorName(repartidor)) {
+    return MARKER_ICONS.gris;
+  }
   const item = findPaletteItem(repartidor, palette);
-  if (item) return item.iconUrl;
-  if (palette.length > 0) return palette[0].iconUrl;
-  return MARKER_ICON_URLS[0];
+  if (item) return item.icon;
+  if (palette.length > 0) return palette[0].icon;
+  return createPinIcon(REPARTIDOR_PIN_COLORS[0], 'cliente');
 }
 
 interface ClienteMapa {
   id: number;
-  repartidor: string;
+  repartidor?: string | null;
+  dia_reparto?: string | null;
+  zona?: string | number | null;
+  nombre?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
 }
 
 export function getMarkerIcon(
   cliente: ClienteMapa,
   options: {
-    repartidorSeleccionado?: string;
+    filtros?: FiltrosCliente;
     mostrarRuta?: boolean;
     enRuta?: boolean;
     atendido?: boolean;
     palette?: RepartidorPaletteItem[];
+    incluidoManualmente?: boolean;
   }
-): string {
-  const { repartidorSeleccionado, mostrarRuta, enRuta, atendido, palette = [] } = options;
+): MarkerIconConfig {
+  const {
+    filtros,
+    mostrarRuta,
+    enRuta,
+    atendido,
+    palette = [],
+    incluidoManualmente = false,
+  } = options;
+
+  const coincide =
+    incluidoManualmente || !filtros || clienteCoincideFiltros(cliente, filtros);
 
   if (mostrarRuta && enRuta) {
     if (!atendido) {
       return MARKER_ICONS.gris;
     }
     const repartidorColor =
-      repartidorSeleccionado && repartidorSeleccionado !== 'todos'
-        ? repartidorSeleccionado
+      filtros?.repartidor && filtros.repartidor !== 'todos'
+        ? filtros.repartidor
         : cliente.repartidor;
     return getRepartidorIcon(repartidorColor, palette);
   }
 
-  if (repartidorSeleccionado) {
-    if (!coincideRepartidor(cliente.repartidor, repartidorSeleccionado) && cliente.repartidor?.trim()) {
-      return MARKER_ICONS.gris;
-    }
-  } else if (!cliente.repartidor?.trim()) {
+  if (!coincide) {
+    return MARKER_ICONS.gris;
+  }
+  if (!cliente.repartidor?.trim()) {
     return MARKER_ICONS.gris;
   }
 

@@ -4,17 +4,22 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GoogleMap, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { EMPRESA_COORDENADAS } from './GoogleMapsProvider';
-import { getMarkerIcon, MARKER_ICONS, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
+import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
 import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
+import {
+  clienteCoincideFiltros,
+  FiltrosCliente,
+  hayFiltrosActivos,
+} from '@/lib/map/clienteFiltros';
 
 interface Cliente {
   id: number;
   nombre: string;
   direccion: string;
   telefono: string;
-  zona: string;
-  repartidor: string;
-  dia_reparto: string;
+  zona: string | number | null;
+  repartidor: string | null;
+  dia_reparto: string | null;
   latitud: number;
   longitud: number;
 }
@@ -27,7 +32,8 @@ interface MapComponentProps {
   onToggleOmitirCliente: (clienteId: number) => void;
   onGenerarRuta: (clientesPersonalizados?: Cliente[]) => Promise<void>;
   onLimpiarRuta: () => void;
-  repartidorSeleccionado?: string;
+  filtrosMapa?: FiltrosCliente;
+  clientesIncluidos?: number[];
   rutaDetallada: [number, number][];
   onActualizarCoordenadas: (clienteId: number, lat: number, lon: number) => void;
   clientesAtendidos?: number[];
@@ -36,13 +42,22 @@ interface MapComponentProps {
 
 const mapContainerStyle = { width: '100%', height: '100%' };
 
+function toGoogleMarkerIcon(icon: MarkerIconConfig): google.maps.Icon {
+  return {
+    url: icon.url,
+    scaledSize: new google.maps.Size(icon.scaledSize.width, icon.scaledSize.height),
+    anchor: new google.maps.Point(icon.anchor.x, icon.anchor.y),
+  };
+}
+
 const MapComponent: React.FC<MapComponentProps> = ({
   clientes,
   mostrarRuta,
   rutaOptimizada,
   clientesOmitidos,
   onToggleOmitirCliente,
-  repartidorSeleccionado,
+  filtrosMapa,
+  clientesIncluidos = [],
   rutaDetallada,
   onActualizarCoordenadas,
   clientesAtendidos = [],
@@ -71,16 +86,26 @@ const MapComponent: React.FC<MapComponentProps> = ({
     [clientes]
   );
 
+  const clientesParaVista = useMemo(() => {
+    if (!filtrosMapa || !hayFiltrosActivos(filtrosMapa)) {
+      return clientesConCoords;
+    }
+    return clientesConCoords.filter(
+      (cliente) =>
+        clientesIncluidos.includes(cliente.id) || clienteCoincideFiltros(cliente, filtrosMapa)
+    );
+  }, [clientesConCoords, filtrosMapa, clientesIncluidos]);
+
   useEffect(() => {
-    if (!map || clientesConCoords.length === 0) return;
+    if (!map || clientesParaVista.length === 0) return;
 
     const bounds = new google.maps.LatLngBounds();
     bounds.extend(EMPRESA_COORDENADAS);
-    clientesConCoords.forEach((cliente) => {
+    clientesParaVista.forEach((cliente) => {
       bounds.extend({ lat: cliente.latitud, lng: cliente.longitud });
     });
     map.fitBounds(bounds, 48);
-  }, [map, clientesConCoords]);
+  }, [map, clientesParaVista]);
 
   const obtenerDireccion = async (lat: number, lon: number) => {
     try {
@@ -177,7 +202,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
         <Marker
           position={EMPRESA_COORDENADAS}
-          icon={MARKER_ICONS.empresa}
+          icon={toGoogleMarkerIcon(MARKER_ICONS.empresa)}
           title="Sodería - Punto de partida"
         />
 
@@ -192,19 +217,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
             rutaOptimizada.some((c) => c.id === cliente.id) &&
             !clientesOmitidos.includes(cliente.id);
           const atendido = clientesAtendidos.includes(cliente.id);
-          const iconUrl = getMarkerIcon(cliente, {
-            repartidorSeleccionado,
+          const incluidoManualmente = clientesIncluidos.includes(cliente.id);
+          const markerIcon = getMarkerIcon(cliente, {
+            filtros: filtrosMapa,
             mostrarRuta,
             enRuta,
             atendido,
             palette: repartidorPalette,
+            incluidoManualmente,
           });
 
           return (
             <Marker
               key={cliente.id}
               position={position}
-              icon={iconUrl}
+              icon={toGoogleMarkerIcon(markerIcon)}
               draggable={isEditing}
               onClick={() => setSelectedCliente(cliente)}
               onDragEnd={(e) => {

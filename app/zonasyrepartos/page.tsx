@@ -3,17 +3,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import { coincideRepartidor, buildRepartidorPalette } from '@/lib/map/repartidorMarkers';
+import { buildRepartidorPalette, MARKER_ICONS } from '@/lib/map/repartidorMarkers';
 import { normalizarClienteConCoords } from '@/lib/map/clienteCoords';
+import {
+  clienteCoincideFiltros,
+  clienteIncluidoEnRuta,
+  filtrarClientes,
+  FiltrosCliente,
+} from '@/lib/map/clienteFiltros';
+import diasRepartoData from '@/components/soderia-data/diareparto.json';
 
 interface Cliente {
   id: number;
   nombre: string;
   direccion: string;
   telefono: string;
-  zona: string;
-  repartidor: string;
-  dia_reparto: string;
+  zona: string | number | null;
+  repartidor: string | null;
+  dia_reparto: string | null;
   latitud: number;
   longitud: number;
 }
@@ -78,7 +85,6 @@ const MapComponent = dynamic(() => import('@/components/MapComponent'), {
 const PageZonasyRepartos = () => {
   // Estados de negocio
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([]);
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +168,6 @@ const PageZonasyRepartos = () => {
         .filter((cliente: Cliente | null): cliente is Cliente => cliente !== null);
       
       setClientes(clientesConCoordenadas);
-      setClientesFiltrados(clientesConCoordenadas);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
       setError('Error al cargar los clientes');
@@ -171,16 +176,30 @@ const PageZonasyRepartos = () => {
     }
   };
 
-  // Modificar la función aplicarFiltros para que no filtre, solo marque
-  const aplicarFiltros = () => {
-    let resultado = [...clientes];
-    setClientesFiltrados(resultado);
-  };
+  const filtrosMapa = useMemo<FiltrosCliente>(
+    () => ({
+      dia: filtroDia,
+      repartidor: filtroRepartidor,
+      zona: filtroZona,
+      busqueda,
+    }),
+    [filtroDia, filtroRepartidor, filtroZona, busqueda]
+  );
 
-  // Aplicar filtros cuando cambien los valores
-  useEffect(() => {
-    aplicarFiltros();
-  }, [filtroDia, filtroRepartidor, filtroZona, busqueda]);
+  const clientesFiltrados = useMemo(
+    () => filtrarClientes(clientes, filtrosMapa),
+    [clientes, filtrosMapa]
+  );
+
+  const clientesParaRuta = useCallback(
+    () =>
+      clientes.filter(
+        (cliente) =>
+          !clientesOmitidos.includes(cliente.id) &&
+          clienteIncluidoEnRuta(cliente, filtrosMapa, clientesIncluidos)
+      ),
+    [clientes, clientesOmitidos, filtrosMapa, clientesIncluidos]
+  );
 
   // Cargar clientes y repartidores al montar el componente
   useEffect(() => {
@@ -194,7 +213,12 @@ const PageZonasyRepartos = () => {
   );
 
   const repartidoresOptions = useMemo(
-    () => ['todos', ...repartidores.map((r) => r.nombre)],
+    () => [
+      'todos',
+      ...repartidores
+        .map((r) => (typeof r.nombre === 'string' ? r.nombre.trim() : ''))
+        .filter((nombre): nombre is string => nombre.length > 0),
+    ],
     [repartidores]
   );
 
@@ -209,9 +233,30 @@ const PageZonasyRepartos = () => {
     return () => clearInterval(interval);
   }, [mostrarRuta, fetchClientesAtendidos]);
 
-  // Obtener valores únicos para los selectores
-  const diasUnicos = ['todos', ...Array.from(new Set(clientes.map(c => c.dia_reparto)))];
-  const zonasUnicas = ['todos', ...Array.from(new Set(clientes.map(c => c.zona)))];
+  const diasOptions = useMemo(() => {
+    const diasEnClientes = clientes
+      .map((c) => (typeof c.dia_reparto === 'string' ? c.dia_reparto.trim() : ''))
+      .filter((dia): dia is string => dia.length > 0);
+    const diasCanon = diasRepartoData.diasReparto;
+    const extras = diasEnClientes.filter(
+      (dia) => !diasCanon.some((canon) => canon.toLowerCase() === dia.toLowerCase())
+    );
+    return ['todos', ...diasCanon, ...Array.from(new Set(extras))];
+  }, [clientes]);
+
+  const zonasUnicas = useMemo(
+    () => [
+      'todos',
+      ...Array.from(
+        new Set(
+          clientes
+            .map((c) => (c.zona != null && c.zona !== '' ? String(c.zona).trim() : ''))
+            .filter((zona): zona is string => zona.length > 0)
+        )
+      ),
+    ],
+    [clientes]
+  );
 
   // Agrega esta función para actualizar las coordenadas
   const actualizarCoordenadas = async (clienteId: number, lat: number, lon: number) => {
@@ -228,11 +273,6 @@ const PageZonasyRepartos = () => {
 
       // Actualizar el estado local
       setClientes(prev => prev.map(cliente => 
-        cliente.id === clienteId 
-          ? { ...cliente, latitud: lat, longitud: lon }
-          : cliente
-      ));
-      setClientesFiltrados(prev => prev.map(cliente => 
         cliente.id === clienteId 
           ? { ...cliente, latitud: lat, longitud: lon }
           : cliente
@@ -336,18 +376,10 @@ const PageZonasyRepartos = () => {
       
       // Si el cliente no coincide con los filtros actuales, agregarlo a incluidos
       const cliente = clientes.find(c => c.id === clienteId);
-      if (cliente) {
-        const coincideConFiltros = (
-          (filtroDia === 'todos' || cliente.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-          (filtroRepartidor === 'todos' || coincideRepartidor(cliente.repartidor, filtroRepartidor)) &&
-          (filtroZona === 'todos' || cliente.zona === filtroZona)
+      if (cliente && !clienteCoincideFiltros(cliente, filtrosMapa)) {
+        setClientesIncluidos(prev =>
+          prev.includes(clienteId) ? prev : [...prev, clienteId]
         );
-        
-        if (!coincideConFiltros) {
-          setClientesIncluidos(prev => 
-            prev.includes(clienteId) ? prev : [...prev, clienteId]
-          );
-        }
       }
       
       return nuevosOmitidos;
@@ -355,30 +387,11 @@ const PageZonasyRepartos = () => {
   };
 
   // Efecto para regenerar la ruta cuando cambian los clientes omitidos
+  // Regenerar ruta al cambiar filtros u omitidos (sin recalcular al activar la ruta por primera vez)
   useEffect(() => {
-    if (mostrarRuta) {
-      const clientesParaRuta = clientes.filter(c =>
-        !clientesOmitidos.includes(c.id) &&
-        (
-          clientesIncluidos.includes(c.id) ||
-          (
-            (filtroDia === 'todos' || c.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-            (filtroRepartidor === 'todos' || coincideRepartidor(c.repartidor, filtroRepartidor)) &&
-            (filtroZona === 'todos' || c.zona === filtroZona)
-          )
-        )
-      );
-      generarRutaEnMapa(clientesParaRuta);
-    }
-  }, [
-    clientesOmitidos,
-    mostrarRuta,
-    filtroDia,
-    filtroRepartidor,
-    filtroZona,
-    clientesIncluidos,
-    clientes // si los clientes pueden cambiar dinámicamente
-  ]);
+    if (!mostrarRuta) return;
+    void generarRutaEnMapa(clientesParaRuta());
+  }, [clientesOmitidos, filtrosMapa, clientesIncluidos, clientes]);
 
   // Función para obtener las coordenadas de la ruta
   const obtenerCoordenadasRuta = () => {
@@ -465,25 +478,15 @@ const PageZonasyRepartos = () => {
 
   // Nuevo método para solo generar la ruta en el mapa
   const generarRutaEnMapa = async (clientesPersonalizados?: Cliente[]) => {
-    const clientesParaRuta = clientesPersonalizados ||
-      clientes.filter(c =>
-        !clientesOmitidos.includes(c.id) &&
-        (
-          // Incluidos manualmente (aunque estén en gris)
-          clientesIncluidos.includes(c.id)
-          // O cumplen todos los filtros
-          || (
-            (filtroDia === 'todos' || c.dia_reparto.toLowerCase().includes(filtroDia.toLowerCase())) &&
-            (filtroRepartidor === 'todos' || coincideRepartidor(c.repartidor, filtroRepartidor)) &&
-            (filtroZona === 'todos' || c.zona === filtroZona)
-          )
-        )
-      );
-    
-    if (clientesParaRuta.length === 0) return;
+    const seleccionados = clientesPersonalizados ?? clientesParaRuta();
+
+    if (seleccionados.length === 0) {
+      alert('No hay clientes que coincidan con los filtros seleccionados.');
+      return;
+    }
     
     setCargandoRuta(true);
-    const ruta = optimizarRuta(clientesParaRuta);
+    const ruta = optimizarRuta(seleccionados);
     setRutaOptimizada(ruta);
     setMostrarRuta(true);
     const resultadoRuta = await obtenerRutaCompleta(ruta);
@@ -615,7 +618,7 @@ const PageZonasyRepartos = () => {
               onChange={(e) => setFiltroDia(e.target.value)}
               disabled={cargandoRuta}
             >
-              {diasUnicos.map((dia) => (
+              {diasOptions.map((dia) => (
                 <option key={dia} value={dia}>
                   {dia === 'todos' ? 'Todos los días' : dia}
                 </option>
@@ -692,7 +695,12 @@ const PageZonasyRepartos = () => {
               <ul className="space-y-2 text-sm">
                 {repartidorPalette.map((item) => (
                   <li key={item.nombre} className="flex gap-2 items-center">
-                    <div className={`w-4 h-4 rounded-full ${item.legendClass}`}></div>
+                    <img
+                      src={item.icon.url}
+                      alt=""
+                      className="w-4 h-auto drop-shadow-sm"
+                      aria-hidden
+                    />
                     <span>{item.nombre}</span>
                   </li>
                 ))}
@@ -700,12 +708,31 @@ const PageZonasyRepartos = () => {
                   <li className="text-gray-500">No hay repartidores registrados.</li>
                 )}
                 <li className="flex gap-2 items-center">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
-                  <span>Clientes filtrados / pendientes de visita</span>
+                  <img
+                    src={MARKER_ICONS.gris.url}
+                    alt=""
+                    className="w-4 h-auto drop-shadow-sm"
+                    aria-hidden
+                  />
+                  <span>Clientes fuera del filtro / pendientes de visita</span>
                 </li>
                 <li className="flex gap-2 items-center">
-                  <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
+                  <img
+                    src={MARKER_ICONS.gris.url}
+                    alt=""
+                    className="w-4 h-auto drop-shadow-sm"
+                    aria-hidden
+                  />
                   <span>Clientes sin repartidor asignado</span>
+                </li>
+                <li className="flex gap-2 items-center">
+                  <img
+                    src={MARKER_ICONS.empresa.url}
+                    alt=""
+                    className="w-4 h-auto drop-shadow-sm"
+                    aria-hidden
+                  />
+                  <span>Sodería (punto de partida)</span>
                 </li>
               </ul>
             </div>
@@ -731,7 +758,8 @@ const PageZonasyRepartos = () => {
             onToggleOmitirCliente={toggleOmitirCliente}
             onGenerarRuta={generarRutaEnMapa}
             onLimpiarRuta={limpiarRuta}
-            repartidorSeleccionado={filtroRepartidor !== 'todos' ? filtroRepartidor : undefined}
+            filtrosMapa={filtrosMapa}
+            clientesIncluidos={clientesIncluidos}
             rutaDetallada={rutaDetallada}
             onActualizarCoordenadas={actualizarCoordenadas}
             clientesAtendidos={clientesAtendidos}
