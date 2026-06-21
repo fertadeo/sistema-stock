@@ -35,6 +35,30 @@ const roleBadgeClass: Record<UserRole, string> = {
   [USER_ROLES.REPARTIDOR]: 'bg-amber-100 text-amber-800',
 };
 
+function parseRepartidoresList(payload: unknown): RepartidorOption[] {
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { data?: unknown[] })?.data)
+      ? (payload as { data: unknown[] }).data
+      : [];
+
+  return list
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = row.id != null ? String(row.id) : '';
+      const nombre = typeof row.nombre === 'string' ? row.nombre.trim() : '';
+      if (!id || !nombre) return null;
+
+      return {
+        id,
+        nombre,
+        zona_reparto: typeof row.zona_reparto === 'string' ? row.zona_reparto : undefined,
+        activo: row.activo === true || row.activo === 1,
+      };
+    })
+    .filter((item): item is RepartidorOption => item !== null);
+}
+
 export default function CentroCuentasPage() {
   const { user: currentUser, isSuperAdmin, canManageAccounts } = useAuth();
 
@@ -42,6 +66,7 @@ export default function CentroCuentasPage() {
   const [repartidores, setRepartidores] = useState<RepartidorOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [repartidoresError, setRepartidoresError] = useState('');
   const [success, setSuccess] = useState('');
 
   const [email, setEmail] = useState('');
@@ -72,37 +97,59 @@ export default function CentroCuentasPage() {
     [repartidores]
   );
 
+  const loadRepartidores = async () => {
+    setRepartidoresError('');
+    try {
+      const response = await authFetch(createApiUrl('api/repartidores?todos=1'));
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'No se pudieron cargar los repartidores');
+      }
+
+      const lista = parseRepartidoresList(data);
+      setRepartidores(lista);
+
+      if (lista.length === 0) {
+        setRepartidoresError('No hay repartidores activos registrados. Creá uno en Ventas > Repartidor.');
+      }
+    } catch (err) {
+      setRepartidores([]);
+      setRepartidoresError(
+        err instanceof Error ? err.message : 'Error al cargar repartidores'
+      );
+    }
+  };
+
+  const loadUsers = async () => {
+    const response = await authFetch(createApiUrl('api/users'));
+    const data = await response.json();
+
+    if (!response.ok) {
+      const message = data.message || 'No se pudieron cargar los usuarios';
+      if (response.status === 403) {
+        throw new Error(
+          `${message}. Tu rol actual: ${currentUser?.role_label || 'desconocido'}. Cerrá sesión e ingresá de nuevo.`
+        );
+      }
+      throw new Error(message);
+    }
+
+    setUsers(data.data || []);
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError('');
+    setRepartidoresError('');
+
+    await loadRepartidores();
+
     try {
-      const [usersResponse, repartidoresResponse] = await Promise.all([
-        authFetch(createApiUrl('api/users')),
-        authFetch(createApiUrl('api/repartidores')),
-      ]);
-
-      const usersData = await usersResponse.json();
-      const repartidoresData = await repartidoresResponse.json();
-
-      if (!usersResponse.ok) {
-        const message = usersData.message || 'No se pudieron cargar los usuarios';
-        if (usersResponse.status === 403) {
-          throw new Error(
-            `${message}. Tu rol actual: ${currentUser?.role_label || 'desconocido'}. Cerrá sesión e ingresá de nuevo.`
-          );
-        }
-        throw new Error(message);
-      }
-
-      setUsers(usersData.data || []);
-
-      if (Array.isArray(repartidoresData)) {
-        setRepartidores(repartidoresData);
-      } else if (Array.isArray(repartidoresData?.data)) {
-        setRepartidores(repartidoresData.data);
-      }
+      await loadUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar datos');
+      setUsers([]);
+      setError(err instanceof Error ? err.message : 'Error al cargar usuarios');
     } finally {
       setLoading(false);
     }
@@ -248,6 +295,12 @@ export default function CentroCuentasPage() {
       {success && (
         <div className="p-4 text-sm text-green-700 bg-green-50 rounded-xl border border-green-200">
           {success}
+        </div>
+      )}
+
+      {repartidoresError && (
+        <div className="p-4 text-sm text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
+          {repartidoresError}
         </div>
       )}
 
