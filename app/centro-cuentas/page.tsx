@@ -85,7 +85,13 @@ export default function CentroCuentasPage() {
       const repartidoresData = await repartidoresResponse.json();
 
       if (!usersResponse.ok) {
-        throw new Error(usersData.message || 'No se pudieron cargar los usuarios');
+        const message = usersData.message || 'No se pudieron cargar los usuarios';
+        if (usersResponse.status === 403) {
+          throw new Error(
+            `${message}. Tu rol actual: ${currentUser?.role_label || 'desconocido'}. Cerrá sesión e ingresá de nuevo.`
+          );
+        }
+        throw new Error(message);
       }
 
       setUsers(usersData.data || []);
