@@ -103,6 +103,7 @@ export function getMarkerIcon(
   options: {
     filtros?: FiltrosCliente;
     mostrarRuta?: boolean;
+    seguirRecorrido?: boolean;
     enRuta?: boolean;
     atendido?: boolean;
     palette?: RepartidorPaletteItem[];
@@ -112,6 +113,7 @@ export function getMarkerIcon(
   const {
     filtros,
     mostrarRuta,
+    seguirRecorrido,
     enRuta,
     atendido,
     palette = [],
@@ -120,6 +122,17 @@ export function getMarkerIcon(
 
   const coincide =
     incluidoManualmente || !filtros || clienteCoincideFiltros(cliente, filtros);
+
+  if (seguirRecorrido && coincide) {
+    if (!atendido) {
+      return MARKER_ICONS.gris;
+    }
+    const repartidorColor =
+      filtros?.repartidor && filtros.repartidor !== 'todos'
+        ? filtros.repartidor
+        : cliente.repartidor;
+    return getRepartidorIcon(repartidorColor, palette);
+  }
 
   if (mostrarRuta && enRuta) {
     if (!atendido) {

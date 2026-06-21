@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { buildRepartidorPalette, MARKER_ICONS } from '@/lib/map/repartidorMarkers';
 import { normalizarClienteConCoords } from '@/lib/map/clienteCoords';
+import { repartidorRapidoService } from '@/lib/services/repartidorRapidoService';
 import {
   clienteCoincideFiltros,
   clienteIncluidoEnRuta,
@@ -120,21 +121,37 @@ const PageZonasyRepartos = () => {
   // Agregar nuevo estado para clientes incluidos manualmente
   const [clientesIncluidos, setClientesIncluidos] = useState<number[]>([]);
   const [clientesAtendidos, setClientesAtendidos] = useState<number[]>([]);
+  const [seguirRecorrido, setSeguirRecorrido] = useState(false);
+  const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
+    latitud: number;
+    longitud: number;
+    repartidor_nombre: string;
+    en_linea: boolean;
+    actualizado_at: string;
+  } | null>(null);
 
   const fetchClientesAtendidos = useCallback(async () => {
     try {
-      const params =
-        filtroRepartidor !== 'todos'
-          ? `?repartidor=${encodeURIComponent(filtroRepartidor)}`
-          : '';
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidor-rapido/clientes-atendidos-hoy${params}`
-      );
-      if (!response.ok) return;
-      const data = await response.json();
-      setClientesAtendidos(data.cliente_ids || []);
+      const repartidorParam =
+        filtroRepartidor !== 'todos' ? filtroRepartidor : undefined;
+      const ids = await repartidorRapidoService.obtenerClientesAtendidosHoy(repartidorParam);
+      setClientesAtendidos(ids);
     } catch (error) {
       console.error('Error al cargar clientes atendidos:', error);
+    }
+  }, [filtroRepartidor]);
+
+  const fetchUbicacionRepartidor = useCallback(async () => {
+    if (filtroRepartidor === 'todos') {
+      setRepartidorUbicacion(null);
+      return;
+    }
+
+    try {
+      const ubicacion = await repartidorRapidoService.obtenerUbicacionRepartidor(filtroRepartidor);
+      setRepartidorUbicacion(ubicacion);
+    } catch (error) {
+      console.error('Error al cargar ubicación del repartidor:', error);
     }
   }, [filtroRepartidor]);
 
@@ -191,6 +208,29 @@ const PageZonasyRepartos = () => {
     [clientes, filtrosMapa]
   );
 
+  const clientesAtendidosFiltrados = useMemo(
+    () => clientesFiltrados.filter((c) => clientesAtendidos.includes(c.id)).length,
+    [clientesFiltrados, clientesAtendidos]
+  );
+
+  const activarSeguirRecorrido = () => {
+    if (filtroRepartidor === 'todos') {
+      alert('Seleccioná un repartidor para seguir su recorrido.');
+      return;
+    }
+    setSeguirRecorrido(true);
+    void fetchClientesAtendidos();
+    void fetchUbicacionRepartidor();
+  };
+
+  const detenerSeguirRecorrido = () => {
+    setSeguirRecorrido(false);
+    setRepartidorUbicacion(null);
+    if (!mostrarRuta) {
+      setClientesAtendidos([]);
+    }
+  };
+
   const clientesParaRuta = useCallback(
     () =>
       clientes.filter(
@@ -223,15 +263,26 @@ const PageZonasyRepartos = () => {
   );
 
   useEffect(() => {
-    if (!mostrarRuta) {
+    if (!mostrarRuta && !seguirRecorrido) {
       setClientesAtendidos([]);
       return;
     }
 
-    fetchClientesAtendidos();
-    const interval = setInterval(fetchClientesAtendidos, 15000);
+    void fetchClientesAtendidos();
+    const interval = setInterval(fetchClientesAtendidos, 25000);
     return () => clearInterval(interval);
-  }, [mostrarRuta, fetchClientesAtendidos]);
+  }, [mostrarRuta, seguirRecorrido, fetchClientesAtendidos]);
+
+  useEffect(() => {
+    if (!seguirRecorrido) {
+      setRepartidorUbicacion(null);
+      return;
+    }
+
+    void fetchUbicacionRepartidor();
+    const interval = setInterval(fetchUbicacionRepartidor, 30000);
+    return () => clearInterval(interval);
+  }, [seguirRecorrido, fetchUbicacionRepartidor]);
 
   const diasOptions = useMemo(() => {
     const diasEnClientes = clientes
@@ -637,6 +688,17 @@ const PageZonasyRepartos = () => {
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-2">
               <button
+                className={`px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white rounded w-full sm:w-auto ${
+                  seguirRecorrido
+                    ? 'bg-teal-700 hover:bg-teal-800 ring-2 ring-teal-300'
+                    : 'bg-teal-600 hover:bg-teal-700'
+                }`}
+                onClick={() => (seguirRecorrido ? detenerSeguirRecorrido() : activarSeguirRecorrido())}
+                disabled={cargandoRuta}
+              >
+                {seguirRecorrido ? 'Detener seguimiento' : 'Seguir recorrido'}
+              </button>
+              <button
                 className="px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white bg-blue-500 rounded hover:bg-blue-600 w-full sm:w-auto"
                 onClick={() => generarRutaEnMapa()}
               >
@@ -670,6 +732,19 @@ const PageZonasyRepartos = () => {
 
           <div className="mt-8">
             <h2 className="mb-2 font-semibold">Total de clientes: {clientesFiltrados.length}</h2>
+            {seguirRecorrido && (
+              <div className="p-3 mb-4 text-sm rounded-lg border border-teal-200 bg-teal-50">
+                <p className="font-semibold text-teal-900">Seguimiento activo — {filtroRepartidor}</p>
+                <p className="text-teal-800">
+                  Atendidos hoy: {clientesAtendidosFiltrados} / {clientesFiltrados.length}
+                </p>
+                <p className="text-teal-700">
+                  {repartidorUbicacion?.en_linea
+                    ? `Ubicación en vivo (${new Date(repartidorUbicacion.actualizado_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })})`
+                    : 'Sin señal GPS reciente del repartidor (últimas 2 h)'}
+                </p>
+              </div>
+            )}
             <div className="p-3 mt-4 bg-gray-50 rounded-lg">
               <h3 className="mb-2 text-sm font-semibold">Leyenda de repartidores:</h3>
               <ul className="space-y-2 text-sm">
@@ -694,7 +769,25 @@ const PageZonasyRepartos = () => {
                     className="w-4 h-auto drop-shadow-sm"
                     aria-hidden
                   />
-                  <span>Clientes fuera del filtro / pendientes de visita</span>
+                  <span>Pendiente de atención hoy</span>
+                </li>
+                <li className="flex gap-2 items-center">
+                  <img
+                    src={MARKER_ICONS.repartidorActivo.url}
+                    alt=""
+                    className="w-4 h-auto drop-shadow-sm"
+                    aria-hidden
+                  />
+                  <span>Repartidor en vivo</span>
+                </li>
+                <li className="flex gap-2 items-center">
+                  <img
+                    src={MARKER_ICONS.gris.url}
+                    alt=""
+                    className="w-4 h-auto drop-shadow-sm"
+                    aria-hidden
+                  />
+                  <span>Clientes fuera del filtro</span>
                 </li>
                 <li className="flex gap-2 items-center">
                   <img
@@ -745,6 +838,8 @@ const PageZonasyRepartos = () => {
             clientesAtendidos={clientesAtendidos}
             repartidorPalette={repartidorPalette}
             repartidores={repartidores}
+            seguirRecorrido={seguirRecorrido}
+            repartidorUbicacion={repartidorUbicacion}
           />
         </div>
       </div>

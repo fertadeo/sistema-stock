@@ -1024,6 +1024,60 @@ class RepartidorRapidoService {
       return { success: false, message: 'Error de conexión' };
     }
   }
+
+  async enviarUbicacion(latitud: number, longitud: number): Promise<void> {
+    const repartidorId = this.getRepartidorId();
+    if (!repartidorId) return;
+
+    const response = await authFetch(this.buildApiUrl('/api/repartidor-rapido/ubicacion'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repartidor_id: repartidorId,
+        latitud,
+        longitud,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error((err as { message?: string }).message || 'Error al enviar ubicación');
+    }
+  }
+
+  async obtenerUbicacionRepartidor(repartidorNombre: string): Promise<{
+    repartidor_id: number;
+    repartidor_nombre: string;
+    latitud: number;
+    longitud: number;
+    actualizado_at: string;
+    en_linea: boolean;
+  } | null> {
+    const response = await authFetch(
+      this.buildApiUrl(
+        `/api/repartidor-rapido/ubicacion?repartidor=${encodeURIComponent(repartidorNombre)}`
+      )
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data.data ?? null;
+  }
+
+  async obtenerClientesAtendidosHoy(repartidorNombre?: string): Promise<number[]> {
+    const params = repartidorNombre
+      ? `?repartidor=${encodeURIComponent(repartidorNombre)}`
+      : '';
+    const response = await authFetch(
+      this.buildApiUrl(`/api/repartidor-rapido/clientes-atendidos-hoy${params}`)
+    );
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return data.cliente_ids ?? [];
+  }
 }
 
 export const repartidorRapidoService = new RepartidorRapidoService();

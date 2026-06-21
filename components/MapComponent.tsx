@@ -44,6 +44,14 @@ interface MapComponentProps {
   clientesAtendidos?: number[];
   repartidorPalette?: RepartidorPaletteItem[];
   repartidores?: RepartidorOption[];
+  seguirRecorrido?: boolean;
+  repartidorUbicacion?: {
+    latitud: number;
+    longitud: number;
+    repartidor_nombre: string;
+    en_linea: boolean;
+    actualizado_at: string;
+  } | null;
 }
 
 const mapContainerStyle = { width: '100%', height: '100%' };
@@ -195,6 +203,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   clientesAtendidos = [],
   repartidorPalette = [],
   repartidores = [],
+  seguirRecorrido = false,
+  repartidorUbicacion = null,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -423,8 +433,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
           const markerIcon = getMarkerIcon(cliente, {
             filtros: filtrosMapa,
             mostrarRuta,
+            seguirRecorrido,
             enRuta,
-            atendido,
+            atendido: clientesAtendidos.includes(cliente.id),
             palette: repartidorPalette,
             incluidoManualmente,
           });
@@ -444,6 +455,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
             />
           );
         })}
+
+        {seguirRecorrido && repartidorUbicacion?.en_linea && (
+          <Marker
+            position={{
+              lat: repartidorUbicacion.latitud,
+              lng: repartidorUbicacion.longitud,
+            }}
+            icon={toGoogleMarkerIcon(MARKER_ICONS.repartidorActivo)}
+            title={`${repartidorUbicacion.repartidor_nombre} (en vivo)`}
+            zIndex={1000}
+          />
+        )}
 
         {selectedCliente && !pendingConfirm && (
           <InfoWindow

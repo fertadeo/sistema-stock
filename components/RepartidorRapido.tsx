@@ -41,6 +41,7 @@ import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstado
 import ModalReporteWhatsApp from '@/components/repartidor/ModalReporteWhatsApp';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
+import { useRepartidorGeolocation } from '@/lib/hooks/useRepartidorGeolocation';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -152,6 +153,7 @@ export default function RepartidorRapido() {
     registrarScrollOperacion,
     navInferiorVisible,
   } = useRepartidorUi();
+  useRepartidorGeolocation(true);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);

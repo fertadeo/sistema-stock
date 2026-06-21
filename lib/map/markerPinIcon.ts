@@ -4,7 +4,7 @@ export type MarkerIconConfig = {
   anchor: { x: number; y: number };
 };
 
-export type PinVariant = 'cliente' | 'empresa' | 'pending';
+export type PinVariant = 'cliente' | 'empresa' | 'pending' | 'repartidor';
 
 const PIN_WIDTH = 34;
 const PIN_HEIGHT = 44;
@@ -22,7 +22,9 @@ function buildPinSvg(fillColor: string, variant: PinVariant): string {
   const innerSymbol =
     variant === 'empresa'
       ? `<path d="M12.5 17.5V14.5L16 12L19.5 14.5V17.5H17.5V21H14.5V17.5H12.5Z" fill="${fillColor}" opacity="0.85"/>`
-      : variant === 'pending'
+      : variant === 'repartidor'
+        ? `<circle cx="16" cy="13" r="3.5" fill="#FFFFFF" opacity="0.95"/><path d="M16 17c-2.5 0-4.5 1.2-4.5 2.5v1h9v-1c0-1.3-2-2.5-4.5-2.5z" fill="#FFFFFF" opacity="0.95"/>`
+        : variant === 'pending'
         ? `<circle cx="16" cy="14" r="2.2" fill="#64748B"/>`
         : `<circle cx="16" cy="14" r="4.5" fill="#FFFFFF" opacity="0.95"/>`;
 
@@ -54,6 +56,7 @@ export function createPinIcon(fillColor: string, variant: PinVariant = 'cliente'
 export const PIN_ICONS = {
   gris: createPinIcon(MARKER_COLORS.gris, 'pending'),
   empresa: createPinIcon(MARKER_COLORS.empresa, 'empresa'),
+  repartidorActivo: createPinIcon('#0D9488', 'repartidor'),
 } as const;
 
 export const REPARTIDOR_PIN_COLORS = [
