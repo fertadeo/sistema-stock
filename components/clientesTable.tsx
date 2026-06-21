@@ -15,6 +15,7 @@ import {
   calcularCompletitudCliente,
   colorCompletitud,
   ETIQUETAS_CAMPO,
+  type CampoCompletitud,
 } from "@/lib/clientes/completitudDatos";
 
 type Repartidor = {
@@ -71,6 +72,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [filtroDiaReparto, setFiltroDiaReparto] = useState("");
   const [filtroRepartidor, setFiltroRepartidor] = useState("");
   const [filtroZona, setFiltroZona] = useState("");
+  const [filtroDatos, setFiltroDatos] = useState("");
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
 
   const columns = [
@@ -468,6 +470,17 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
 
   const filteredColumns = columns;
 
+  const cumpleFiltroDatos = (user: User): boolean => {
+    if (!filtroDatos) return true;
+
+    const { faltantes, porcentaje } = calcularCompletitudCliente(user);
+
+    if (filtroDatos === "incompletos") return faltantes.length > 0;
+    if (filtroDatos === "completos") return porcentaje === 100;
+
+    return faltantes.includes(filtroDatos as CampoCompletitud);
+  };
+
   const filteredUsers = users.filter((user) => {
     const searchLower = searchTerm.toLowerCase();
     
@@ -488,12 +501,16 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     const cumpleFiltroRepartidor = !filtroRepartidor || user.repartidor === filtroRepartidor;
     const cumpleFiltroZona = !filtroZona || user.zona?.toString() === filtroZona;
     
-    return cumpleBusquedaGeneral && cumpleFiltroDiaReparto && cumpleFiltroRepartidor && cumpleFiltroZona;
+    return cumpleBusquedaGeneral && cumpleFiltroDiaReparto && cumpleFiltroRepartidor && cumpleFiltroZona && cumpleFiltroDatos(user);
   });
 
   const startIdx = (currentPage - 1) * itemsPerPage;
   const endIdx = startIdx + itemsPerPage;
   const currentItems = filteredUsers.slice(startIdx, endIdx);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filtroDiaReparto, filtroRepartidor, filtroZona, filtroDatos]);
 
   useEffect(() => {
     if (alertVisible) {
@@ -558,7 +575,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         </div>
         
         {/* Filtros - Responsive */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="w-full">
             <label htmlFor="filtroDiaReparto" className="block mb-1 text-sm font-bold text-gray-700">
               Día de Reparto
@@ -636,10 +653,41 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               </div>
             </div>
           </div>
+
+          <div className="w-full">
+            <label htmlFor="filtroDatos" className="block mb-1 text-sm font-bold text-gray-700">
+              Datos del cliente
+            </label>
+            <div className="relative">
+              <select
+                id="filtroDatos"
+                className="p-2 pr-10 pl-3 w-full text-sm bg-white rounded-md border border-gray-300 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={filtroDatos}
+                onChange={(e) => setFiltroDatos(e.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="incompletos">Con datos incompletos</option>
+                <option value="completos">Datos completos</option>
+                {(Object.keys(ETIQUETAS_CAMPO) as CampoCompletitud[]).map((campo) => (
+                  <option key={campo} value={campo}>
+                    Falta: {ETIQUETAS_CAMPO[campo]}
+                  </option>
+                ))}
+              </select>
+              <div className="flex absolute inset-y-0 right-0 items-center pr-2 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
         
-        {/* Botón para limpiar filtros */}
-        <div className="flex justify-end">
+        {/* Total y limpiar filtros */}
+        <div className="flex justify-between items-center">
+          <p className="text-sm font-semibold text-gray-700">
+            Total clientes: {filteredUsers.length}
+          </p>
           <Button 
             color="success" 
             variant="flat" 
@@ -648,6 +696,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               setFiltroDiaReparto("");
               setFiltroRepartidor("");
               setFiltroZona("");
+              setFiltroDatos("");
               setSearchTerm("");
             }}
           >
@@ -657,7 +706,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       </div>
 
       {/* Mensaje de no resultados */}
-      {filteredUsers.length === 0 && (searchTerm || filtroDiaReparto || filtroRepartidor || filtroZona) && (
+      {filteredUsers.length === 0 && (searchTerm || filtroDiaReparto || filtroRepartidor || filtroZona || filtroDatos) && (
         <div className="px-4 py-3 mt-4 text-blue-700 bg-blue-100 rounded border-l-4 border-blue-500">
           <div className="flex">
             <div className="py-1">

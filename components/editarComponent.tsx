@@ -70,6 +70,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [busquedaVinculo, setBusquedaVinculo] = useState("");
   const [candidatosVinculo, setCandidatosVinculo] = useState<ClienteVinculado[]>([]);
   const [vinculando, setVinculando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [mensajeVinculo, setMensajeVinculo] = useState("");
 
   // Efecto para cargar productos y actualizar envases prestados
@@ -137,6 +138,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setBusquedaVinculo("");
       setCandidatosVinculo([]);
       setMensajeVinculo("");
+      setGuardando(false);
     }
   }, [cliente, isOpen]);
 
@@ -260,6 +262,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
 
   const handleSave = async () => {
     if (cliente) {
+      setGuardando(true);
       try {
         const zonaNumero = parseInt(zona);
 
@@ -316,6 +319,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       } catch (error) {
         console.error("Error al actualizar el cliente:", error);
         // Aquí podrías agregar un manejo de errores más específico si lo necesitas
+      } finally {
+        setGuardando(false);
       }
     }
   };
@@ -545,10 +550,10 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
           </div>
         </ModalBody>
         <ModalFooter>
-          <Button color="primary" onClick={handleSave}>
+          <Button color="primary" onClick={handleSave} isLoading={guardando} isDisabled={guardando}>
             Guardar Datos
           </Button>
-          <Button color="danger" onClick={onClose}>
+          <Button color="danger" onClick={onClose} isDisabled={guardando}>
             Cancelar
           </Button>
         </ModalFooter>

@@ -7,7 +7,6 @@ import {
   ModalFooter,
   Button,
   Input,
-  Spinner,
   Select,
   SelectItem,
 } from "@heroui/react";
@@ -684,12 +683,13 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
               <Button
                 color="success"
                 onPress={handleGuardar}
-                disabled={isSaving || idCliente === null}
+                isLoading={isSaving}
+                isDisabled={isSaving || idCliente === null}
                 style={{ color: "white" }}
                 className="w-full sm:w-auto"
                 size="sm"
               >
-                {isSaving ? <Spinner color="default" /> : "Guardar"}
+                Guardar
               </Button>
             </ModalFooter>
           </>
