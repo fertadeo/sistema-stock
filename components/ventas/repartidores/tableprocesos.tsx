@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Button, Card, CardHeader, CardBody, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import { Proceso } from '@/types/ventas';
 import Notification from '@/components/notification';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface TableProcesosProps {
   procesosFiltrados: Proceso[];
@@ -35,7 +36,7 @@ const TableProcesos = ({
     if (!procesoAEliminar) return;
     setBorrandoId(procesoAEliminar);
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${procesoAEliminar}`,
         { method: 'DELETE' }
       );

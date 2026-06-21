@@ -13,6 +13,7 @@ import {
   SelectItem
 } from "@heroui/react";
 import { FaTrash, FaToggleOn, FaToggleOff } from "react-icons/fa";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 import EditableField from "./EditableField";
 
 
@@ -66,7 +67,7 @@ useEffect(() => {
   const fetchProveedores = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/proveedores`);
+      const response = await authFetch(`${apiUrl}/api/proveedores`);
       if (!response.ok) throw new Error("Error al obtener proveedores");
       const data = await response.json();
       setProveedores(data);
@@ -83,7 +84,7 @@ useEffect(() => {
     if (editedProduct) {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-        const response = await fetch(`${apiUrl}/productos/${editedProduct.id}`, {
+        const response = await authFetch(`${apiUrl}/api/productos/${editedProduct.id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",

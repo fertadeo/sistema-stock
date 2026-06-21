@@ -13,6 +13,7 @@ import html2canvas from 'html2canvas';
 import BudgetResume from '@/components/budgetResume';
 import PDFContent from '@/components/PDFContent';
 import CustomSelect from '@/components/shared/CustomSelect';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Product {
   nombreProducto: any;
@@ -82,7 +83,7 @@ export default function NuevaVenta() {
       try {
         const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/productos`;
         // console.log('Llamando a la API en:', apiUrl);
-        const response = await fetch(apiUrl);
+        const response = await authFetch(apiUrl);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -133,7 +134,7 @@ export default function NuevaVenta() {
 
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    fetch(`${API_URL}/api/revendedores`)
+    authFetch(`${API_URL}/api/revendedores`)
       .then(res => res.json())
       .then(data => {
         if (data.success) setRevendedores(data.revendedores);
@@ -336,7 +337,7 @@ export default function NuevaVenta() {
       };
 
       const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas`;
-      const response = await fetch(apiUrl, {
+      const response = await authFetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -12,7 +12,21 @@ export interface SessionUser {
   role: UserRole;
   role_label: string;
   repartidor_id?: string | null;
+  created_at?: string;
 }
+
+export const canManageAccounts = (role: UserRole): boolean =>
+  role === USER_ROLES.ADMIN || role === USER_ROLES.SUPERADMIN;
+
+export const assignableRolesFor = (role: UserRole): UserRole[] => {
+  if (role === USER_ROLES.SUPERADMIN) {
+    return [USER_ROLES.REPARTIDOR, USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN];
+  }
+  if (role === USER_ROLES.ADMIN) {
+    return [USER_ROLES.REPARTIDOR, USER_ROLES.ADMIN];
+  }
+  return [];
+};
 
 export const roleLabel = (role: UserRole): string => {
   switch (role) {

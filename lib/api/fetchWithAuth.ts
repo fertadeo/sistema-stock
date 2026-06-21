@@ -1,5 +1,11 @@
 import { getStoredToken } from '@/lib/auth/session';
 
+export const createApiUrl = (path: string): string => {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || 'http://localhost:8080';
+  const cleanPath = path.replace(/^\/+/, '');
+  return `${baseUrl}/${cleanPath}`;
+};
+
 export const getAuthHeaders = (headers?: HeadersInit): HeadersInit => {
   const token = getStoredToken();
   return {
@@ -24,4 +30,14 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
     ...init,
     headers,
   });
+}
+
+/** Para EventSource/SSE, que no admite headers Authorization. */
+export function createAuthStreamUrl(path: string): string {
+  const url = createApiUrl(path);
+  const token = getStoredToken();
+  if (!token) return url;
+
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}token=${encodeURIComponent(token)}`;
 }

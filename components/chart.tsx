@@ -1,6 +1,7 @@
 'use client';
 import { Chart, ChartData, ChartOptions } from 'chart.js/auto';
 import { useEffect, useRef, useState } from 'react';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface BarChartProps {
   options: ChartOptions;
@@ -55,8 +56,8 @@ const BarChart = ({ options }: BarChartProps) => {
     const fetchData = async () => {
       try {
         const [clientesResponse, presupuestosResponse] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes/clientes-por-mes`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos/presupuestos-por-mes`)
+          authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/clientes-por-mes`),
+          authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/presupuestos/presupuestos-por-mes`)
         ]);
 
         const clientesData: ClienteData[] = await clientesResponse.json();

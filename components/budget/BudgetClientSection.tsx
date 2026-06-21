@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Input, Button } from "@heroui/react";
 import { Client } from '../../types/budget';
 import { useClientSearch } from '../../hooks/useClientSearch';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface BudgetClientSectionProps {
   onClientSelect: (client: Client | null) => void;
@@ -47,7 +48,7 @@ export const BudgetClientSection = ({ onClientSelect, selectedClient }: BudgetCl
     e.preventDefault();
     if (newClient.nombre && newClient.telefono) {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

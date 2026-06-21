@@ -1,3 +1,4 @@
+import { authFetch } from '@/lib/api/fetchWithAuth';
 import { useState } from 'react';
 import { Client } from '../types/budget';
 
@@ -9,7 +10,7 @@ export const useClientSearch = () => {
     setIsLoading(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/clientes?search=${searchTerm}`);
+      const response = await authFetch(`${apiUrl}/api/clientes?search=${searchTerm}`);
       
       if (!response.ok) throw new Error('Error al buscar clientes');
       const data = await response.json();

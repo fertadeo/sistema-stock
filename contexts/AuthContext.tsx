@@ -1,12 +1,13 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { authFetch } from '@/lib/api/fetchWithAuth';
+import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 import {
   SessionUser,
   UserRole,
   canAccessAdminModule as roleCanAccessAdminModule,
   canAccessSalubridad as roleCanAccessSalubridad,
+  canManageAccounts as roleCanManageAccounts,
   getDefaultRouteForRole,
 } from '@/lib/auth/roles';
 import {
@@ -25,6 +26,7 @@ interface AuthContextValue {
   isSuperAdmin: boolean;
   canAccessAdminModule: boolean;
   canAccessSalubridad: boolean;
+  canManageAccounts: boolean;
   defaultRoute: string;
   login: (token: string, user: SessionUser) => void;
   logout: () => void;
@@ -32,12 +34,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const createApiUrl = (path: string): string => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || 'http://localhost:8080';
-  const cleanPath = path.replace(/^\/+/, '');
-  return `${baseUrl}/${cleanPath}`;
-};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -107,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin: role === 'superadmin',
       canAccessAdminModule: role ? roleCanAccessAdminModule(role) : false,
       canAccessSalubridad: role ? roleCanAccessSalubridad(role) : false,
+      canManageAccounts: role ? roleCanManageAccounts(role) : false,
       defaultRoute: role ? getDefaultRouteForRole(role) : '/home',
       login,
       logout,

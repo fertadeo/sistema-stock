@@ -3,6 +3,7 @@ import { Card } from "@heroui/react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from "@heroui/react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface ProductoVenta {
   producto_id: string;
@@ -38,7 +39,7 @@ const VentasLocalPage: React.FC = () => {
     const fetchVentas = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local`);
         if (!response.ok) throw new Error('Error al obtener ventas');
         const data = await response.json();
         setVentas(data.ventas);
@@ -53,7 +54,7 @@ const VentasLocalPage: React.FC = () => {
     // Fetch productos para el catálogo
     const fetchProductos = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
         if (!response.ok) throw new Error('Error al obtener productos');
         const data = await response.json();
         setCatalogoProductos(data.map((p: any) => ({

@@ -9,7 +9,7 @@ export const SideBar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout, canAccessSalubridad } = useAuth();
+  const { user, logout, canAccessSalubridad, canManageAccounts } = useAuth();
 
   const navItems = useMemo(() => {
     const items = [
@@ -22,13 +22,16 @@ export const SideBar = () => {
       { href: '/repartidor/rapido', label: 'Repartidor Rápido' },
     ];
 
+    if (canManageAccounts) {
+      items.push({ href: '/centro-cuentas', label: 'Centro de cuentas' });
+    }
+
     if (canAccessSalubridad) {
       items.push({ href: '/salubridad', label: 'Salubridad' });
-      items.push({ href: '/usuarios', label: 'Usuarios' });
     }
 
     return items;
-  }, [canAccessSalubridad]);
+  }, [canAccessSalubridad, canManageAccounts]);
 
   // Cerrar sidebar cuando cambia la ruta
   useEffect(() => {

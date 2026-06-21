@@ -3,6 +3,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Table
 import { VentaCerrada } from '@/types/ventas';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface ModalDetalleVentasProps {
   isOpen: boolean;
@@ -120,7 +121,7 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
     setError("");
     setSuccess("");
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/finalizar`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/finalizar`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

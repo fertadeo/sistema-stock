@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Spinner,} from "@heroui/react";
 import Notification from "./notification";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 
 
@@ -48,7 +49,7 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
   const fetchNextProductId = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/api/productos/last-id/obtener`);
+      const response = await authFetch(`${apiUrl}/api/productos/last-id/obtener`);
       if (!response.ok) throw new Error("Error al obtener el último ID de producto");
       const data = await response.json();
       console.log('API Response:', data); // Verifica la respuesta de la API
@@ -104,7 +105,7 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
       };
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await fetch(`${apiUrl}/api/productos/crear-producto`, {
+      const response = await authFetch(`${apiUrl}/api/productos/crear-producto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productToSend),

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import { UserPlusIcon, ShoppingCartIcon, MinusCircleIcon } from '@heroicons/react/24/solid';
-import { authFetch } from '@/lib/api/fetchWithAuth';
+import { authFetch, createAuthStreamUrl } from '@/lib/api/fetchWithAuth';
 import NuevoClienteModal from "./nuevoClienteModal";
 import VentaLocalModal from "./ventaLocalModal";
 import GastoEgresoModal from "./gastoEgresoModal";
@@ -155,7 +155,7 @@ const MovimientosFeed: React.FC = () => {
   useEffect(() => {
     fetchMovimientos();
 
-    const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos/stream`);
+    const eventSource = new EventSource(createAuthStreamUrl('api/movimientos/stream'));
     eventSourceRef.current = eventSource;
 
     eventSource.addEventListener('nuevo_movimiento', handleNuevoMovimiento);
@@ -170,7 +170,7 @@ const MovimientosFeed: React.FC = () => {
           if (eventSourceRef.current) {
             eventSourceRef.current.close();
           }
-          const newEventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos/stream`);
+          const newEventSource = new EventSource(createAuthStreamUrl('api/movimientos/stream'));
           eventSourceRef.current = newEventSource;
           newEventSource.addEventListener('nuevo_movimiento', handleNuevoMovimiento);
           newEventSource.addEventListener('open', () => {

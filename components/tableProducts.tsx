@@ -7,6 +7,7 @@ import ProductModal from "./productModal";
 import { SearchIcon } from "@heroui/shared-icons";
 import { Product } from './productModal';
 import { uid } from "chart.js/dist/helpers/helpers.core";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 
 
@@ -58,7 +59,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
       if (!response.ok) {
         const errorMessage = await response.text(); // Get the error message from the response
         throw new Error(`Error al obtener productos: ${errorMessage}`);
@@ -172,7 +173,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       };
 
       // Realizar la petición PUT
-      const response = await fetch(`${apiUrl}/api/productos/${productId}`, {
+      const response = await authFetch(`${apiUrl}/api/productos/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

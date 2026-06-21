@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ShoppingCartIcon, MinusCircleIcon } from '@heroicons/react/24/solid';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Movimiento {
   id: number;
@@ -59,7 +60,7 @@ export default function GastosIngresosDashboard() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
         const data: ApiResponse = await response.json();
         if (data.success && Array.isArray(data.movimientos)) {
           setMovimientos(data.movimientos);

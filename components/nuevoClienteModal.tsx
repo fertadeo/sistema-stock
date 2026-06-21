@@ -12,6 +12,7 @@ import {
   SelectItem,
 } from "@heroui/react";
 import Notification from "./notification"; // Importa el componente de notificación
+import { authFetch } from '@/lib/api/fetchWithAuth';
 import zonas from "./soderia-data/zonas.json"; // Importamos el archivo de zonas
 import repartidoresData from "./soderia-data/repartidores.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
@@ -123,7 +124,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   // Fetch para obtener los productos
   const fetchProductos = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
       if (!response.ok) {
         throw new Error("Error al obtener productos");
       }
@@ -148,7 +149,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   // Fetch para obtener el próximo ID
   const fetchNextClienteId = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/getNextClienteId`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/getNextClienteId`);
       if (!response.ok) {
         throw new Error("Error al obtener el próximo ID");
       }
@@ -337,7 +338,7 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
     try {
       setIsSaving(true);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

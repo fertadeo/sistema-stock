@@ -18,6 +18,7 @@ import {
   Pagination,
 } from "@heroui/react";
 import BudgetPDFModal from './BudgetPDFModal';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Presupuesto {
   id: number;
@@ -78,7 +79,7 @@ const PresupuestosTable = () => {
   useEffect(() => {
     const fetchPresupuestos = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos?include=clientes,producto`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos?include=clientes,producto`);
         if (!response.ok) throw new Error('Error al cargar los presupuestos');
         const data = await response.json();
         
@@ -288,7 +289,7 @@ const PresupuestosTable = () => {
   ) => {
     try {
       setIsUpdating(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos/${presupuestoId}/estado`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos/${presupuestoId}/estado`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado })

@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { UserOptions } from 'jspdf-autotable';
 import { PencilSquareIcon } from '@heroicons/react/24/outline';
 import Notification from "@/components/notification";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 // Agregar la declaración de tipos para autoTable
 declare module 'jspdf' {
@@ -60,7 +61,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     if (proceso?.id && proceso.estado_cuenta === 'finalizado') {
       const cargarDatosVenta = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas?proceso_id=${proceso.id}`);
+          const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas?proceso_id=${proceso.id}`);
           if (response.ok) {
             const data = await response.json();
             console.log('Datos de venta cerrada por proceso_id:', data);
@@ -164,7 +165,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
         precio_unitario: precio
       }));
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/precios-unitarios`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,7 +235,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const refetchProceso = async () => {
     if (!proceso?.id) return;
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/procesos/${proceso.id}`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/procesos/${proceso.id}`);
       if (response.ok) {
         const data = await response.json();
         // Actualiza el estado local con los datos nuevos
@@ -278,7 +279,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       }));
 
       // Guardar los precios unitarios actuales
-      const responsePrecios = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso?.id}/precios-unitarios`, {
+      const responsePrecios = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso?.id}/precios-unitarios`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -307,7 +308,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       };
 
       // Guardar el proceso en ventas-cerradas
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +321,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       }
 
       // Actualizar el estado del proceso a procesado
-      const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/procesos/${proceso?.id}`, {
+      const updateResponse = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/procesos/${proceso?.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

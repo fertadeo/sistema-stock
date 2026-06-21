@@ -29,8 +29,14 @@ export default function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/repartidor/rapido', request.url));
   }
 
-  if (pathname.startsWith('/salubridad') || pathname.startsWith('/usuarios')) {
+  if (pathname.startsWith('/salubridad')) {
     if (role !== 'superadmin') {
+      return NextResponse.redirect(new URL('/home', request.url));
+    }
+  }
+
+  if (pathname.startsWith('/centro-cuentas') || pathname.startsWith('/usuarios')) {
+    if (role !== 'admin' && role !== 'superadmin') {
       return NextResponse.redirect(new URL('/home', request.url));
     }
   }
@@ -48,6 +54,7 @@ export const config = {
     '/zonasyrepartos/:path*',
     '/metricas/:path*',
     '/salubridad/:path*',
+    '/centro-cuentas/:path*',
     '/usuarios/:path*',
     '/repartidor/:path*',
   ],

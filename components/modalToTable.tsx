@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@heroui/react";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Movimiento {
   id: number;
@@ -48,7 +49,7 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
       
       try {
         // Intentar obtener movimientos del cliente desde la API
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos/cliente/${cliente.id}`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos/cliente/${cliente.id}`);
         
         // Si el endpoint no existe o no hay movimientos, establecer array vacío
         if (!response.ok) {

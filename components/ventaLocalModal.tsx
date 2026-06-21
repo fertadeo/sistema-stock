@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@heroui/react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Producto {
   id: string;
@@ -64,7 +65,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
 
   const cargarClientes = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
       if (!response.ok) throw new Error('Error al cargar clientes');
       const data = await response.json();
       setClientes(data);
@@ -75,7 +76,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
 
   const cargarProductos = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
       if (!response.ok) throw new Error('Error al cargar productos');
       const data = await response.json();
       setProductosDisponibles(data);
@@ -129,7 +130,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
       };
 
       console.log('Venta enviada:', ventaData);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,7 +205,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
   const crearNuevoProducto = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos/crear-producto`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos/crear-producto`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

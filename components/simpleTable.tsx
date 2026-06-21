@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Pagination, Input } from "@heroui/react";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Venta {
   venta_id: string;
@@ -37,9 +38,13 @@ export default function SimpleTable() {
   useEffect(() => {
     const fetchVentas = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/resumen`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas/resumen`);
+        if (!response.ok) {
+          setVentas([]);
+          return;
+        }
         const data: ApiResponse = await response.json();
-        setVentas(data.ventas);
+        setVentas(Array.isArray(data.ventas) ? data.ventas : []);
       } catch (error) {
         console.error("Error al obtener ventas:", error);
       }

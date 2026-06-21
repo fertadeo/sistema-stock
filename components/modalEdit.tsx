@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect } from "react";
 import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input, useDisclosure } from "@heroui/react";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 type Cliente = {
   id: number;
@@ -36,7 +37,7 @@ const ModalEdit: React.FC<ModalEditProps> = ({ cliente, onUpdateCliente, isOpen,
   const handleSave = async () => {
     if (cliente) {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes/${cliente.id}`, {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nombre, telefono, email, direccion }),

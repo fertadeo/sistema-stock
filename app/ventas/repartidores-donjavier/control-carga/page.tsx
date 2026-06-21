@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import "@/styles/globals.css"
 import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react"
 import { motion, AnimatePresence } from "framer-motion"
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Producto {
   id: number;
@@ -117,7 +118,7 @@ const ControlCargaPage = () => {
     const fetchRepartidores = async () => {
       try {
         const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`;
-        const response = await fetch(apiUrl);
+        const response = await authFetch(apiUrl);
         
         if (!response.ok) {
           throw new Error(`Error al obtener repartidores: ${response.status}`);
@@ -139,7 +140,7 @@ const ControlCargaPage = () => {
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
         if (!response.ok) {
           throw new Error('Error al cargar los productos');
         }
@@ -177,7 +178,7 @@ const ControlCargaPage = () => {
 
   const fetchCargasPendientes = async (repartidorId: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/repartidor/${repartidorId}`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/repartidor/${repartidorId}`);
       if (!response.ok) {
         throw new Error(`Error al obtener cargas pendientes: ${response.status}`);
       }
@@ -485,7 +486,7 @@ const ControlCargaPage = () => {
         console.log('===============================');
 
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas`, {
+          const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json'
@@ -601,7 +602,7 @@ const ControlCargaPage = () => {
         // console.log('===============================');
 
         try {
-          const responseDescarga = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas`, {
+          const responseDescarga = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(descarga)
@@ -637,7 +638,7 @@ const ControlCargaPage = () => {
             // console.log('Método:', 'PUT');
             // console.log('Datos:', JSON.stringify({ estado: 'completada' }));
             
-            const responseCarga = await fetch(rutaActualizacionCarga, {
+            const responseCarga = await authFetch(rutaActualizacionCarga, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ estado: 'completada' })
@@ -807,7 +808,7 @@ const ControlCargaPage = () => {
   const confirmarEliminarCarga = async () => {
     if (!cargaAEliminar) return;
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/${cargaAEliminar.id}`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cargas/pendientes/${cargaAEliminar.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

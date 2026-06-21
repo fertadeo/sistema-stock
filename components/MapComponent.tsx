@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Cliente {
   id: number;
@@ -232,7 +233,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const { clienteId, lat, lng } = customEvent.detail;
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.sistema.soderiadonjavier.com';
-        const response = await fetch(`${API_URL}/api/clientes/${clienteId}`, {
+        const response = await authFetch(`${API_URL}/api/clientes/${clienteId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

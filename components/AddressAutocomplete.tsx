@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Input } from "@heroui/react";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface AddressSuggestion {
   display_name: string;
@@ -43,7 +44,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const searchAddress = async (query: string) => {
     try {
       console.log('Buscando dirección:', query);
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/geocode/search?query=${encodeURIComponent(query)}`,
         {
           headers: {

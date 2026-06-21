@@ -12,6 +12,7 @@ import CardResumenVentas from '@/components/ventas/repartidores/cardResumenVenta
 import TableVentasCerradas from '@/components/ventas/repartidores/tableVentasCerradas';
 import { Proceso, VentaCerrada } from '@/types/ventas';
 import dynamic from 'next/dynamic';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 // Agregar la función cx si no la tienes en utils
 const cx = (...args: any) => twMerge(clsx(...args));
@@ -139,7 +140,7 @@ const VentasDonjavier = () => {
   const fetchVentasRepartidor = async (repartidorId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorId}`
       );
       
@@ -161,7 +162,7 @@ const VentasDonjavier = () => {
   const fetchVentasCerradas = async (repartidorId: string) => {
     try {
       setLoadingVentasCerradas(true);
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/repartidor/${repartidorId}`
       );
       
@@ -189,7 +190,7 @@ const VentasDonjavier = () => {
     const fetchInicial = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/repartidores`);
         if (!response.ok) {
           throw new Error('Error al obtener los repartidores');
         }
@@ -317,7 +318,7 @@ const VentasDonjavier = () => {
   // Función para actualizar los datos
   const actualizarDatos = async () => {
     setLoading(true);
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`);
+    const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/repartidor/${repartidorSeleccionado}`);
     const data = await response.json();
           setProcesosFiltrados(data);
     setLoading(false);

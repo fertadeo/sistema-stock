@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Card, CardHeader, CardBody, Input, Select, SelectItem, Button, Checkbox, Selection, Alert } from "@heroui/react";
 import ModalDetalleVentas from './modalDetalleVentas';
 import { VentaCerrada } from '@/types/ventas';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface TableVentasCerradasProps {
   repartidorId: string;
@@ -178,7 +179,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       const promises = ventasSeleccionadas.map(venta => {
         const url = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/${venta.id}/finalizar`;
         
-        return fetch(url, {
+        return authFetch(url, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

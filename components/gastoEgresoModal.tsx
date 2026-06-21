@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@heroui/react";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface GastoEgresoModalProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
           categoria
         }
       };
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)

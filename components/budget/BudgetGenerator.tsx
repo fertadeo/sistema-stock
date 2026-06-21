@@ -8,6 +8,7 @@ import { BudgetSummary } from "./BudgetSummary";
 import { LoadingButton } from "../shared/LoadingButton";
 import { useBudgetCalculations } from "../../hooks/useBudgetCalculations";
 import BudgetResume from "../budgetResume";
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface BudgetResumeProps {
   presupuestoData: PresupuestoResumen;
@@ -118,7 +119,7 @@ export const BudgetGenerator = () => {
         total: finalTotal
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/presupuestos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(presupuestoData)

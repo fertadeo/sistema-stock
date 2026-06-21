@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface Cliente {
   id: number;
@@ -107,7 +108,7 @@ const PageZonasyRepartos = () => {
   const fetchClientes = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes`);
       
       if (!response.ok) {
         throw new Error('Error al obtener los clientes');
@@ -158,7 +159,7 @@ const PageZonasyRepartos = () => {
   // Agrega esta función para actualizar las coordenadas
   const actualizarCoordenadas = async (clienteId: number, lat: number, lon: number) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${clienteId}`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${clienteId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

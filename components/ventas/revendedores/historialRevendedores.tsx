@@ -28,6 +28,7 @@ import { BarChart10 } from '@/components/charts/BarChart10';
 import jsPDF from 'jspdf';
 import PDFContent from '@/components/PDFContent';
 import html2canvas from 'html2canvas';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 interface VentaRevendedor {
   venta_id: string;
@@ -83,7 +84,7 @@ export default function HistorialRevendedores() {
   // Obtener ventas de revendedores
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    fetch(`${API_URL}/api/ventas/resumen`)
+    authFetch(`${API_URL}/api/ventas/resumen`)
       .then(res => res.json())
       .then(data => {
         console.log('VENTAS:', data);
@@ -103,7 +104,7 @@ export default function HistorialRevendedores() {
   // Obtener revendedores al montar
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    fetch(`${API_URL}/api/revendedores`)
+    authFetch(`${API_URL}/api/revendedores`)
       .then(res => res.json())
       .then(data => {
         console.log('REVENDEDORES:', data);
@@ -116,7 +117,7 @@ export default function HistorialRevendedores() {
   // Obtener productos al montar
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    fetch(`${API_URL}/api/productos`)
+    authFetch(`${API_URL}/api/productos`)
       .then(res => res.json())
       .then(data => {
         setProductos(data);
@@ -221,7 +222,7 @@ export default function HistorialRevendedores() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${API_URL}/api/ventas/${ventaAEliminar}`, {
+      const res = await authFetch(`${API_URL}/api/ventas/${ventaAEliminar}`, {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -231,7 +232,7 @@ export default function HistorialRevendedores() {
         setAlertaExito(true);
         setTimeout(() => setAlertaExito(false), 5000);
         // Refrescar lista de ventas
-        fetch(`${API_URL}/api/ventas/resumen`)
+        authFetch(`${API_URL}/api/ventas/resumen`)
           .then(res => res.json())
           .then(data => {
             if (Array.isArray(data)) {
@@ -268,7 +269,7 @@ export default function HistorialRevendedores() {
     setErrorNuevoRev("");
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${API_URL}/api/revendedores`, {
+      const res = await authFetch(`${API_URL}/api/revendedores`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nuevoRevNombre })
@@ -279,7 +280,7 @@ export default function HistorialRevendedores() {
         setAlertaExito(true);
         setTimeout(() => setAlertaExito(false), 5000);
         // Refrescar lista de revendedores
-        fetch(`${API_URL}/api/revendedores`)
+        authFetch(`${API_URL}/api/revendedores`)
           .then(res => res.json())
           .then(data => {
             if (data.success) setRevendedores(data.revendedores);
