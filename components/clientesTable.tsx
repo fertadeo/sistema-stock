@@ -11,6 +11,11 @@ import EditarComponent from "@/components/editarComponent"
 import Alert from "@/components/shared/alert";
 import zonas from "@/components/soderia-data/zonas.json";
 import diasRepartoData from "@/components/soderia-data/diareparto.json";
+import {
+  calcularCompletitudCliente,
+  colorCompletitud,
+  ETIQUETAS_CAMPO,
+} from "@/lib/clientes/completitudDatos";
 
 type Repartidor = {
   id: number;
@@ -30,6 +35,8 @@ type User = {
   telefono: string;
   email: string;
   direccion: string;
+  latitud?: number | string | null;
+  longitud?: number | string | null;
   zona: string;
   dni: string;
   repartidor: string;
@@ -72,6 +79,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     { uid: "repartidor", name: "Repartidor" },
     { uid: "diaReparto", name: "Día de Reparto" },
     { uid: "envasesPrestados", name: "Envases prestados" },
+    { uid: "completitud", name: "Datos" },
     { uid: "actions", name: "Acciones" }
   ];
 
@@ -298,6 +306,54 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             )}
           </div>
         );
+      case "completitud": {
+        const { porcentaje, faltantes } = calcularCompletitudCliente(user);
+        const colores = colorCompletitud(porcentaje);
+        const tooltipContent =
+          faltantes.length === 0 ? (
+            <div className="px-1 py-1 text-xs">
+              <p className="font-semibold text-green-600">Datos completos</p>
+              <p className="text-gray-600">Nombre, teléfono, dirección y coordenadas OK</p>
+            </div>
+          ) : (
+            <div className="px-1 py-1 max-w-[220px]">
+              <p className="mb-1 text-xs font-semibold">Falta completar:</p>
+              <ul className="space-y-0.5 text-xs list-disc list-inside">
+                {faltantes.map((campo) => (
+                  <li key={campo}>{ETIQUETAS_CAMPO[campo]}</li>
+                ))}
+              </ul>
+            </div>
+          );
+
+        return (
+          <Tooltip content={tooltipContent}>
+            <div className={`flex flex-col gap-1.5 min-w-[100px] p-2 rounded-lg ${colores.fondo}`}>
+              <div className="flex justify-between items-center gap-2">
+                <span className={`text-sm font-bold ${colores.texto}`}>{porcentaje}%</span>
+                {porcentaje === 100 ? (
+                  <span className="text-[10px] font-medium text-green-600">Completo</span>
+                ) : (
+                  <span className="text-[10px] font-medium text-gray-500">
+                    {faltantes.length} pend.
+                  </span>
+                )}
+              </div>
+              <div className="overflow-hidden w-full h-1.5 bg-white rounded-full">
+                <div
+                  className={`h-full rounded-full transition-all ${colores.barra}`}
+                  style={{ width: `${porcentaje}%` }}
+                />
+              </div>
+              {faltantes.length > 0 && (
+                <p className="text-[10px] leading-tight text-gray-600 truncate">
+                  Falta: {faltantes.map((c) => ETIQUETAS_CAMPO[c]).join(', ')}
+                </p>
+              )}
+            </div>
+          </Tooltip>
+        );
+      }
       case "actions":
         return (
           <div className="flex relative gap-2">
