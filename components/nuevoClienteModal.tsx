@@ -106,6 +106,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [piso, setPiso] = useState("");
+  const [departamento, setDepartamento] = useState("");
   const [email, setEmail] = useState("");
   const [zona, setZona] = useState("");
   const [repartidor, setRepartidor] = useState("");
@@ -329,6 +331,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       email: email || null,
       telefono: telefono.trim(),
       direccion: direccion || null,
+      piso: piso.trim() || null,
+      departamento: departamento.trim() || null,
       latitud: latitud || null,
       longitud: longitud || null,
       zona: zonaId,
@@ -400,6 +404,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         setTelefono("");
         setEmail("");
         setDireccion("");
+        setPiso("");
+        setDepartamento("");
         setZona("");
         setRepartidor("");
         setDiaReparto("");
@@ -483,6 +489,25 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   placeholder="Ingrese la dirección"
                   value={direccion}
                   onChange={handleAddressChange}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  className="w-full"
+                  label="Piso"
+                  placeholder="Ej: 1, PB, 3"
+                  value={piso}
+                  onChange={(e) => setPiso(e.target.value)}
+                  size="sm"
+                />
+                <Input
+                  className="w-full"
+                  label="Departamento"
+                  placeholder="Ej: A, B, 4"
+                  value={departamento}
+                  onChange={(e) => setDepartamento(e.target.value)}
+                  size="sm"
                 />
               </div>
 

@@ -30,6 +30,8 @@ interface ModalToTableProps {
     id: number;
     nombre: string;
     direccion?: string;
+    piso?: string | null;
+    departamento?: string | null;
     telefono?: string;
     email?: string;
   };
@@ -92,7 +94,17 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <p>Teléfono: {cliente?.telefono || 'No registrado'}</p>
               <p>Email: {cliente?.email || 'No registrado'}</p>
-              <p className="col-span-2">Dirección: {cliente?.direccion || 'No registrada'}</p>
+              <p className="col-span-2">
+                Dirección: {cliente?.direccion || 'No registrada'}
+                {(cliente?.piso || cliente?.departamento) && (
+                  <span className="text-gray-500">
+                    {' '}
+                    ({[cliente?.piso && `Piso ${cliente.piso}`, cliente?.departamento && `Depto ${cliente.departamento}`]
+                      .filter(Boolean)
+                      .join(' · ')})
+                  </span>
+                )}
+              </p>
             </div>
 
             <div className="mt-6">

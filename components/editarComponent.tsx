@@ -53,6 +53,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [piso, setPiso] = useState("");
+  const [departamento, setDepartamento] = useState("");
   const [latitud, setLatitud] = useState("");
   const [longitud, setLongitud] = useState("");
   const [zona, setZona] = useState("");
@@ -123,6 +125,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setTelefono(cliente.telefono || "");
       setEmail(cliente.email || "");
       setDireccion(cliente.direccion || "");
+      setPiso(cliente.piso || "");
+      setDepartamento(cliente.departamento || "");
       setLatitud(cliente.latitud != null && cliente.latitud !== "" ? String(cliente.latitud) : "");
       setLongitud(cliente.longitud != null && cliente.longitud !== "" ? String(cliente.longitud) : "");
       setZona(cliente.zona?.toString() || "");
@@ -280,6 +284,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
           email,
           telefono,
           direccion: direccionFinal,
+          piso: piso.trim() || null,
+          departamento: departamento.trim() || null,
           latitud: latitudFinal || null,
           longitud: longitudFinal || null,
           zona: zonaNumero,
@@ -352,11 +358,25 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Ingrese email"
             />
-            <AddressAutocomplete
-              label="Dirección"
-              value={direccion}
-              onChange={handleDireccionChange}
-              placeholder="Ingrese dirección"
+            <div className="sm:col-span-2">
+              <AddressAutocomplete
+                label="Dirección"
+                value={direccion}
+                onChange={handleDireccionChange}
+                placeholder="Ingrese dirección"
+              />
+            </div>
+            <Input
+              label="Piso"
+              value={piso}
+              onChange={(e) => setPiso(e.target.value)}
+              placeholder="Ej: 1, PB, 3"
+            />
+            <Input
+              label="Departamento"
+              value={departamento}
+              onChange={(e) => setDepartamento(e.target.value)}
+              placeholder="Ej: A, B, 4"
             />
             {latitud && longitud && (
               <p className="text-xs text-green-600 sm:col-span-2">

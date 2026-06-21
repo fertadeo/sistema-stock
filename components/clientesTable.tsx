@@ -35,6 +35,8 @@ type User = {
   telefono: string;
   email: string;
   direccion: string;
+  piso?: string | null;
+  departamento?: string | null;
   latitud?: number | string | null;
   longitud?: number | string | null;
   zona: string;
@@ -271,6 +273,13 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         return (
           <div className="flex flex-col">
             <p className="text-sm capitalize text-bold">{user.direccion}</p>
+            {(user.piso || user.departamento) && (
+              <p className="text-xs text-gray-500">
+                {[user.piso && `Piso ${user.piso}`, user.departamento && `Depto ${user.departamento}`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
           </div>
         );
       case "zona":
