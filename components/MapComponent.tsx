@@ -42,6 +42,56 @@ interface MapComponentProps {
 
 const mapContainerStyle = { width: '100%', height: '100%' };
 
+const INFO_WINDOW_STYLES = `
+  .gm-style-iw-c {
+    padding: 0 !important;
+  }
+  .gm-style-iw-d {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .gm-style-iw-ch {
+    max-height: none !important;
+  }
+  .gm-style-iw-chr {
+    height: 36px !important;
+  }
+  .map-info-window-body {
+    padding: 4px 12px 12px;
+    min-width: 220px;
+    max-width: 280px;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: #1f2937;
+  }
+  .map-info-window-row {
+    margin: 0 0 4px;
+  }
+  .map-info-window-row:last-child {
+    margin-bottom: 0;
+  }
+  .map-info-window-label {
+    font-weight: 600;
+    color: #374151;
+  }
+`;
+
+function infoWindowOptions(titulo: string): google.maps.InfoWindowOptions {
+  return {
+    maxWidth: 300,
+    headerContent: titulo,
+  };
+}
+
+function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
+  if (value == null || value === '') return null;
+  return (
+    <p className="map-info-window-row">
+      <span className="map-info-window-label">{label}:</span> {value}
+    </p>
+  );
+}
+
 function toGoogleMarkerIcon(icon: MarkerIconConfig): google.maps.Icon {
   return {
     url: icon.url,
@@ -73,6 +123,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
   } | null>(null);
   const [dragPosition, setDragPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.setAttribute('data-map-info-window', 'true');
+    style.textContent = INFO_WINDOW_STYLES;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   const clientesConCoords = useMemo(
     () =>
@@ -249,29 +309,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
               lat: selectedCliente.latitud,
               lng: selectedCliente.longitud,
             }}
+            options={infoWindowOptions(selectedCliente.nombre)}
             onCloseClick={() => setSelectedCliente(null)}
           >
-            <div className="max-w-xs text-sm">
-              <h2 className="font-bold">{selectedCliente.nombre}</h2>
-              <p><span className="font-semibold">Dirección:</span> {selectedCliente.direccion}</p>
-              <p><span className="font-semibold">Teléfono:</span> {selectedCliente.telefono}</p>
-              <p><span className="font-semibold">Zona:</span> {selectedCliente.zona}</p>
-              <p><span className="font-semibold">Repartidor:</span> {selectedCliente.repartidor}</p>
-              <p><span className="font-semibold">Día de reparto:</span> {selectedCliente.dia_reparto}</p>
+            <div className="map-info-window-body">
+              <InfoRow label="Dirección" value={selectedCliente.direccion} />
+              <InfoRow label="Teléfono" value={selectedCliente.telefono} />
+              <InfoRow label="Zona" value={selectedCliente.zona} />
+              <InfoRow label="Repartidor" value={selectedCliente.repartidor} />
+              <InfoRow label="Día de reparto" value={selectedCliente.dia_reparto} />
               {mostrarRuta && selectedEnRuta && (
-                <p className={`mt-1 font-semibold ${selectedAtendido ? 'text-green-600' : 'text-gray-500'}`}>
+                <p className={`map-info-window-row font-semibold ${selectedAtendido ? 'text-green-600' : 'text-gray-500'}`}>
                   {selectedAtendido ? '✓ Cliente atendido hoy' : 'Pendiente de visita'}
                 </p>
               )}
               {mostrarRuta && (
                 <>
-                  <p>
-                    <span className="font-semibold">Orden en ruta:</span>{' '}
+                  <p className="map-info-window-row">
+                    <span className="map-info-window-label">Orden en ruta:</span>{' '}
                     {rutaOptimizada.findIndex((c) => c.id === selectedCliente.id) + 1}
                   </p>
                   <button
                     type="button"
-                    className={`px-3 py-1 mt-2 text-white rounded ${
+                    className={`px-3 py-1.5 mt-2 text-xs text-white rounded ${
                       clientesOmitidos.includes(selectedCliente.id)
                         ? 'bg-green-500 hover:bg-green-600'
                         : 'bg-red-500 hover:bg-red-600'
@@ -286,7 +346,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
               )}
               <button
                 type="button"
-                className="px-3 py-1 mt-2 text-white bg-blue-500 rounded hover:bg-blue-600"
+                className="px-3 py-1.5 mt-2 text-xs text-white bg-blue-500 rounded hover:bg-blue-600"
                 onClick={() => {
                   setEditingClienteId(selectedCliente.id);
                   setDragPosition({
@@ -304,24 +364,31 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {pendingConfirm && (
           <InfoWindow
             position={{ lat: pendingConfirm.lat, lng: pendingConfirm.lng }}
+            options={infoWindowOptions('Confirmar ubicación')}
             onCloseClick={cancelarCambio}
           >
-            <div className="max-w-xs text-sm">
-              <p className="mb-2 font-bold">¿Cambiar ubicación de {pendingConfirm.cliente.nombre}?</p>
-              <p><b>Dirección:</b> {pendingConfirm.direccion}</p>
-              <p><b>Lat:</b> {pendingConfirm.lat.toFixed(6)}</p>
-              <p><b>Lng:</b> {pendingConfirm.lng.toFixed(6)}</p>
+            <div className="map-info-window-body">
+              <p className="map-info-window-row font-semibold">
+                ¿Cambiar ubicación de {pendingConfirm.cliente.nombre}?
+              </p>
+              <InfoRow label="Dirección" value={pendingConfirm.direccion} />
+              <p className="map-info-window-row">
+                <span className="map-info-window-label">Lat:</span> {pendingConfirm.lat.toFixed(6)}
+              </p>
+              <p className="map-info-window-row">
+                <span className="map-info-window-label">Lng:</span> {pendingConfirm.lng.toFixed(6)}
+              </p>
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"
-                  className="px-3 py-1 text-white bg-green-500 rounded hover:bg-green-600"
+                  className="px-3 py-1.5 text-xs text-white bg-green-500 rounded hover:bg-green-600"
                   onClick={confirmarCambio}
                 >
                   Sí
                 </button>
                 <button
                   type="button"
-                  className="px-3 py-1 text-white bg-red-500 rounded hover:bg-red-600"
+                  className="px-3 py-1.5 text-xs text-white bg-red-500 rounded hover:bg-red-600"
                   onClick={cancelarCambio}
                 >
                   No
