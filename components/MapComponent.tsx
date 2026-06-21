@@ -62,6 +62,18 @@ const INFO_WINDOW_STYLES = `
   .gm-style-iw-chr {
     height: 36px !important;
   }
+  .gm-style-iw-ch {
+    padding: 8px 40px 4px 12px !important;
+    align-items: center !important;
+  }
+  .map-info-window-title {
+    margin: 0;
+    padding: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #111827;
+  }
   .map-info-window-body {
     padding: 4px 12px 12px;
     min-width: 220px;
@@ -129,9 +141,13 @@ const INFO_WINDOW_STYLES = `
 `;
 
 function infoWindowOptions(titulo: string): google.maps.InfoWindowOptions {
+  const header = document.createElement('div');
+  header.className = 'map-info-window-title';
+  header.textContent = titulo;
+
   return {
     maxWidth: 320,
-    headerContent: titulo,
+    headerContent: header,
   };
 }
 
