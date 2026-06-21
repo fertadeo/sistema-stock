@@ -69,40 +69,26 @@ export const SideBar = () => {
     <section className="font-sans antialiased">
       <div
         className={`
-          fixed left-0 overflow-x-hidden px-3 h-screen bg-white shadow-xl w-60
+          fixed left-0 flex flex-col overflow-hidden px-3 h-screen bg-white shadow-xl w-60
           transition-transform duration-300 ease-in-out z-40
           ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
           md:translate-x-0
         `}
         id="sidebar"
       >
-        <div className="pt-14 pb-4 md:pt-[50px] md:pb-0 mb-5 space-y-6 md:space-y-8">
-          <div className="flex flex-col items-center px-2">
+        <div className="flex flex-col flex-1 min-h-0 pt-14 md:pt-[50px]">
+          <div className="flex flex-col items-center px-2 pb-6">
             <Image
               src="/images/soderialogo.png"
               alt="Sodería Don Javier"
-              width={120}
-              height={48}
-              className="object-contain"
+              width={200}
+              height={80}
+              className="object-contain w-full max-w-[200px] h-auto"
               priority
             />
-            <h1 className="mt-2 text-sm font-bold text-center md:text-base">
-              Soderia Don Javier<span className="text-red-700">.</span>
-            </h1>
           </div>
 
-          <div id="profile" className="px-2 space-y-1 text-center">
-            {user?.email && (
-              <p className="text-xs text-gray-600 truncate" title={user.email}>
-                {user.email}
-              </p>
-            )}
-            <p className="text-xs font-medium text-teal-600">
-              {user?.role_label || 'Usuario'}
-            </p>
-          </div>
-
-          <div id="menu" className="flex flex-col self-end space-y-1">
+          <div id="menu" className="flex flex-col flex-1 min-h-0 overflow-y-auto space-y-1 pb-4">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -170,6 +156,17 @@ export const SideBar = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div id="profile" className="shrink-0 px-2 py-4 border-t border-gray-200 text-center">
+          {user?.email && (
+            <p className="text-xs text-gray-600 truncate" title={user.email}>
+              {user.email}
+            </p>
+          )}
+          <p className="text-xs font-medium text-teal-600">
+            {user?.role_label || 'Usuario'}
+          </p>
         </div>
       </div>
 
