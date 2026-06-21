@@ -258,32 +258,12 @@ const PageZonasyRepartos = () => {
     [clientes]
   );
 
-  // Agrega esta función para actualizar las coordenadas
-  const actualizarCoordenadas = async (clienteId: number, lat: number, lon: number) => {
-    try {
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${clienteId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ latitud: lat, longitud: lon }),
-      });
-
-      if (!response.ok) throw new Error('Error al actualizar coordenadas');
-
-      // Actualizar el estado local
-      setClientes(prev => prev.map(cliente => 
-        cliente.id === clienteId 
-          ? { ...cliente, latitud: lat, longitud: lon }
-          : cliente
-      ));
-
-      // Mostrar mensaje de éxito
-      alert('Ubicación actualizada correctamente');
-    } catch (error) {
-      console.error('Error al actualizar coordenadas:', error);
-      alert('Error al actualizar la ubicación');
-    }
+  const actualizarClienteEnMapa = (clienteId: number, datos: Partial<Cliente>) => {
+    setClientes((prev) =>
+      prev.map((cliente) =>
+        cliente.id === clienteId ? { ...cliente, ...datos } : cliente
+      )
+    );
   };
 
   // Función para calcular la distancia entre dos puntos usando la fórmula de Haversine
@@ -761,9 +741,10 @@ const PageZonasyRepartos = () => {
             filtrosMapa={filtrosMapa}
             clientesIncluidos={clientesIncluidos}
             rutaDetallada={rutaDetallada}
-            onActualizarCoordenadas={actualizarCoordenadas}
+            onClienteActualizado={actualizarClienteEnMapa}
             clientesAtendidos={clientesAtendidos}
             repartidorPalette={repartidorPalette}
+            repartidores={repartidores}
           />
         </div>
       </div>

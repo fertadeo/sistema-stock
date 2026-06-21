@@ -24,6 +24,11 @@ interface Cliente {
   longitud: number;
 }
 
+interface RepartidorOption {
+  id: number;
+  nombre: string;
+}
+
 interface MapComponentProps {
   clientes: Cliente[];
   mostrarRuta: boolean;
@@ -35,9 +40,10 @@ interface MapComponentProps {
   filtrosMapa?: FiltrosCliente;
   clientesIncluidos?: number[];
   rutaDetallada: [number, number][];
-  onActualizarCoordenadas: (clienteId: number, lat: number, lon: number) => void;
+  onClienteActualizado: (clienteId: number, datos: Partial<Cliente>) => void;
   clientesAtendidos?: number[];
   repartidorPalette?: RepartidorPaletteItem[];
+  repartidores?: RepartidorOption[];
 }
 
 const mapContainerStyle = { width: '100%', height: '100%' };
@@ -74,12 +80,72 @@ const INFO_WINDOW_STYLES = `
     font-weight: 600;
     color: #374151;
   }
+  .map-info-window-select {
+    width: 100%;
+    margin-top: 2px;
+    font-size: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    background: #fff;
+    color: #1f2937;
+  }
+  .map-info-window-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+  }
+  .map-info-window-btn {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    color: #fff;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+  }
+  .map-info-window-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .map-info-window-btn-primary { background: #3b82f6; }
+  .map-info-window-btn-primary:hover:not(:disabled) { background: #2563eb; }
+  .map-info-window-btn-success { background: #22c55e; }
+  .map-info-window-btn-success:hover:not(:disabled) { background: #16a34a; }
+  .map-info-window-btn-danger { background: #ef4444; }
+  .map-info-window-btn-danger:hover:not(:disabled) { background: #dc2626; }
+  .map-info-window-btn-neutral { background: #6b7280; }
+  .map-info-window-btn-neutral:hover:not(:disabled) { background: #4b5563; }
+  .map-info-window-hint {
+    margin: 6px 0 0;
+    padding: 6px 8px;
+    font-size: 0.6875rem;
+    line-height: 1.3;
+    color: #92400e;
+    background: #fffbeb;
+    border-radius: 0.375rem;
+    border: 1px solid #fde68a;
+  }
 `;
 
 function infoWindowOptions(titulo: string): google.maps.InfoWindowOptions {
   return {
-    maxWidth: 300,
+    maxWidth: 320,
     headerContent: titulo,
+  };
+}
+
+function mapApiClienteToLocal(data: Record<string, unknown>): Partial<Cliente> {
+  const coords = tieneCoordenadasValidas(data.latitud, data.longitud);
+  return {
+    nombre: typeof data.nombre === 'string' ? data.nombre : undefined,
+    direccion: typeof data.direccion === 'string' ? data.direccion : undefined,
+    telefono: typeof data.telefono === 'string' ? data.telefono : undefined,
+    zona: data.zona != null ? (data.zona as string | number) : null,
+    repartidor: typeof data.repartidor === 'string' ? data.repartidor : null,
+    dia_reparto: typeof data.dia_reparto === 'string' ? data.dia_reparto : null,
+    latitud: coords?.latitud,
+    longitud: coords?.longitud,
   };
 }
 
@@ -109,12 +175,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
   filtrosMapa,
   clientesIncluidos = [],
   rutaDetallada,
-  onActualizarCoordenadas,
+  onClienteActualizado,
   clientesAtendidos = [],
   repartidorPalette = [],
+  repartidores = [],
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [repartidorEditado, setRepartidorEditado] = useState('');
+  const [guardandoRepartidor, setGuardandoRepartidor] = useState(false);
+  const [guardandoUbicacion, setGuardandoUbicacion] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<{
     cliente: Cliente;
     lat: number;
@@ -157,6 +227,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }, [clientesConCoords, filtrosMapa, clientesIncluidos]);
 
   useEffect(() => {
+    if (!selectedCliente) return;
+    const actualizado = clientesConCoords.find((c) => c.id === selectedCliente.id);
+    if (actualizado) {
+      setSelectedCliente(actualizado);
+    }
+  }, [clientes, clientesConCoords, selectedCliente?.id]);
+
+  useEffect(() => {
+    if (selectedCliente) {
+      setRepartidorEditado(selectedCliente.repartidor ?? '');
+    }
+  }, [selectedCliente?.id]);
+
+  useEffect(() => {
     if (!map || clientesParaVista.length === 0) return;
 
     const bounds = new google.maps.LatLngBounds();
@@ -186,30 +270,69 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setPendingConfirm({ cliente, lat, lng, direccion });
   };
 
+  const actualizarClienteEnApi = async (
+    clienteId: number,
+    body: Record<string, unknown>
+  ): Promise<Partial<Cliente>> => {
+    const response = await authFetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${clienteId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al actualizar el cliente');
+    }
+    const data = await response.json();
+    return mapApiClienteToLocal(data);
+  };
+
+  const guardarRepartidor = async () => {
+    if (!selectedCliente) return;
+    const repartidorActual = selectedCliente.repartidor ?? '';
+    if (repartidorEditado === repartidorActual) return;
+
+    setGuardandoRepartidor(true);
+    try {
+      const datos = await actualizarClienteEnApi(selectedCliente.id, {
+        repartidor: repartidorEditado.trim() || null,
+      });
+      onClienteActualizado(selectedCliente.id, datos);
+      setSelectedCliente((prev) => (prev ? { ...prev, ...datos } : null));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al actualizar el repartidor');
+    } finally {
+      setGuardandoRepartidor(false);
+    }
+  };
+
   const confirmarCambio = async () => {
     if (!pendingConfirm) return;
     const { cliente, lat, lng, direccion } = pendingConfirm;
+    setGuardandoUbicacion(true);
     try {
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitud: lat.toString(),
-            longitud: lng.toString(),
-            direccion,
-          }),
-        }
-      );
-      if (!response.ok) throw new Error('Error al actualizar');
-      onActualizarCoordenadas(cliente.id, lat, lng);
+      const datos = await actualizarClienteEnApi(cliente.id, {
+        latitud: lat.toString(),
+        longitud: lng.toString(),
+        direccion,
+      });
+      onClienteActualizado(cliente.id, {
+        ...datos,
+        latitud: lat,
+        longitud: lng,
+        direccion,
+      });
       setPendingConfirm(null);
       setEditingClienteId(null);
       setDragPosition(null);
       setSelectedCliente(null);
-    } catch {
-      alert('Error al actualizar las coordenadas. Por favor, intente nuevamente.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al actualizar las coordenadas');
+    } finally {
+      setGuardandoUbicacion(false);
     }
   };
 
@@ -229,6 +352,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const selectedAtendido = selectedCliente
     ? clientesAtendidos.includes(selectedCliente.id)
     : false;
+  const editandoUbicacion = selectedCliente != null && editingClienteId === selectedCliente.id;
+  const repartidorModificado =
+    selectedCliente != null && repartidorEditado !== (selectedCliente.repartidor ?? '');
 
   return (
     <div className="relative w-full h-full min-h-[45vh] lg:min-h-[70vh]">
@@ -316,47 +442,102 @@ const MapComponent: React.FC<MapComponentProps> = ({
               <InfoRow label="Dirección" value={selectedCliente.direccion} />
               <InfoRow label="Teléfono" value={selectedCliente.telefono} />
               <InfoRow label="Zona" value={selectedCliente.zona} />
-              <InfoRow label="Repartidor" value={selectedCliente.repartidor} />
               <InfoRow label="Día de reparto" value={selectedCliente.dia_reparto} />
+
+              <div className="map-info-window-row">
+                <label className="map-info-window-label" htmlFor={`repartidor-${selectedCliente.id}`}>
+                  Repartidor
+                </label>
+                <select
+                  id={`repartidor-${selectedCliente.id}`}
+                  className="map-info-window-select"
+                  value={repartidorEditado}
+                  onChange={(e) => setRepartidorEditado(e.target.value)}
+                  disabled={guardandoRepartidor || guardandoUbicacion}
+                >
+                  <option value="">Sin repartidor</option>
+                  {repartidores.map((rep) => (
+                    <option key={rep.id} value={rep.nombre}>
+                      {rep.nombre}
+                    </option>
+                  ))}
+                </select>
+                {repartidorModificado && (
+                  <button
+                    type="button"
+                    className="map-info-window-btn map-info-window-btn-success mt-2"
+                    onClick={guardarRepartidor}
+                    disabled={guardandoRepartidor}
+                  >
+                    {guardandoRepartidor ? 'Guardando...' : 'Guardar repartidor'}
+                  </button>
+                )}
+              </div>
+
+              {editandoUbicacion && (
+                <p className="map-info-window-hint">
+                  Arrastrá el marcador en el mapa hasta la nueva ubicación. Al soltarlo podrás confirmar el cambio.
+                </p>
+              )}
+
               {mostrarRuta && selectedEnRuta && (
                 <p className={`map-info-window-row font-semibold ${selectedAtendido ? 'text-green-600' : 'text-gray-500'}`}>
                   {selectedAtendido ? '✓ Cliente atendido hoy' : 'Pendiente de visita'}
                 </p>
               )}
-              {mostrarRuta && (
-                <>
-                  <p className="map-info-window-row">
-                    <span className="map-info-window-label">Orden en ruta:</span>{' '}
-                    {rutaOptimizada.findIndex((c) => c.id === selectedCliente.id) + 1}
-                  </p>
+
+              <div className="map-info-window-actions">
+                {mostrarRuta && (
+                  <>
+                    {selectedEnRuta && (
+                      <p className="w-full map-info-window-row">
+                        <span className="map-info-window-label">Orden en ruta:</span>{' '}
+                        {rutaOptimizada.findIndex((c) => c.id === selectedCliente.id) + 1}
+                      </p>
+                    )}
+                    {selectedEnRuta && (
+                      <button
+                        type="button"
+                        className={`map-info-window-btn ${
+                          clientesOmitidos.includes(selectedCliente.id)
+                            ? 'map-info-window-btn-success'
+                            : 'map-info-window-btn-danger'
+                        }`}
+                        onClick={() => onToggleOmitirCliente(selectedCliente.id)}
+                      >
+                        {clientesOmitidos.includes(selectedCliente.id)
+                          ? 'Incluir en ruta'
+                          : 'Omitir de ruta'}
+                      </button>
+                    )}
+                  </>
+                )}
+                {editandoUbicacion ? (
                   <button
                     type="button"
-                    className={`px-3 py-1.5 mt-2 text-xs text-white rounded ${
-                      clientesOmitidos.includes(selectedCliente.id)
-                        ? 'bg-green-500 hover:bg-green-600'
-                        : 'bg-red-500 hover:bg-red-600'
-                    }`}
-                    onClick={() => onToggleOmitirCliente(selectedCliente.id)}
+                    className="map-info-window-btn map-info-window-btn-neutral"
+                    onClick={cancelarCambio}
+                    disabled={guardandoUbicacion}
                   >
-                    {clientesOmitidos.includes(selectedCliente.id)
-                      ? 'Incluir en ruta'
-                      : 'Omitir de ruta'}
+                    Cancelar edición
                   </button>
-                </>
-              )}
-              <button
-                type="button"
-                className="px-3 py-1.5 mt-2 text-xs text-white bg-blue-500 rounded hover:bg-blue-600"
-                onClick={() => {
-                  setEditingClienteId(selectedCliente.id);
-                  setDragPosition({
-                    lat: selectedCliente.latitud,
-                    lng: selectedCliente.longitud,
-                  });
-                }}
-              >
-                Editar ubicación
-              </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="map-info-window-btn map-info-window-btn-primary"
+                    onClick={() => {
+                      setEditingClienteId(selectedCliente.id);
+                      setDragPosition({
+                        lat: selectedCliente.latitud,
+                        lng: selectedCliente.longitud,
+                      });
+                    }}
+                    disabled={guardandoRepartidor}
+                  >
+                    Editar ubicación
+                  </button>
+                )}
+              </div>
             </div>
           </InfoWindow>
         )}
@@ -378,20 +559,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
               <p className="map-info-window-row">
                 <span className="map-info-window-label">Lng:</span> {pendingConfirm.lng.toFixed(6)}
               </p>
-              <div className="flex gap-2 mt-2">
+              <div className="map-info-window-actions">
                 <button
                   type="button"
-                  className="px-3 py-1.5 text-xs text-white bg-green-500 rounded hover:bg-green-600"
+                  className="map-info-window-btn map-info-window-btn-success"
                   onClick={confirmarCambio}
+                  disabled={guardandoUbicacion}
                 >
-                  Sí
+                  {guardandoUbicacion ? 'Guardando...' : 'Confirmar'}
                 </button>
                 <button
                   type="button"
-                  className="px-3 py-1.5 text-xs text-white bg-red-500 rounded hover:bg-red-600"
+                  className="map-info-window-btn map-info-window-btn-danger"
                   onClick={cancelarCambio}
+                  disabled={guardandoUbicacion}
                 >
-                  No
+                  Cancelar
                 </button>
               </div>
             </div>
