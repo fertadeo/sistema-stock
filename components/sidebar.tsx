@@ -15,6 +15,7 @@ import {
   BoltIcon,
   UsersIcon,
   ShieldCheckIcon,
+  ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
 type NavItem = {
@@ -41,6 +42,11 @@ export const SideBar = () => {
     ];
 
     if (canManageAccounts) {
+      items.push({
+        href: '/reportes',
+        label: 'Reportes',
+        icon: <ChartBarIcon className="w-5 h-5 shrink-0" />,
+      });
       items.push({
         href: '/centro-cuentas',
         label: 'Centro de cuentas',

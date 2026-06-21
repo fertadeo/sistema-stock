@@ -35,7 +35,7 @@ export default function middleware(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith('/centro-cuentas') || pathname.startsWith('/usuarios')) {
+  if (pathname.startsWith('/centro-cuentas') || pathname.startsWith('/usuarios') || pathname.startsWith('/reportes')) {
     if (role !== 'admin' && role !== 'superadmin') {
       return NextResponse.redirect(new URL('/home', request.url));
     }
@@ -53,6 +53,7 @@ export const config = {
     '/ventas/:path*',
     '/zonasyrepartos/:path*',
     '/metricas/:path*',
+    '/reportes/:path*',
     '/salubridad/:path*',
     '/centro-cuentas/:path*',
     '/usuarios/:path*',
