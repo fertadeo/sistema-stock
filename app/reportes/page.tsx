@@ -15,6 +15,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
+import type { TooltipItem } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   ArrowTrendingUpIcon,
@@ -78,15 +79,22 @@ const chartDefaults = {
       backgroundColor: 'rgba(15, 23, 42, 0.9)',
       padding: 12,
       cornerRadius: 8,
-      callbacks: {
-        label: (ctx: { parsed: { y?: number; x?: number }; dataset: { label?: string } }) => {
-          const val = ctx.parsed.y ?? ctx.parsed.x ?? 0;
-          return `${ctx.dataset.label || ''}: ${formatMonto(val)}`;
-        },
-      },
     },
   },
 };
+
+function tooltipMontoLine(context: TooltipItem<'line'>): string {
+  return `${context.dataset.label ?? ''}: ${formatMonto(context.parsed.y ?? 0)}`;
+}
+
+function tooltipMontoBar(context: TooltipItem<'bar'>): string {
+  const val = context.parsed.y ?? context.parsed.x ?? 0;
+  return `${context.dataset.label ?? ''}: ${formatMonto(Number(val))}`;
+}
+
+function tooltipMontoDoughnut(context: TooltipItem<'doughnut'>): string {
+  return `${context.label}: ${formatMonto(context.parsed)}`;
+}
 
 function formatFechaCorta(fecha: string): string {
   const [y, m, d] = fecha.split('-').map(Number);
@@ -400,6 +408,13 @@ export default function ReportesPage() {
                   data={lineChartData}
                   options={{
                     ...chartDefaults,
+                    plugins: {
+                      ...chartDefaults.plugins,
+                      tooltip: {
+                        ...chartDefaults.plugins.tooltip,
+                        callbacks: { label: tooltipMontoLine },
+                      },
+                    },
                     scales: {
                       y: {
                         beginAtZero: true,
@@ -434,6 +449,10 @@ export default function ReportesPage() {
                       plugins: {
                         ...chartDefaults.plugins,
                         legend: { position: 'right' as const },
+                        tooltip: {
+                          ...chartDefaults.plugins.tooltip,
+                          callbacks: { label: tooltipMontoDoughnut },
+                        },
                       },
                     }}
                   />
@@ -471,6 +490,10 @@ export default function ReportesPage() {
                       plugins: {
                         ...chartDefaults.plugins,
                         legend: { display: false },
+                        tooltip: {
+                          ...chartDefaults.plugins.tooltip,
+                          callbacks: { label: tooltipMontoBar },
+                        },
                       },
                     }}
                   />
