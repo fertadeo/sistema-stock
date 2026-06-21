@@ -250,8 +250,9 @@ export default function CentroCuentasPage() {
           <h2 className="text-lg font-semibold text-gray-900">Nuevo acceso</h2>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="create-email" className="block mb-1 text-sm font-medium text-gray-700">Email</label>
             <input
+              id="create-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -261,8 +262,9 @@ export default function CentroCuentasPage() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Contraseña</label>
+            <label htmlFor="create-password" className="block mb-1 text-sm font-medium text-gray-700">Contraseña</label>
             <input
+              id="create-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -273,8 +275,9 @@ export default function CentroCuentasPage() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Rol</label>
+            <label htmlFor="create-role" className="block mb-1 text-sm font-medium text-gray-700">Rol</label>
             <select
+              id="create-role"
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -289,8 +292,9 @@ export default function CentroCuentasPage() {
 
           {role === USER_ROLES.REPARTIDOR && (
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
+              <label htmlFor="create-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
               <select
+                id="create-repartidor"
                 value={repartidorId}
                 onChange={(e) => setRepartidorId(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -396,8 +400,9 @@ export default function CentroCuentasPage() {
             </div>
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">Rol</label>
+              <label htmlFor="edit-role" className="block mb-1 text-sm font-medium text-gray-700">Rol</label>
               <select
+                id="edit-role"
                 value={editForm.role}
                 onChange={(e) =>
                   setEditForm((prev) => ({ ...prev, role: e.target.value as UserRole }))
@@ -418,8 +423,9 @@ export default function CentroCuentasPage() {
 
             {editForm.role === USER_ROLES.REPARTIDOR && (
               <div>
-                <label className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
+                <label htmlFor="edit-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
                 <select
+                  id="edit-repartidor"
                   value={editForm.repartidor_id}
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, repartidor_id: e.target.value }))
@@ -438,10 +444,11 @@ export default function CentroCuentasPage() {
             )}
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">
+              <label htmlFor="edit-password" className="block mb-1 text-sm font-medium text-gray-700">
                 Nueva contraseña (opcional)
               </label>
               <input
+                id="edit-password"
                 type="password"
                 value={editForm.password}
                 onChange={(e) =>
