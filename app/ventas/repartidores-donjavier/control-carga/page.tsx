@@ -828,8 +828,8 @@ const ControlCargaPage = () => {
 
   return (
     <>
-      <div className="flex justify-center items-start w-full min-h-screen bg-blue-500 bg-gradient-to-b from-background to-default-100">
-        <div className="w-full min-w-[300px] max-w-[900px] px-4 bg-none ">
+      <div className="flex justify-center items-start w-full min-h-0 py-4 sm:py-8 bg-blue-500 bg-gradient-to-b from-background to-default-100">
+        <div className="w-full max-w-[900px] px-3 sm:px-4">
 
           <Card className={`w-full ${
             isCarga ? 'bg-green-100' : 'bg-rose-100'

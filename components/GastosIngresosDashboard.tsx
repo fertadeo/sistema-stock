@@ -192,7 +192,7 @@ export default function GastosIngresosDashboard() {
       </div>
 
       {/* Totales */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="p-4 rounded-lg bg-green-50 border border-green-200">
           <p className="text-sm text-green-700 font-medium">Total ingresos</p>
           <p className="text-xl font-bold text-green-800">{formatMonto(totalIngresos)}</p>

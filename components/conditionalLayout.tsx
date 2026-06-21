@@ -16,7 +16,7 @@ const ConditionalLayout: React.FC<PropsWithChildren<{}>> = ({ children }) => {
 
   if (loading && !isLoginPage) {
     return (
-      <div className="flex justify-center items-center h-screen text-gray-500">
+      <div className="flex justify-center items-center min-h-screen text-gray-500">
         Cargando sesión...
       </div>
     );
@@ -27,9 +27,11 @@ const ConditionalLayout: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="flex min-h-screen w-full bg-[#F5F5F5]">
       <SideBar />
-      <main style={{ flexGrow: 1, overflow: 'auto', padding: '20px' }}>{children}</main>
+      <div className="page-shell pt-14 md:pt-0 md:ml-60 safe-top safe-bottom">
+        <div className="page-content">{children}</div>
+      </div>
     </div>
   );
 };

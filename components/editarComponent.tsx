@@ -299,11 +299,11 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} backdrop="opaque" size="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} backdrop="opaque" size="2xl" scrollBehavior="inside" classNames={{ base: "mx-2 sm:mx-auto max-h-[90dvh]" }}>
       <ModalContent>
         <ModalHeader>Editar datos de cliente</ModalHeader>
         <ModalBody>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="DNI o CUIL/CUIT"
               value={dni}

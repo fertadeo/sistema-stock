@@ -549,7 +549,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                     <div className="pt-4 space-y-4 border-t">
                       <h5 className="font-bold">Registro de Pagos</h5>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-4">
                           <div className="flex justify-end items-center">
                             <span className="font-bold">Recaudación en Efectivo:</span>

@@ -581,7 +581,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       )}
 
       {/* Tabla responsive */}
-      <div className="overflow-x-auto flex-1 mt-4">
+      <div className="table-scroll flex-1 mt-4">
         <div className="min-w-full">
           <Table aria-label="Tabla de Clientes" className="w-full">
             <TableHeader columns={filteredColumns}>

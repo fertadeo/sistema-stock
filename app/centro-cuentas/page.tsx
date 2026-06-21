@@ -42,21 +42,23 @@ function parseRepartidoresList(payload: unknown): RepartidorOption[] {
       ? (payload as { data: unknown[] }).data
       : [];
 
-  return list
-    .map((item) => {
-      const row = item as Record<string, unknown>;
-      const id = row.id != null ? String(row.id) : '';
-      const nombre = typeof row.nombre === 'string' ? row.nombre.trim() : '';
-      if (!id || !nombre) return null;
+  const result: RepartidorOption[] = [];
 
-      return {
-        id,
-        nombre,
-        zona_reparto: typeof row.zona_reparto === 'string' ? row.zona_reparto : undefined,
-        activo: row.activo === true || row.activo === 1,
-      };
-    })
-    .filter((item): item is RepartidorOption => item !== null);
+  for (const item of list) {
+    const row = item as Record<string, unknown>;
+    const id = row.id != null ? String(row.id) : '';
+    const nombre = typeof row.nombre === 'string' ? row.nombre.trim() : '';
+    if (!id || !nombre) continue;
+
+    result.push({
+      id,
+      nombre,
+      zona_reparto: typeof row.zona_reparto === 'string' ? row.zona_reparto : undefined,
+      activo: row.activo === true || row.activo === 1,
+    });
+  }
+
+  return result;
 }
 
 export default function CentroCuentasPage() {
@@ -278,8 +280,8 @@ export default function CentroCuentasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="p-6 bg-white rounded-xl shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Centro de cuentas</h1>
+      <div className="p-4 sm:p-6 bg-white rounded-xl shadow-sm">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Centro de cuentas</h1>
         <p className="mt-2 text-sm text-gray-600">
           Creá y administrá los accesos al sistema: repartidores, administradores
           {isSuperAdmin ? ' y superadministradores' : ''}.
@@ -390,7 +392,50 @@ export default function CentroCuentasPage() {
           ) : users.length === 0 ? (
             <p className="text-sm text-gray-500">Todavía no hay usuarios registrados.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="space-y-3 md:hidden">
+                {users.map((user) => (
+                  <div key={user.id} className="mobile-card">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{user.email}</p>
+                        {currentUser?.id === user.id && (
+                          <span className="text-xs text-gray-500">Tu cuenta</span>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 inline-flex px-2 py-1 text-xs font-medium rounded-full ${roleBadgeClass[user.role]}`}
+                      >
+                        {user.role_label}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-gray-600">
+                      <p><span className="font-medium text-gray-700">Repartidor:</span> {repartidorNombre(user.repartidor_id)}</p>
+                      <p>
+                        <span className="font-medium text-gray-700">Alta:</span>{' '}
+                        {user.created_at
+                          ? new Date(user.created_at).toLocaleDateString('es-AR')
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="mt-3">
+                      {canEditUser(user) ? (
+                        <button
+                          type="button"
+                          onClick={() => openEdit(user)}
+                          className="w-full px-3 py-2 text-sm font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100"
+                        >
+                          Editar
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin permiso para editar</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block table-scroll">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 border-b">
@@ -442,7 +487,8 @@ export default function CentroCuentasPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -41,7 +41,7 @@ const ConfirmModal = ({ open, onConfirm, onCancel }: { open: boolean, onConfirm:
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black bg-opacity-40">
-      <div className="bg-white rounded-lg shadow-lg p-6 min-w-[300px] flex flex-col items-center">
+      <div className="bg-white rounded-lg shadow-lg p-6 mx-4 w-full max-w-sm flex flex-col items-center">
         <p className="mb-4 text-lg font-semibold text-gray-800">¿Quieres salir de la navegación de ruta?</p>
         <div className="flex gap-4">
           <button
@@ -564,10 +564,10 @@ const PageZonasyRepartos = () => {
 
   return (
     <>
-      <div className="flex items-stretch min-h-[95vh] w-full bg-gray-100 rounded-xl p-4">
+      <div className="flex flex-col lg:flex-row items-stretch min-h-[calc(100dvh-8rem)] w-full bg-gray-100 rounded-xl p-2 sm:p-4 pb-24 lg:pb-4">
         {/* Panel izquierdo */}
-        <div className="flex flex-col gap-6 p-8 w-full max-w-md bg-white rounded-l-xl shadow-lg">
-          <h1 className="mb-2 text-2xl font-bold">Zonas y Repartos</h1>
+        <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 w-full lg:max-w-md bg-white rounded-xl lg:rounded-r-none shadow-lg shrink-0">
+          <h1 className="mb-2 text-xl sm:text-2xl font-bold">Zonas y Repartos</h1>
           <div className="flex flex-col gap-4">
             <label className="font-semibold" htmlFor="buscarCliente">Buscar cliente</label>
             <input 
@@ -625,15 +625,15 @@ const PageZonasyRepartos = () => {
               ))}
             </select>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
               <button
-                className="px-4 py-2 mt-4 text-white bg-blue-500 rounded hover:bg-blue-600"
+                className="px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white bg-blue-500 rounded hover:bg-blue-600 w-full sm:w-auto"
                 onClick={() => generarRutaEnMapa()}
               >
                 Generar Ruta en el Mapa
               </button>
               <button
-                className={`px-4 py-2 mt-4 text-white rounded ${rutaLista ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
+                className={`px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white rounded w-full sm:w-auto ${rutaLista ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
                 onClick={descargarHojaRuta}
                 disabled={!rutaLista}
               >
@@ -641,7 +641,7 @@ const PageZonasyRepartos = () => {
               </button>
               {mostrarRuta && (
                 <button
-                  className="px-4 py-2 mt-4 text-white bg-red-500 rounded hover:bg-red-600"
+                  className="px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white bg-red-500 rounded hover:bg-red-600 w-full sm:w-auto"
                   onClick={() => {
                     setMostrarRuta(false);
                     setRutaOptimizada([]);
@@ -697,7 +697,7 @@ const PageZonasyRepartos = () => {
         </div>
 
         {/* Mapa */}
-        <div className="overflow-hidden flex-1 h-full bg-white rounded-r-xl shadow-lg">
+        <div className="overflow-hidden flex-1 min-h-[45vh] lg:min-h-[70vh] bg-white rounded-xl lg:rounded-l-none shadow-lg">
           <MapComponent
             clientes={clientes}
             mostrarRuta={mostrarRuta}
@@ -714,8 +714,7 @@ const PageZonasyRepartos = () => {
       </div>
       {/* Footer fijo con datos de la ruta */}
       <footer
-        className="flex fixed bottom-0 left-0 gap-8 justify-center items-center px-6 py-3 w-full text-base bg-white border-t border-gray-200 shadow-lg"
-        style={{ minHeight: '48px', zIndex: 999 }}
+        className="flex flex-col sm:flex-row fixed bottom-0 left-0 md:left-60 gap-1 sm:gap-8 justify-center items-center px-3 sm:px-6 py-2 sm:py-3 w-full md:w-[calc(100%-15rem)] text-xs sm:text-base bg-white border-t border-gray-200 shadow-lg safe-bottom z-[999]"
       >
         <span className="font-semibold text-gray-700">
           Objetivos/Clientes: {mostrarRuta && rutaOptimizada.length ? rutaOptimizada.length : 0}

@@ -3,7 +3,7 @@ import HistorialRevendedores from '@/components/ventas/revendedores/historialRev
 
 export default function HistorialPage() {
   return (
-    <div className="flex flex-col w-full h-screen min-h-screen bg-gray-100 border-red-500">
+    <div className="flex flex-col w-full min-h-0 bg-gray-100">
       <div className="flex flex-col flex-1 bg-fuchsia-400">
         <HistorialRevendedores />
       </div>

@@ -351,7 +351,7 @@ export default function HistorialRevendedores() {
   };
 
   return (
-    <div className="flex flex-col p-4 w-full h-screen bg-gray-50">
+    <div className="flex flex-col p-3 sm:p-4 w-full min-h-0 bg-gray-50">
       <div className="space-y-4 w-full h-full">
         {/* Título y botón nuevo revendedor */}
         <div className="flex justify-between items-center">

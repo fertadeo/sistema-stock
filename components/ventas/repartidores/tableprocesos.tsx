@@ -109,7 +109,8 @@ const TableProcesos = ({
         <h4 className="text-lg font-semibold">Descargas de Repartidores</h4>
       </CardHeader>
       <CardBody>
-        <div className="min-w-[1000px] overflow-x-auto">
+        <div className="table-scroll">
+          <div className="min-w-[720px]">
           <Table aria-label="Tabla de Procesos">
             <TableHeader>
               <TableColumn>ID Descarga</TableColumn>
@@ -216,6 +217,7 @@ const TableProcesos = ({
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       </CardBody>
     </Card>

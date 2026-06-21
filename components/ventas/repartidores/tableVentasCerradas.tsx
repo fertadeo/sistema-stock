@@ -304,7 +304,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       </CardHeader>
 
       <CardBody>
-        <div className="min-w-[1000px] overflow-x-auto">
+        <div className="table-scroll">
           {ventasFiltradas.length === 0 ? (
             <div className="min-h-[200px] flex items-center justify-center">
               <Alert 
@@ -327,7 +327,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                 .filter(venta => venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === ''))
                 .map(venta => venta.id.toString()))}
               classNames={{
-                base: "min-w-full",
+                base: "min-w-[720px]",
                 th: "bg-default-100",
                 td: "cursor-pointer",
                 tr: "transition-colors hover:bg-gray-50"

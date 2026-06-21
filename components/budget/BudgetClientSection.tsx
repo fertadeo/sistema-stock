@@ -171,7 +171,7 @@ export const BudgetClientSection = ({ onClientSelect, selectedClient }: BudgetCl
 
       {/* Formulario para nuevo cliente */}
       {showNewClientForm && (
-        <form onSubmit={handleNewClientSubmit} className="grid grid-cols-2 gap-4 mt-4">
+        <form onSubmit={handleNewClientSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <Input
             label="Nombre *"
             value={newClient.nombre}

@@ -82,14 +82,14 @@ const ModalToTable: React.FC<ModalToTableProps> = ({ isOpen, onClose, cliente })
   }, [isOpen, cliente?.id]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="3xl">
+    <Modal isOpen={isOpen} onClose={onClose} size="3xl" scrollBehavior="inside" classNames={{ base: "mx-2 sm:mx-auto max-h-[90dvh]" }}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           {cliente?.nombre}
         </ModalHeader>
         <ModalBody>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <p>Teléfono: {cliente?.telefono || 'No registrado'}</p>
               <p>Email: {cliente?.email || 'No registrado'}</p>
               <p className="col-span-2">Dirección: {cliente?.direccion || 'No registrada'}</p>

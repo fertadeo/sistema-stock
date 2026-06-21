@@ -5,7 +5,7 @@ import { Card, CardBody } from "@heroui/react";
 
 export default function VentasPage() {
   return (
-    <div className="flex flex-col items-center pt-8 min-h-screen bg-gray-100">
+    <div className="flex flex-col items-center pt-4 sm:pt-8 min-h-0 w-full bg-gray-100">
       <div className="text-center">
        
         

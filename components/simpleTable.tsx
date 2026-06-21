@@ -118,6 +118,7 @@ export default function SimpleTable() {
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="table-scroll">
       <Table
         selectionMode="single"
         aria-label="Tabla de últimas ventas"
@@ -186,6 +187,7 @@ export default function SimpleTable() {
           )}
         </TableBody>
       </Table>
+      </div>
 
       {ventasFiltradas.length === 0 && (
         <div className="relative px-4 py-3 text-teal-700 bg-teal-200 bg-opacity-30 rounded border border-teal-500 border-opacity-30" role="alert">

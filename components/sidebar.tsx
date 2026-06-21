@@ -60,7 +60,7 @@ export const SideBar = () => {
   }, [canAccessSalubridad, canManageAccounts]);
 
   useEffect(() => {
-    if (window.innerWidth < 640) {
+    if (window.innerWidth < 768) {
       setIsOpen(false);
     }
   }, [pathname]);
@@ -76,7 +76,7 @@ export const SideBar = () => {
         `}
         id="sidebar"
       >
-        <div className="mt-[50px] mb-5 space-y-6 md:space-y-8">
+        <div className="pt-14 pb-4 md:pt-[50px] md:pb-0 mb-5 space-y-6 md:space-y-8">
           <div className="flex flex-col items-center px-2">
             <Image
               src="/images/soderialogo.png"
@@ -175,7 +175,7 @@ export const SideBar = () => {
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black bg-opacity-50 transition-opacity sm:hidden"
+          className="fixed inset-0 z-30 bg-black bg-opacity-50 transition-opacity md:hidden"
           aria-hidden="true"
           onClick={() => setIsOpen(false)}
         />
@@ -183,7 +183,7 @@ export const SideBar = () => {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-0 left-0 z-50 p-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white sm:hidden"
+        className="fixed top-0 left-0 z-50 p-2 m-2 text-gray-500 bg-white rounded-md border-2 border-gray-200 shadow-lg focus:bg-teal-500 focus:outline-none focus:text-white md:hidden safe-top"
         aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
       >
         {isOpen ? (
