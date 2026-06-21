@@ -1,12 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Input } from "@heroui/react";
-import { authFetch } from '@/lib/api/fetchWithAuth';
+'use client';
 
-interface AddressSuggestion {
-  display_name: string;
-  lat: string;
-  lon: string;
-}
+import React, { useRef, useEffect } from 'react';
+import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
 
 interface AddressAutocompleteProps {
   value: string;
@@ -16,116 +11,92 @@ interface AddressAutocompleteProps {
   className?: string;
 }
 
-// Función para simplificar el display_name
-function simplificarDireccion(display_name: string) {
-  // Ejemplo: "2934, Luis Reinaudi, San Eduardo, Río Cuarto, Municipio de Río Cuarto, Pedanía Río Cuarto, Departamento Río Cuarto, Córdoba, X5800, Argentina"
-  // Queremos: "Luis Reinaudi 2934, Río Cuarto"
-  const partes = display_name.split(",");
-  if (partes.length < 4) return display_name;
-  // Normalmente: [numeración, calle, barrio, ciudad, ...]
-  const numeracion = partes[0].trim();
-  const calle = partes[1].trim();
-  const ciudad = partes[3].trim();
-  return `${calle} ${numeracion}, ${ciudad}`;
-}
-
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   value,
   onChange,
-  placeholder = "Ingrese la dirección",
-  label = "Dirección",
-  className = ""
+  placeholder = 'Ingrese la dirección',
+  label = 'Dirección',
+  className = '',
 }) => {
-  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const { isLoaded, loadError } = useGoogleMapsLoader();
 
-  const searchAddress = async (query: string) => {
-    try {
-      console.log('Buscando dirección:', query);
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/geocode/search?query=${encodeURIComponent(query)}`,
-        {
-          headers: {
-            'Accept-Language': 'es'
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error('Error en la búsqueda');
-      }
-      
-      const data = await response.json();
-      console.log('Resultados de búsqueda:', data);
-      return data;
-    } catch (error) {
-      console.error('Error al buscar dirección:', error);
-      return [];
-    }
-  };
+  useEffect(() => {
+    autocompleteRef.current = null;
+  }, [value]);
 
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    onChange(value, '', ''); // Actualizar el valor del input
+  useEffect(() => {
+    if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    const bounds = new google.maps.LatLngBounds(
+      { lat: RIO_CUARTO_BOUNDS.south, lng: RIO_CUARTO_BOUNDS.west },
+      { lat: RIO_CUARTO_BOUNDS.north, lng: RIO_CUARTO_BOUNDS.east }
+    );
 
-    if (value.length < 3) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
+      componentRestrictions: { country: 'ar' },
+      bounds,
+      fields: ['formatted_address', 'geometry', 'name'],
+      types: ['address'],
+    });
 
-    timeoutRef.current = setTimeout(async () => {
-      setIsLoading(true);
-      const results = await searchAddress(value);
-      setSuggestions(results);
-      setShowSuggestions(true);
-      setIsLoading(false);
-    }, 500);
-  };
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current?.getPlace();
+      if (!place?.geometry?.location) return;
 
-  const handleSuggestionClick = (suggestion: AddressSuggestion) => {
-    onChange(simplificarDireccion(suggestion.display_name), suggestion.lat, suggestion.lon);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  };
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      const address = place.formatted_address || place.name || '';
+
+      onChange(address, String(lat), String(lng));
+    });
+  }, [isLoaded, onChange, value]);
+
+  if (loadError) {
+    return (
+      <div className={className}>
+        <label className="block mb-1 text-sm text-gray-600">{label}</label>
+        <input
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value, '', '')}
+          className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
+        />
+        <p className="mt-1 text-xs text-gray-500">Google Maps no disponible. Ingrese la dirección manualmente.</p>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className={className}>
+        <label className="block mb-1 text-sm text-gray-600">{label}</label>
+        <input
+          type="text"
+          value={value}
+          placeholder="Cargando autocomplete..."
+          disabled
+          className="px-3 py-2 w-full rounded-lg border border-gray-300 bg-gray-100"
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className={`relative ${className}`}>
-      <Input
-        label={label}
+    <div className={className} key={value || 'new-address'}>
+      <label className="block mb-1 text-sm text-gray-600">{label}</label>
+      <input
+        ref={inputRef}
+        key={value || 'new'}
+        type="text"
+        defaultValue={value}
         placeholder={placeholder}
-        value={value}
-        onChange={handleInputChange}
-        endContent={isLoading ? (
-          <div className="w-4 h-4 rounded-full border-b-2 border-gray-900 animate-spin" />
-        ) : null}
+        onChange={(e) => onChange(e.target.value, '', '')}
+        className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
+        autoComplete="off"
       />
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="overflow-auto absolute z-50 mt-1 w-full max-h-60 bg-white rounded-md border border-gray-200 shadow-lg">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={index}
-              role="option"
-              aria-selected={false}
-              className="px-4 py-2 w-full text-sm text-left cursor-pointer hover:bg-gray-100"
-              onClick={() => handleSuggestionClick(suggestion)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  handleSuggestionClick(suggestion);
-                }
-              }}
-            >
-              {simplificarDireccion(suggestion.display_name)}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

@@ -1,7 +1,11 @@
+'use client';
+
+import { GoogleMapsProvider } from '@/components/GoogleMapsProvider';
+
 export default function ZonasyRepartosLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return <GoogleMapsProvider>{children}</GoogleMapsProvider>;
 }

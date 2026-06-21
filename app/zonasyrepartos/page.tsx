@@ -1,8 +1,9 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { coincideRepartidor } from '@/lib/map/repartidorMarkers';
 
 interface Cliente {
   id: number;
@@ -103,6 +104,24 @@ const PageZonasyRepartos = () => {
 
   // Agregar nuevo estado para clientes incluidos manualmente
   const [clientesIncluidos, setClientesIncluidos] = useState<number[]>([]);
+  const [clientesAtendidos, setClientesAtendidos] = useState<number[]>([]);
+
+  const fetchClientesAtendidos = useCallback(async () => {
+    try {
+      const params =
+        filtroRepartidor !== 'todos'
+          ? `?repartidor=${encodeURIComponent(filtroRepartidor)}`
+          : '';
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidor-rapido/clientes-atendidos-hoy${params}`
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+      setClientesAtendidos(data.cliente_ids || []);
+    } catch (error) {
+      console.error('Error al cargar clientes atendidos:', error);
+    }
+  }, [filtroRepartidor]);
 
   // Función para obtener los clientes
   const fetchClientes = async () => {
@@ -148,6 +167,17 @@ const PageZonasyRepartos = () => {
     fetchClientes();
   }, []);
 
+  useEffect(() => {
+    if (!mostrarRuta) {
+      setClientesAtendidos([]);
+      return;
+    }
+
+    fetchClientesAtendidos();
+    const interval = setInterval(fetchClientesAtendidos, 15000);
+    return () => clearInterval(interval);
+  }, [mostrarRuta, fetchClientesAtendidos]);
+
   // Obtener valores únicos para los selectores
   const diasUnicos = ['todos', ...Array.from(new Set(clientes.map(c => c.dia_reparto)))];
   const repartidoresUnicos = ['todos', ...Array.from(new Set(clientes.map(c => {
@@ -160,7 +190,7 @@ const PageZonasyRepartos = () => {
   const actualizarCoordenadas = async (clienteId: number, lat: number, lon: number) => {
     try {
       const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${clienteId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -186,25 +216,6 @@ const PageZonasyRepartos = () => {
     } catch (error) {
       console.error('Error al actualizar coordenadas:', error);
       alert('Error al actualizar la ubicación');
-    }
-  };
-
-  // Agrega esta función para obtener la dirección desde coordenadas
-  const obtenerDireccion = async (lat: number, lon: number) => {
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'SoderiaApp/1.0'
-          }
-        }
-      );
-      const data = await response.json();
-      return data.display_name;
-    } catch (error) {
-      console.error('Error al obtener la dirección:', error);
-      return 'No se pudo obtener la dirección';
     }
   };
 
@@ -357,31 +368,29 @@ const PageZonasyRepartos = () => {
     return coordenadas;
   };
 
-  // Función para obtener la ruta detallada entre dos puntos usando OSRM
+  // Función para obtener la ruta detallada entre dos puntos usando Google Directions API
   const obtenerRutaDetallada = async (origen: [number, number], destino: [number, number]) => {
     try {
-      console.log('Solicitando ruta de:', origen, 'a:', destino);
-      
-      const url = `https://router.project-osrm.org/route/v1/driving/${origen[1]},${origen[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-      console.log('URL de la solicitud:', url);
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      console.log('Respuesta de OSRM:', data);
-      
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-        const ruta = {
-          coordenadas: data.routes[0].geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]]),
-          distancia: data.routes[0].distance,
-          duracion: data.routes[0].duration
-        };
-        console.log('Ruta procesada:', ruta);
-        return ruta;
-      } else {
-        console.error('Error en la respuesta de OSRM:', data);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rutas/directions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origen: { lat: origen[0], lng: origen[1] },
+          destino: { lat: destino[0], lng: destino[1] },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Error en directions API:', response.status);
         return null;
       }
+
+      const data = await response.json();
+      return {
+        coordenadas: data.coordenadas as [number, number][],
+        distancia: data.distancia,
+        duracion: data.duracion,
+      };
     } catch (error) {
       console.error('Error al obtener la ruta detallada:', error);
       return null;
@@ -471,6 +480,7 @@ const PageZonasyRepartos = () => {
     }
 
     setCargandoRuta(false);
+    fetchClientesAtendidos();
   };
 
   // Modificar la función para descargar la hoja de ruta
@@ -549,18 +559,8 @@ const PageZonasyRepartos = () => {
     setTiempoEstimado(0);
     setRutaLista(false);
     setCargandoRuta(false);
+    setClientesAtendidos([]);
   };
-
-  function coincideRepartidor(clienteRepartidor: string, filtroRepartidor: string) {
-    if (!filtroRepartidor || filtroRepartidor === 'todos') return true;
-    if (!clienteRepartidor || clienteRepartidor.trim() === "") return false;
-    // Normalizar para David Schenatti
-    if (
-      filtroRepartidor.toLowerCase().includes('david') &&
-      clienteRepartidor.toLowerCase().includes('david')
-    ) return true;
-    return clienteRepartidor.trim().toLowerCase() === filtroRepartidor.trim().toLowerCase();
-  }
 
   return (
     <>
@@ -677,7 +677,7 @@ const PageZonasyRepartos = () => {
                 </li>
                 <li className="flex gap-2 items-center">
                   <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
-                  <span>Clientes filtrados</span>
+                  <span>Clientes filtrados / pendientes de visita</span>
                 </li>
                 <li className="flex gap-2 items-center">
                   <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
@@ -692,6 +692,7 @@ const PageZonasyRepartos = () => {
               <h3 className="mb-2 font-semibold">Información de la Ruta</h3>
               <p><span className="font-semibold">Distancia total:</span> {(distanciaTotal / 1000).toFixed(2)} km</p>
               <p><span className="font-semibold">Tiempo estimado:</span> {Math.round(tiempoEstimado / 60)} minutos</p>
+              <p><span className="font-semibold">Atendidos hoy:</span> {clientesAtendidos.filter(id => rutaOptimizada.some(c => c.id === id)).length} / {rutaOptimizada.length}</p>
             </div>
           )}
         </div>
@@ -709,6 +710,7 @@ const PageZonasyRepartos = () => {
             repartidorSeleccionado={filtroRepartidor !== 'todos' ? filtroRepartidor : undefined}
             rutaDetallada={rutaDetallada}
             onActualizarCoordenadas={actualizarCoordenadas}
+            clientesAtendidos={clientesAtendidos}
           />
         </div>
       </div>
