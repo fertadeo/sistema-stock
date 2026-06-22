@@ -23,7 +23,7 @@ export default function middleware(request: NextRequest) {
   }
 
   if (role === 'repartidor') {
-    if (pathname === '/repartidor/rapido') {
+    if (pathname.startsWith('/repartidor')) {
       return NextResponse.next();
     }
     return NextResponse.redirect(new URL('/repartidor/rapido', request.url));

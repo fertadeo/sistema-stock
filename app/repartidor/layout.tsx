@@ -111,15 +111,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
     },
   ];
 
-  const navItems = isRepartidor
-    ? allNavItems.filter((item) => item.href === '/repartidor/rapido')
-    : allNavItems;
-
-  useEffect(() => {
-    if (isRepartidor && currentPathname !== '/repartidor/rapido') {
-      router.replace('/repartidor/rapido');
-    }
-  }, [isRepartidor, currentPathname, router]);
+  const navItems = allNavItems;
 
   const tituloActual =
     navItems.find((item) => isRouteActive(currentPathname, item.href) && item.href !== '/repartidor')?.label ||
