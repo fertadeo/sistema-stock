@@ -11,8 +11,11 @@ import {
   UserGroupIcon,
   Bars3Icon,
   XMarkIcon,
-  BoltIcon
+  BoltIcon,
+  ArrowRightOnRectangleIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
+import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -50,6 +53,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const pathname = usePathname();
   const currentPathname = pathname ?? '';
   const { isRepartidor, user, logout } = useAuth();
+  useRutaAlertas(Boolean(user));
   const { modalOperacionAbierto, enOperacion, navInferiorVisible } = useRepartidorUi();
   const ocultarNavInferior =
     modalOperacionAbierto || (enOperacion && !navInferiorVisible);
@@ -90,6 +94,11 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       icon: <BoltIcon className="w-6 h-6" />
     },
     {
+      href: '/repartidor/ruta',
+      label: 'Ruta',
+      icon: <MapPinIcon className="w-6 h-6" />
+    },
+    {
       href: '/repartidor/ventas',
       label: 'Ventas',
       icon: <ShoppingCartIcon className="w-6 h-6" />
@@ -121,6 +130,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const subtituloActual = (() => {
     if (currentPathname === '/repartidor') return 'Panel operativo';
     if (currentPathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
+    if (currentPathname === '/repartidor/ruta') return 'Clientes fijados y alertas del día';
     if (currentPathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
     if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
     if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
@@ -157,10 +167,10 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
         </div>
       </header>
 
-      {/* Sidebar solo para móvil */}
+      {/* Sidebar: desplegable en móvil, fijo en escritorio */}
       <aside className={`
         fixed left-0 top-0 h-full bg-white shadow-lg z-40 transition-transform duration-300 ease-in-out
-        w-64 transform
+        w-64 transform lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="pt-20 pb-4 h-full flex flex-col">
@@ -193,19 +203,31 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
             ))}
           </nav>
 
-          {/* Información del repartidor */}
+          {/* Información del repartidor y cierre de sesión */}
           <div className="px-4 py-4 border-t border-gray-200">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
                 <UserGroupIcon className="w-5 h-5 text-teal-600" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-800">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800 truncate">
                   {isRepartidor ? user?.email || 'Repartidor' : 'Módulo Repartidor'}
                 </p>
                 <p className="text-xs text-gray-500">{subtituloActual}</p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                router.push('/');
+                setSidebarOpen(false);
+              }}
+              className="mt-4 flex items-center w-full px-4 py-3 text-left rounded-lg text-red-700 transition-colors hover:bg-red-50 hover:text-red-800"
+            >
+              <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 shrink-0" />
+              <span className="font-medium">Cerrar sesión</span>
+            </button>
           </div>
         </div>
       </aside>

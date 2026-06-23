@@ -1,12 +1,12 @@
 {
-  "name": "Sistema Stock",
-  "short_name": "Stock App",
-  "description": "Sistema de control de stock",
-  "start_url": "/",
+  "name": "Sodería Don Javier",
+  "short_name": "Sodería",
+  "description": "Sistema de reparto y gestión Sodería Don Javier",
+  "start_url": "/repartidor/rapido",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#0d9488",
   "icons": [
     {
       "src": "/images/soderialogo.png",
@@ -22,4 +22,4 @@
     }
   ],
   "prefer_related_applications": false
-} 
+}
