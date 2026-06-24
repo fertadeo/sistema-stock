@@ -190,23 +190,78 @@ export async function activarPushNotifications(): Promise<{
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
 
-  if (!subscription) {
+  // Sincronizar suscripción existente con el servidor
+  if (subscription) {
+    try {
+      await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
+      const estado = await repartidorRutaService.obtenerEstadoPush();
+      if (estado.suscripcion_activa) {
+        return { ok: true, suscrito: true, razon: 'Dispositivo registrado para alertas push' };
+      }
+    } catch {
+      // La suscripción del navegador puede ser inválida (ej. VAPID cambió)
+    }
+    try {
+      await subscription.unsubscribe();
+    } catch {
+      // continuar con nueva suscripción
+    }
+    subscription = null;
+  }
+
+  try {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Error al suscribir push';
+    return {
+      ok: false,
+      razon: `No se pudo registrar el celular: ${msg}. Usá Chrome e instalá la app desde el menú.`,
+    };
   }
 
   await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
-  return { ok: true, suscrito: true };
+
+  const estado = await repartidorRutaService.obtenerEstadoPush();
+  if (!estado.suscripcion_activa) {
+    return {
+      ok: false,
+      razon: 'El servidor no recibió la suscripción. Reintentá o recargá la app.',
+    };
+  }
+
+  return { ok: true, suscrito: true, razon: 'Celular registrado para alertas push' };
 }
 
-export async function asegurarSuscripcionPushSilenciosa(): Promise<void> {
-  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+export async function asegurarSuscripcionPushSilenciosa(): Promise<{
+  suscrito: boolean;
+  razon?: string;
+}> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return { suscrito: false, razon: 'Sin soporte de notificaciones' };
+  }
+
+  if (Notification.permission === 'denied') {
+    return { suscrito: false, razon: 'Permiso denegado' };
+  }
+
   try {
-    await activarPushNotifications();
-  } catch {
-    // reintenta en la próxima visita
+    const estado = await repartidorRutaService.obtenerEstadoPush();
+    if (estado.suscripcion_activa) {
+      return { suscrito: true };
+    }
+
+    if (Notification.permission === 'granted') {
+      const resultado = await activarPushNotifications();
+      return { suscrito: Boolean(resultado.suscrito), razon: resultado.razon };
+    }
+
+    return { suscrito: false, razon: 'Falta activar permisos en Ruta' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Error de suscripción';
+    return { suscrito: false, razon: msg };
   }
 }
 

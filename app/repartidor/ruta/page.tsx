@@ -21,6 +21,7 @@ import {
 import {
   repartidorRutaService,
   activarPushNotifications,
+  asegurarSuscripcionPushSilenciosa,
   type RutaParada,
 } from '@/lib/services/repartidorRutaService';
 
@@ -107,6 +108,14 @@ export default function RepartidorRutaPage() {
         const estado = await repartidorRutaService.obtenerEstadoPush();
         setPushServidor(estado.vapid_configurado);
         setPushSuscrito(estado.suscripcion_activa);
+
+        if (estado.vapid_configurado && !estado.suscripcion_activa && Notification.permission === 'granted') {
+          const registro = await asegurarSuscripcionPushSilenciosa();
+          setPushSuscrito(registro.suscrito);
+          if (registro.suscrito) {
+            setMensaje('Celular registrado para recibir alertas push.');
+          }
+        }
       } catch {
         setPushServidor(false);
         setPushSuscrito(false);
@@ -278,14 +287,19 @@ export default function RepartidorRutaPage() {
         </div>
 
         {pushEstado !== 'activo' && (
-          <button
-            type="button"
-            onClick={() => void activarAlertas()}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-3 text-sm font-medium text-white hover:bg-teal-700"
-          >
-            <BellAlertIcon className="w-5 h-5" />
-            Activar alertas en este celular
-          </button>
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={() => void activarAlertas()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-3 text-sm font-medium text-white hover:bg-teal-700"
+            >
+              <BellAlertIcon className="w-5 h-5" />
+              Activar alertas en este celular
+            </button>
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Sin este paso el servidor no puede enviar alertas a este dispositivo.
+            </p>
+          </div>
         )}
         {pushEstado === 'activo' && (
           <div className="mt-3 space-y-2 text-sm text-teal-800">
@@ -297,8 +311,17 @@ export default function RepartidorRutaPage() {
               Servidor push: {pushServidor ? 'configurado' : 'falta VAPID en el servidor'}
             </p>
             <p>
-              Este celular suscrito: {pushSuscrito ? 'sí' : 'no — tocá Activar alertas'}
+              Este celular suscrito: {pushSuscrito ? 'sí' : 'no — tocá Activar alertas abajo'}
             </p>
+            {!pushSuscrito && pushServidor && (
+              <button
+                type="button"
+                onClick={() => void activarAlertas()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700"
+              >
+                Registrar este celular para alertas
+              </button>
+            )}
             {pushServidor && pushSuscrito && (
               <button
                 type="button"
