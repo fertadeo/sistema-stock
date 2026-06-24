@@ -307,8 +307,11 @@ export default function RepartidorRutaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Comentario</label>
+            <label htmlFor="ruta-comentario" className="block text-sm font-medium text-gray-700 mb-1">
+              Comentario
+            </label>
             <textarea
+              id="ruta-comentario"
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
               rows={2}
@@ -318,10 +321,11 @@ export default function RepartidorRutaPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="ruta-hora-alerta" className="block text-sm font-medium text-gray-700 mb-1">
               Hora de alerta (opcional)
             </label>
             <input
+              id="ruta-hora-alerta"
               type="time"
               value={horaAlerta}
               onChange={(e) => setHoraAlerta(e.target.value)}
@@ -400,8 +404,11 @@ export default function RepartidorRutaPage() {
               Editar — {editando.cliente?.nombre}
             </h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Comentario</label>
+              <label htmlFor="ruta-comentario-edit" className="block text-sm font-medium text-gray-700 mb-1">
+                Comentario
+              </label>
               <textarea
+                id="ruta-comentario-edit"
                 value={comentarioEdit}
                 onChange={(e) => setComentarioEdit(e.target.value)}
                 rows={2}
@@ -409,8 +416,11 @@ export default function RepartidorRutaPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hora de alerta</label>
+              <label htmlFor="ruta-hora-alerta-edit" className="block text-sm font-medium text-gray-700 mb-1">
+                Hora de alerta
+              </label>
               <input
+                id="ruta-hora-alerta-edit"
                 type="time"
                 value={horaAlertaEdit}
                 onChange={(e) => setHoraAlertaEdit(e.target.value)}
