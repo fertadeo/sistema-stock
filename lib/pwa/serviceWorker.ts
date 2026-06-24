@@ -48,7 +48,7 @@ function esperarWorkerActivo(
 
   if (worker.state === 'installing') {
     onProgreso?.('Instalando actualización de la app (puede tardar 1 minuto con datos móviles)...');
-  } else if (worker.state === 'waiting') {
+  } else if (worker.state === 'activating' || worker.state === 'installed') {
     onProgreso?.('Activando service worker...');
   }
 

@@ -8,16 +8,9 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   customWorkerDir: 'worker',
   cacheOnFrontEndNav: false,
-  aggressiveFrontEndNavCaching: false,
-  workboxOptions: {
-    disableDevLogs: true,
-    // Instalación más rápida en celular: no precachear todos los chunks de Next
-    exclude: [
-      /\.map$/,
-      /\/_next\/static\/chunks\//,
-      /\/_next\/static\/media\//,
-    ],
-  },
+  disableDevLogs: true,
+  // Instalación más rápida en celular: menos archivos en precache
+  buildExcludes: [/middleware-manifest\.json$/, /chunks\//, /media\//],
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
