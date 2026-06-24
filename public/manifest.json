@@ -3,6 +3,8 @@
   "short_name": "Sodería",
   "description": "Sistema de reparto y gestión Sodería Don Javier",
   "start_url": "/repartidor/rapido",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",

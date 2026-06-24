@@ -1,4 +1,5 @@
 import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
+import { prepararServiceWorkerParaPush } from '@/lib/pwa/serviceWorker';
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -173,64 +174,6 @@ function conTimeout<T>(promise: Promise<T>, ms: number, mensaje: string): Promis
   ]);
 }
 
-async function esperarControlServiceWorker(ms: number): Promise<void> {
-  if (navigator.serviceWorker.controller) return;
-
-  await new Promise<void>((resolve, reject) => {
-    const mensaje =
-      'La app aún no está lista para push. Cerrala por completo y abrila desde el ícono en la pantalla de inicio.';
-
-    const finalizar = () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', onChange);
-      clearTimeout(timer);
-    };
-
-    const onChange = () => {
-      if (navigator.serviceWorker.controller) {
-        finalizar();
-        resolve();
-      }
-    };
-
-    navigator.serviceWorker.addEventListener('controllerchange', onChange);
-
-    const timer = setTimeout(() => {
-      finalizar();
-      if (navigator.serviceWorker.controller) {
-        resolve();
-      } else {
-        reject(new Error(mensaje));
-      }
-    }, ms);
-  });
-}
-
-async function obtenerServiceWorkerListo(): Promise<ServiceWorkerRegistration> {
-  if (!('serviceWorker' in navigator)) {
-    throw new Error('Service worker no disponible en este navegador');
-  }
-
-  // next-pwa ya registra /sw.js — no volver a registrar (puede colgar en Android)
-  const existente = await navigator.serviceWorker.getRegistration('/');
-  if (existente?.active) {
-    return existente;
-  }
-
-  const registration = await conTimeout(
-    navigator.serviceWorker.ready,
-    20_000,
-    'El service worker no respondió. Cerrá la app y volvé a abrirla desde el ícono.'
-  );
-
-  if (!registration.active) {
-    throw new Error(
-      'Service worker inactivo. Recargá la página o reinstalá la app desde Chrome.'
-    );
-  }
-
-  return registration;
-}
-
 async function sincronizarSuscripcionConServidor(
   subscription: PushSubscription
 ): Promise<boolean> {
@@ -279,8 +222,15 @@ export async function activarPushNotifications(): Promise<{
 
   let registration: ServiceWorkerRegistration;
   try {
-    registration = await obtenerServiceWorkerListo();
-    await esperarControlServiceWorker(8_000);
+    const preparacion = await prepararServiceWorkerParaPush();
+    if (preparacion.recargando) {
+      return {
+        ok: true,
+        suscrito: false,
+        razon: 'Recargando para activar notificaciones push...',
+      };
+    }
+    registration = preparacion.registration;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'No se pudo iniciar el service worker';
     return {
@@ -373,7 +323,11 @@ export async function asegurarSuscripcionPushSilenciosa(): Promise<{
       return { suscrito: false, razon: 'Falta activar permisos en Ruta' };
     }
 
-    const registration = await obtenerServiceWorkerListo();
+    const preparacion = await prepararServiceWorkerParaPush();
+    if (preparacion.recargando) {
+      return { suscrito: false, razon: 'Recargando para activar push...' };
+    }
+    const registration = preparacion.registration;
     const subscription = await registration.pushManager?.getSubscription();
     if (!subscription) {
       return {

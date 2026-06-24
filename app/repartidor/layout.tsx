@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
 import { asegurarSuscripcionPushSilenciosa } from '@/lib/services/repartidorRutaService';
+import { asegurarServiceWorkerRegistrado } from '@/lib/pwa/serviceWorker';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -58,6 +59,9 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     if (!user) return;
+    void asegurarServiceWorkerRegistrado().catch(() => {
+      // se reintenta al registrar push en Ruta
+    });
     void asegurarSuscripcionPushSilenciosa();
   }, [user]);
   const { modalOperacionAbierto, enOperacion, navInferiorVisible } = useRepartidorUi();
