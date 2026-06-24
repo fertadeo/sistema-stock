@@ -190,11 +190,14 @@ async function sincronizarSuscripcionConServidor(
   return estado.suscripcion_activa;
 }
 
-export async function activarPushNotifications(): Promise<{
+export async function activarPushNotifications(options?: {
+  onProgreso?: (mensaje: string) => void;
+}): Promise<{
   ok: boolean;
   razon?: string;
   suscrito?: boolean;
 }> {
+  const onProgreso = options?.onProgreso;
   if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
     return { ok: false, razon: 'Este dispositivo no soporta notificaciones' };
   }
@@ -222,7 +225,7 @@ export async function activarPushNotifications(): Promise<{
 
   let registration: ServiceWorkerRegistration;
   try {
-    const preparacion = await prepararServiceWorkerParaPush();
+    const preparacion = await prepararServiceWorkerParaPush(onProgreso);
     if (preparacion.recargando) {
       return {
         ok: true,
@@ -266,6 +269,7 @@ export async function activarPushNotifications(): Promise<{
   }
 
   try {
+    onProgreso?.('Conectando con Google Push...');
     subscription = await conTimeout(
       registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -283,6 +287,7 @@ export async function activarPushNotifications(): Promise<{
   }
 
   try {
+    onProgreso?.('Guardando suscripción en el servidor...');
     const sincronizado = await sincronizarSuscripcionConServidor(subscription);
     if (!sincronizado) {
       return {

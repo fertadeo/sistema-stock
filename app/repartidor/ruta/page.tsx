@@ -24,6 +24,7 @@ import {
   asegurarSuscripcionPushSilenciosa,
   type RutaParada,
 } from '@/lib/services/repartidorRutaService';
+import { obtenerDiagnosticoServiceWorker } from '@/lib/pwa/serviceWorker';
 
 function puntuarCliente(c: ClienteBasico, termo: string): number {
   const t = termo.toLowerCase().trim();
@@ -64,6 +65,8 @@ export default function RepartidorRutaPage() {
   const [pushServidor, setPushServidor] = useState(false);
   const [pushSuscrito, setPushSuscrito] = useState(false);
   const [registrandoPush, setRegistrandoPush] = useState(false);
+  const [progresoPush, setProgresoPush] = useState('');
+  const [diagnosticoSw, setDiagnosticoSw] = useState('');
   const [probandoPush, setProbandoPush] = useState(false);
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteBasico | null>(null);
@@ -124,6 +127,14 @@ export default function RepartidorRutaPage() {
     };
 
     void cargarEstadoPush();
+    void obtenerDiagnosticoServiceWorker().then((d) => {
+      const partes = [
+        `SW registrado: ${d.registraciones > 0 ? 'sí' : 'no'}`,
+        d.estadoWorker ? `estado: ${d.estadoWorker}` : null,
+        `controla página: ${d.controlaPagina ? 'sí' : 'no'}`,
+      ].filter(Boolean);
+      setDiagnosticoSw(partes.join(' · '));
+    });
   }, []);
 
   useEffect(() => {
@@ -200,14 +211,18 @@ export default function RepartidorRutaPage() {
     setRegistrandoPush(true);
     setError('');
     setMensaje('');
+    setProgresoPush('Iniciando registro...');
     const safety = window.setTimeout(() => {
       setRegistrandoPush(false);
+      setProgresoPush('');
       setError(
-        'El registro tardó demasiado. Cerrá la app por completo (no solo minimizar), abrila desde el ícono en la pantalla de inicio y volvé a intentar.'
+        'El registro tardó demasiado. Usá WiFi, cerrá la app por completo, abrila desde el ícono y volvé a intentar.'
       );
-    }, 45_000);
+    }, 120_000);
     try {
-      const resultado = await activarPushNotifications();
+      const resultado = await activarPushNotifications({
+        onProgreso: setProgresoPush,
+      });
       if (resultado.ok && resultado.suscrito) {
         setPushEstado('activo');
         setPushSuscrito(true);
@@ -233,6 +248,15 @@ export default function RepartidorRutaPage() {
     } finally {
       window.clearTimeout(safety);
       setRegistrandoPush(false);
+      setProgresoPush('');
+      void obtenerDiagnosticoServiceWorker().then((d) => {
+        const partes = [
+          `SW registrado: ${d.registraciones > 0 ? 'sí' : 'no'}`,
+          d.estadoWorker ? `estado: ${d.estadoWorker}` : null,
+          `controla página: ${d.controlaPagina ? 'sí' : 'no'}`,
+        ].filter(Boolean);
+        setDiagnosticoSw(partes.join(' · '));
+      });
     }
   };
 
@@ -336,14 +360,24 @@ export default function RepartidorRutaPage() {
               Este celular suscrito: {pushSuscrito ? 'sí' : 'no — tocá Activar alertas abajo'}
             </p>
             {!pushSuscrito && pushServidor && (
-              <button
-                type="button"
-                disabled={registrandoPush}
-                onClick={() => void activarAlertas()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-60"
-              >
-                {registrandoPush ? 'Registrando celular...' : 'Registrar este celular para alertas'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={registrandoPush}
+                  onClick={() => void activarAlertas()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+                >
+                  {registrandoPush ? 'Registrando celular...' : 'Registrar este celular para alertas'}
+                </button>
+                {registrandoPush && progresoPush && (
+                  <p className="text-xs text-teal-900 bg-white border border-teal-200 rounded-lg px-3 py-2">
+                    {progresoPush}
+                  </p>
+                )}
+                {diagnosticoSw && !registrandoPush && (
+                  <p className="text-xs text-gray-600">{diagnosticoSw}</p>
+                )}
+              </>
             )}
             {pushServidor && pushSuscrito && (
               <button
