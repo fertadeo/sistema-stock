@@ -173,15 +173,15 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
         w-64 transform lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="pt-20 pb-4 h-full flex flex-col">
+        <div className="pt-20 h-full flex flex-col min-h-0">
           {/* Logo/Nombre en sidebar */}
-          <div className="px-4 py-6 border-b border-gray-200">
+          <div className="px-4 py-6 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold text-gray-800">Soderia Don Javier</h2>
             <p className="text-sm text-gray-600 mt-1">Panel Repartidor</p>
           </div>
           
-          {/* Navegación */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          {/* Navegación — scroll si hay muchos ítems */}
+          <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-2">
             {navItems.map((item) => (
               <button
                 key={item.href}
@@ -203,17 +203,17 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
             ))}
           </nav>
 
-          {/* Información del repartidor y cierre de sesión */}
-          <div className="px-4 py-4 border-t border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+          {/* Pie del sidebar: usuario y cerrar sesión */}
+          <div className="mt-auto shrink-0 px-4 py-4 border-t border-gray-200 bg-white">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
                 <UserGroupIcon className="w-5 h-5 text-teal-600" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-800 truncate">
                   {isRepartidor ? user?.email || 'Repartidor' : 'Módulo Repartidor'}
                 </p>
-                <p className="text-xs text-gray-500">{subtituloActual}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.role_label || 'Usuario'}</p>
               </div>
             </div>
             <button
@@ -223,10 +223,10 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
                 router.push('/');
                 setSidebarOpen(false);
               }}
-              className="mt-4 flex items-center w-full px-4 py-3 text-left rounded-lg text-red-700 transition-colors hover:bg-red-50 hover:text-red-800"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg border border-red-200 bg-red-50 text-red-700 font-medium transition-colors hover:bg-red-100 hover:text-red-800"
             >
-              <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 shrink-0" />
-              <span className="font-medium">Cerrar sesión</span>
+              <ArrowRightOnRectangleIcon className="w-5 h-5 shrink-0" />
+              Cerrar sesión
             </button>
           </div>
         </div>
