@@ -164,24 +164,86 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output;
 }
 
+function conTimeout<T>(promise: Promise<T>, ms: number, mensaje: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(mensaje)), ms);
+    }),
+  ]);
+}
+
+async function esperarControlServiceWorker(ms: number): Promise<void> {
+  if (navigator.serviceWorker.controller) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const mensaje =
+      'La app aún no está lista para push. Cerrala por completo y abrila desde el ícono en la pantalla de inicio.';
+
+    const finalizar = () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+      clearTimeout(timer);
+    };
+
+    const onChange = () => {
+      if (navigator.serviceWorker.controller) {
+        finalizar();
+        resolve();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', onChange);
+
+    const timer = setTimeout(() => {
+      finalizar();
+      if (navigator.serviceWorker.controller) {
+        resolve();
+      } else {
+        reject(new Error(mensaje));
+      }
+    }, ms);
+  });
+}
+
 async function obtenerServiceWorkerListo(): Promise<ServiceWorkerRegistration> {
   if (!('serviceWorker' in navigator)) {
     throw new Error('Service worker no disponible en este navegador');
   }
 
+  // next-pwa ya registra /sw.js — no volver a registrar (puede colgar en Android)
   const existente = await navigator.serviceWorker.getRegistration('/');
-  if (!existente) {
-    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  if (existente?.active) {
+    return existente;
   }
 
-  return navigator.serviceWorker.ready;
+  const registration = await conTimeout(
+    navigator.serviceWorker.ready,
+    20_000,
+    'El service worker no respondió. Cerrá la app y volvé a abrirla desde el ícono.'
+  );
+
+  if (!registration.active) {
+    throw new Error(
+      'Service worker inactivo. Recargá la página o reinstalá la app desde Chrome.'
+    );
+  }
+
+  return registration;
 }
 
 async function sincronizarSuscripcionConServidor(
   subscription: PushSubscription
 ): Promise<boolean> {
-  await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
-  const estado = await repartidorRutaService.obtenerEstadoPush();
+  await conTimeout(
+    repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON),
+    15_000,
+    'El servidor no respondió al guardar la suscripción. Verificá internet.'
+  );
+  const estado = await conTimeout(
+    repartidorRutaService.obtenerEstadoPush(),
+    10_000,
+    'No se pudo verificar el estado push en el servidor.'
+  );
   return estado.suscripcion_activa;
 }
 
@@ -194,12 +256,19 @@ export async function activarPushNotifications(): Promise<{
     return { ok: false, razon: 'Este dispositivo no soporta notificaciones' };
   }
 
-  const permiso = await Notification.requestPermission();
+  const permiso =
+    Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission();
   if (permiso !== 'granted') {
     return { ok: false, razon: 'Permiso de notificaciones denegado' };
   }
 
-  const { publicKey, habilitado } = await repartidorRutaService.obtenerVapidPublicKey();
+  const { publicKey, habilitado } = await conTimeout(
+    repartidorRutaService.obtenerVapidPublicKey(),
+    10_000,
+    'El servidor no respondió al obtener la clave push.'
+  );
   if (!habilitado || !publicKey) {
     return {
       ok: true,
@@ -211,6 +280,7 @@ export async function activarPushNotifications(): Promise<{
   let registration: ServiceWorkerRegistration;
   try {
     registration = await obtenerServiceWorkerListo();
+    await esperarControlServiceWorker(8_000);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'No se pudo iniciar el service worker';
     return {
@@ -246,10 +316,14 @@ export async function activarPushNotifications(): Promise<{
   }
 
   try {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    });
+    subscription = await conTimeout(
+      registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      }),
+      30_000,
+      'Google Push no respondió. Verificá internet, cerrá la app y abrila desde el ícono instalado.'
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Error al suscribir push';
     return {

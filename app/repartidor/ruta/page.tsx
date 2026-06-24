@@ -200,6 +200,12 @@ export default function RepartidorRutaPage() {
     setRegistrandoPush(true);
     setError('');
     setMensaje('');
+    const safety = window.setTimeout(() => {
+      setRegistrandoPush(false);
+      setError(
+        'El registro tardó demasiado. Cerrá la app por completo (no solo minimizar), abrila desde el ícono en la pantalla de inicio y volvé a intentar.'
+      );
+    }, 45_000);
     try {
       const resultado = await activarPushNotifications();
       if (resultado.ok && resultado.suscrito) {
@@ -225,6 +231,7 @@ export default function RepartidorRutaPage() {
       setPushSuscrito(false);
       setError(err instanceof Error ? err.message : 'Error inesperado al registrar alertas');
     } finally {
+      window.clearTimeout(safety);
       setRegistrandoPush(false);
     }
   };
