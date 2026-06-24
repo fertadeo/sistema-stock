@@ -129,6 +129,26 @@ class RepartidorRutaService {
       body: JSON.stringify({ endpoint }),
     });
   }
+
+  async obtenerEstadoPush(): Promise<{ vapid_configurado: boolean; suscripcion_activa: boolean }> {
+    const response = await authFetch(this.buildApiUrl('/api/repartidor-ruta/push/estado'));
+    const json: ApiEnvelope<{ vapid_configurado: boolean; suscripcion_activa: boolean }> =
+      await response.json();
+    if (!response.ok || !json.success) {
+      return { vapid_configurado: false, suscripcion_activa: false };
+    }
+    return json.data;
+  }
+
+  async enviarPushPrueba(): Promise<void> {
+    const response = await authFetch(this.buildApiUrl('/api/repartidor-ruta/push/test'), {
+      method: 'POST',
+    });
+    const json = await response.json();
+    if (!response.ok || !json.success) {
+      throw new Error(json.message || 'No se pudo enviar la notificación de prueba');
+    }
+  }
 }
 
 export const repartidorRutaService = new RepartidorRutaService();
@@ -147,6 +167,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export async function activarPushNotifications(): Promise<{
   ok: boolean;
   razon?: string;
+  suscrito?: boolean;
 }> {
   if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
     return { ok: false, razon: 'Este dispositivo no soporta notificaciones' };
@@ -159,7 +180,11 @@ export async function activarPushNotifications(): Promise<{
 
   const { publicKey, habilitado } = await repartidorRutaService.obtenerVapidPublicKey();
   if (!habilitado || !publicKey) {
-    return { ok: true, razon: 'Alertas locales activadas (push del servidor no configurado)' };
+    return {
+      ok: true,
+      suscrito: false,
+      razon: 'Permiso OK. Falta configurar VAPID en el servidor para alertas con la app cerrada.',
+    };
   }
 
   const registration = await navigator.serviceWorker.ready;
@@ -173,31 +198,46 @@ export async function activarPushNotifications(): Promise<{
   }
 
   await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
-  return { ok: true };
+  return { ok: true, suscrito: true };
 }
 
-export function mostrarNotificacionLocal(
+export async function asegurarSuscripcionPushSilenciosa(): Promise<void> {
+  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+  try {
+    await activarPushNotifications();
+  } catch {
+    // reintenta en la próxima visita
+  }
+}
+
+export async function mostrarNotificacionLocal(
   titulo: string,
   opciones?: NotificationOptions & { url?: string }
-) {
-  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+): Promise<boolean> {
+  if (typeof window === 'undefined' || Notification.permission !== 'granted') return false;
 
   const { url, ...rest } = opciones || {};
+  const notificationData = { url: url || '/repartidor/ruta' };
 
-  if ('serviceWorker' in navigator) {
-    void navigator.serviceWorker.ready.then((registration) => {
-      void registration.showNotification(titulo, {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(titulo, {
         icon: '/images/soderialogo.png',
         badge: '/images/soderialogo.png',
         ...rest,
-        data: { url: url || '/repartidor/ruta' },
+        data: notificationData,
       });
-    });
-    return;
-  }
+      return true;
+    }
 
-  new Notification(titulo, {
-    icon: '/images/soderialogo.png',
-    ...rest,
-  });
+    new Notification(titulo, {
+      icon: '/images/soderialogo.png',
+      ...rest,
+      data: notificationData,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

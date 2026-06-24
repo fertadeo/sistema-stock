@@ -18,8 +18,8 @@ function debeDispararAlerta(parada: RutaParada): boolean {
 }
 
 export function useRutaAlertas(activo: boolean) {
-  const paradasRef = useRef<RutaParada[]>([]);
   const disparadasRef = useRef<Set<number>>(new Set());
+  const pushServidorRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (!activo) return;
@@ -28,34 +28,44 @@ export function useRutaAlertas(activo: boolean) {
 
     const revisar = async () => {
       try {
+        if (pushServidorRef.current === null) {
+          const estado = await repartidorRutaService.obtenerEstadoPush();
+          if (cancelado) return;
+          pushServidorRef.current = estado.vapid_configurado;
+        }
+
+        // Con push del servidor, el cron del backend envía y marca "enviada"
+        if (pushServidorRef.current) return;
+
         const paradas = await repartidorRutaService.listarParadas();
         if (cancelado) return;
-        paradasRef.current = paradas;
 
         for (const parada of paradas) {
           if (!debeDispararAlerta(parada)) continue;
           if (disparadasRef.current.has(parada.id)) continue;
 
-          disparadasRef.current.add(parada.id);
           const nombre = parada.cliente?.nombre || 'Cliente';
           const direccion = parada.cliente?.direccion || '';
           const comentario = parada.comentario ? ` — ${parada.comentario}` : '';
 
-          mostrarNotificacionLocal(`Visita programada: ${nombre}`, {
+          const mostrada = await mostrarNotificacionLocal(`Visita programada: ${nombre}`, {
             body: `${direccion}${comentario}`.trim(),
             tag: `ruta-parada-${parada.id}`,
             url: `/repartidor/rapido?cliente=${parada.cliente_id}`,
           });
 
-          void repartidorRutaService.marcarAlertaEnviada(parada.id);
+          if (mostrada) {
+            disparadasRef.current.add(parada.id);
+            await repartidorRutaService.marcarAlertaEnviada(parada.id);
+          }
         }
       } catch {
-        // silencioso: reintenta en el próximo ciclo
+        // reintenta en el próximo ciclo
       }
     };
 
     void revisar();
-    const interval = setInterval(revisar, 30_000);
+    const interval = setInterval(revisar, 15_000);
     return () => {
       cancelado = true;
       clearInterval(interval);

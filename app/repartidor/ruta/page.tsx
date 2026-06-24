@@ -45,6 +45,11 @@ function formatearDireccion(cliente: RutaParada['cliente']) {
   return partes.filter(Boolean).join(' · ');
 }
 
+function horaActualHHMM(): string {
+  const ahora = new Date();
+  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function RepartidorRutaPage() {
   const router = useRouter();
   const [paradas, setParadas] = useState<RutaParada[]>([]);
@@ -55,6 +60,9 @@ export default function RepartidorRutaPage() {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [pushEstado, setPushEstado] = useState<'pendiente' | 'activo' | 'denegado'>('pendiente');
+  const [pushServidor, setPushServidor] = useState(false);
+  const [pushSuscrito, setPushSuscrito] = useState(false);
+  const [probandoPush, setProbandoPush] = useState(false);
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteBasico | null>(null);
   const [comentario, setComentario] = useState('');
@@ -86,12 +94,26 @@ export default function RepartidorRutaPage() {
   }, [cargarParadas]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-      setPushEstado('activo');
-    } else if (Notification.permission === 'denied') {
-      setPushEstado('denegado');
-    }
+    const cargarEstadoPush = async () => {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+      if (Notification.permission === 'granted') {
+        setPushEstado('activo');
+      } else if (Notification.permission === 'denied') {
+        setPushEstado('denegado');
+      }
+
+      try {
+        const estado = await repartidorRutaService.obtenerEstadoPush();
+        setPushServidor(estado.vapid_configurado);
+        setPushSuscrito(estado.suscripcion_activa);
+      } catch {
+        setPushServidor(false);
+        setPushSuscrito(false);
+      }
+    };
+
+    void cargarEstadoPush();
   }, []);
 
   useEffect(() => {
@@ -168,10 +190,31 @@ export default function RepartidorRutaPage() {
     const resultado = await activarPushNotifications();
     if (resultado.ok) {
       setPushEstado('activo');
+      setPushSuscrito(Boolean(resultado.suscrito));
       setMensaje(resultado.razon || 'Alertas activadas correctamente');
+      try {
+        const estado = await repartidorRutaService.obtenerEstadoPush();
+        setPushServidor(estado.vapid_configurado);
+        setPushSuscrito(estado.suscripcion_activa);
+      } catch {
+        // estado ya actualizado localmente
+      }
     } else {
       setPushEstado('denegado');
       setError(resultado.razon || 'No se pudieron activar las alertas');
+    }
+  };
+
+  const probarPush = async () => {
+    setProbandoPush(true);
+    setError('');
+    try {
+      await repartidorRutaService.enviarPushPrueba();
+      setMensaje('Notificación de prueba enviada. Debería aparecer en unos segundos.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar la prueba');
+    } finally {
+      setProbandoPush(false);
     }
   };
 
@@ -245,10 +288,33 @@ export default function RepartidorRutaPage() {
           </button>
         )}
         {pushEstado === 'activo' && (
-          <p className="mt-3 text-sm text-teal-700 flex items-center gap-2">
-            <BellAlertIcon className="w-5 h-5" />
-            Alertas activadas en este dispositivo
-          </p>
+          <div className="mt-3 space-y-2 text-sm text-teal-800">
+            <p className="flex items-center gap-2">
+              <BellAlertIcon className="w-5 h-5 shrink-0" />
+              Permiso de notificaciones: activo
+            </p>
+            <p>
+              Servidor push: {pushServidor ? 'configurado' : 'falta VAPID en el servidor'}
+            </p>
+            <p>
+              Este celular suscrito: {pushSuscrito ? 'sí' : 'no — tocá Activar alertas'}
+            </p>
+            {pushServidor && pushSuscrito && (
+              <button
+                type="button"
+                disabled={probandoPush}
+                onClick={() => void probarPush()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-teal-300 bg-white px-4 py-2.5 text-sm font-medium text-teal-800 hover:bg-teal-100 disabled:opacity-50"
+              >
+                {probandoPush ? 'Enviando prueba...' : 'Probar notificación ahora'}
+              </button>
+            )}
+            {!pushServidor && (
+              <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Sin VAPID en el servidor, las alertas solo funcionan con la app abierta.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -480,6 +546,7 @@ function ParadaCard({ parada, onEditar, onEliminar, onVisitado, onIrRapido }: Pa
               <BellAlertIcon className="w-4 h-4" />
               Alerta a las {parada.hora_alerta}
               {parada.alerta_enviada && ' · enviada'}
+              {!parada.alerta_enviada && parada.hora_alerta && horaActualHHMM() >= parada.hora_alerta && ' · pendiente de envío'}
             </p>
           )}
         </div>

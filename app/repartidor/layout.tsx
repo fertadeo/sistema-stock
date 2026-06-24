@@ -16,6 +16,7 @@ import {
   MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
+import { asegurarSuscripcionPushSilenciosa } from '@/lib/services/repartidorRutaService';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -54,6 +55,11 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const currentPathname = pathname ?? '';
   const { isRepartidor, user, logout } = useAuth();
   useRutaAlertas(Boolean(user));
+
+  useEffect(() => {
+    if (!user) return;
+    void asegurarSuscripcionPushSilenciosa();
+  }, [user]);
   const { modalOperacionAbierto, enOperacion, navInferiorVisible } = useRepartidorUi();
   const ocultarNavInferior =
     modalOperacionAbierto || (enOperacion && !navInferiorVisible);
