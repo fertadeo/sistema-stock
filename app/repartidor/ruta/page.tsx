@@ -63,6 +63,7 @@ export default function RepartidorRutaPage() {
   const [pushEstado, setPushEstado] = useState<'pendiente' | 'activo' | 'denegado'>('pendiente');
   const [pushServidor, setPushServidor] = useState(false);
   const [pushSuscrito, setPushSuscrito] = useState(false);
+  const [registrandoPush, setRegistrandoPush] = useState(false);
   const [probandoPush, setProbandoPush] = useState(false);
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteBasico | null>(null);
@@ -196,21 +197,35 @@ export default function RepartidorRutaPage() {
   };
 
   const activarAlertas = async () => {
-    const resultado = await activarPushNotifications();
-    if (resultado.ok) {
-      setPushEstado('activo');
-      setPushSuscrito(Boolean(resultado.suscrito));
-      setMensaje(resultado.razon || 'Alertas activadas correctamente');
-      try {
-        const estado = await repartidorRutaService.obtenerEstadoPush();
-        setPushServidor(estado.vapid_configurado);
-        setPushSuscrito(estado.suscripcion_activa);
-      } catch {
-        // estado ya actualizado localmente
+    setRegistrandoPush(true);
+    setError('');
+    setMensaje('');
+    try {
+      const resultado = await activarPushNotifications();
+      if (resultado.ok && resultado.suscrito) {
+        setPushEstado('activo');
+        setPushSuscrito(true);
+        setMensaje(resultado.razon || 'Celular registrado para alertas push');
+        try {
+          const estado = await repartidorRutaService.obtenerEstadoPush();
+          setPushServidor(estado.vapid_configurado);
+          setPushSuscrito(estado.suscripcion_activa);
+        } catch {
+          // estado ya actualizado localmente
+        }
+      } else if (resultado.ok && !resultado.suscrito) {
+        setPushEstado('activo');
+        setPushSuscrito(false);
+        setMensaje(resultado.razon || 'Permiso OK, falta completar el registro push');
+      } else {
+        setPushSuscrito(false);
+        setError(resultado.razon || 'No se pudieron activar las alertas');
       }
-    } else {
-      setPushEstado('denegado');
-      setError(resultado.razon || 'No se pudieron activar las alertas');
+    } catch (err: unknown) {
+      setPushSuscrito(false);
+      setError(err instanceof Error ? err.message : 'Error inesperado al registrar alertas');
+    } finally {
+      setRegistrandoPush(false);
     }
   };
 
@@ -316,10 +331,11 @@ export default function RepartidorRutaPage() {
             {!pushSuscrito && pushServidor && (
               <button
                 type="button"
+                disabled={registrandoPush}
                 onClick={() => void activarAlertas()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-60"
               >
-                Registrar este celular para alertas
+                {registrandoPush ? 'Registrando celular...' : 'Registrar este celular para alertas'}
               </button>
             )}
             {pushServidor && pushSuscrito && (

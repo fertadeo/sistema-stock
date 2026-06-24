@@ -164,6 +164,27 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output;
 }
 
+async function obtenerServiceWorkerListo(): Promise<ServiceWorkerRegistration> {
+  if (!('serviceWorker' in navigator)) {
+    throw new Error('Service worker no disponible en este navegador');
+  }
+
+  const existente = await navigator.serviceWorker.getRegistration('/');
+  if (!existente) {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  }
+
+  return navigator.serviceWorker.ready;
+}
+
+async function sincronizarSuscripcionConServidor(
+  subscription: PushSubscription
+): Promise<boolean> {
+  await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
+  const estado = await repartidorRutaService.obtenerEstadoPush();
+  return estado.suscripcion_activa;
+}
+
 export async function activarPushNotifications(): Promise<{
   ok: boolean;
   razon?: string;
@@ -187,15 +208,30 @@ export async function activarPushNotifications(): Promise<{
     };
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  let registration: ServiceWorkerRegistration;
+  try {
+    registration = await obtenerServiceWorkerListo();
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'No se pudo iniciar el service worker';
+    return {
+      ok: false,
+      razon: `${msg}. Recargá la app o reinstalala desde Chrome.`,
+    };
+  }
+
+  if (!registration.pushManager) {
+    return {
+      ok: false,
+      razon: 'Push no disponible en este navegador. Usá Chrome en Android con la app instalada.',
+    };
+  }
+
   let subscription = await registration.pushManager.getSubscription();
 
-  // Sincronizar suscripción existente con el servidor
   if (subscription) {
     try {
-      await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
-      const estado = await repartidorRutaService.obtenerEstadoPush();
-      if (estado.suscripcion_activa) {
+      const sincronizado = await sincronizarSuscripcionConServidor(subscription);
+      if (sincronizado) {
         return { ok: true, suscrito: true, razon: 'Dispositivo registrado para alertas push' };
       }
     } catch {
@@ -218,17 +254,23 @@ export async function activarPushNotifications(): Promise<{
     const msg = error instanceof Error ? error.message : 'Error al suscribir push';
     return {
       ok: false,
-      razon: `No se pudo registrar el celular: ${msg}. Usá Chrome e instalá la app desde el menú.`,
+      razon: `No se pudo registrar el celular: ${msg}. Usá Chrome, instalá la app desde el menú y volvé a intentar.`,
     };
   }
 
-  await repartidorRutaService.suscribirPush(subscription.toJSON() as PushSubscriptionJSON);
-
-  const estado = await repartidorRutaService.obtenerEstadoPush();
-  if (!estado.suscripcion_activa) {
+  try {
+    const sincronizado = await sincronizarSuscripcionConServidor(subscription);
+    if (!sincronizado) {
+      return {
+        ok: false,
+        razon: 'El servidor no recibió la suscripción. Verificá conexión y volvé a intentar.',
+      };
+    }
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Error al guardar en el servidor';
     return {
       ok: false,
-      razon: 'El servidor no recibió la suscripción. Reintentá o recargá la app.',
+      razon: `Suscripción local OK pero falló en servidor: ${msg}`,
     };
   }
 
@@ -239,7 +281,7 @@ export async function asegurarSuscripcionPushSilenciosa(): Promise<{
   suscrito: boolean;
   razon?: string;
 }> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
     return { suscrito: false, razon: 'Sin soporte de notificaciones' };
   }
 
@@ -253,12 +295,24 @@ export async function asegurarSuscripcionPushSilenciosa(): Promise<{
       return { suscrito: true };
     }
 
-    if (Notification.permission === 'granted') {
-      const resultado = await activarPushNotifications();
-      return { suscrito: Boolean(resultado.suscrito), razon: resultado.razon };
+    if (Notification.permission !== 'granted') {
+      return { suscrito: false, razon: 'Falta activar permisos en Ruta' };
     }
 
-    return { suscrito: false, razon: 'Falta activar permisos en Ruta' };
+    const registration = await obtenerServiceWorkerListo();
+    const subscription = await registration.pushManager?.getSubscription();
+    if (!subscription) {
+      return {
+        suscrito: false,
+        razon: 'Tocá "Registrar este celular para alertas" (requiere un toque en el botón)',
+      };
+    }
+
+    const sincronizado = await sincronizarSuscripcionConServidor(subscription);
+    return {
+      suscrito: sincronizado,
+      razon: sincronizado ? undefined : 'No se pudo sincronizar con el servidor',
+    };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Error de suscripción';
     return { suscrito: false, razon: msg };
