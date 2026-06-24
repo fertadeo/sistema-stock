@@ -138,6 +138,12 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
     return 'Operación diaria';
   })();
 
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header responsivo */}
@@ -169,19 +175,19 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* Sidebar: desplegable en móvil, fijo en escritorio */}
       <aside className={`
-        fixed left-0 top-0 h-full bg-white shadow-lg z-40 transition-transform duration-300 ease-in-out
+        fixed left-0 top-0 h-full bg-white shadow-lg z-50 transition-transform duration-300 ease-in-out
         w-64 transform lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="pt-20 h-full flex flex-col min-h-0">
+        <div className="pt-20 h-full flex flex-col min-h-0 pb-20 lg:pb-0">
           {/* Logo/Nombre en sidebar */}
           <div className="px-4 py-6 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold text-gray-800">Soderia Don Javier</h2>
             <p className="text-sm text-gray-600 mt-1">Panel Repartidor</p>
           </div>
           
-          {/* Navegación — scroll si hay muchos ítems */}
-          <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-2">
+          {/* Navegación */}
+          <nav className="flex-none px-4 py-4 space-y-2 overflow-y-auto">
             {navItems.map((item) => (
               <button
                 key={item.href}
@@ -201,10 +207,20 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
                 <span className="font-medium">{item.label}</span>
               </button>
             ))}
+
+            {/* Cerrar sesión visible en móvil (no queda tapado por la barra inferior) */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="lg:hidden flex items-center w-full px-4 py-3 mt-2 text-left rounded-lg border border-red-200 bg-red-50 text-red-700 font-medium transition-colors hover:bg-red-100"
+            >
+              <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 shrink-0" />
+              Cerrar sesión
+            </button>
           </nav>
 
-          {/* Pie del sidebar: usuario y cerrar sesión */}
-          <div className="mt-auto shrink-0 px-4 py-4 border-t border-gray-200 bg-white">
+          {/* Pie del sidebar (escritorio) */}
+          <div className="mt-auto shrink-0 hidden lg:block px-4 py-4 border-t border-gray-200 bg-white">
             <div className="flex items-center space-x-3 mb-3">
               <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
                 <UserGroupIcon className="w-5 h-5 text-teal-600" />
@@ -218,11 +234,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
             </div>
             <button
               type="button"
-              onClick={() => {
-                logout();
-                router.push('/');
-                setSidebarOpen(false);
-              }}
+              onClick={handleLogout}
               className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg border border-red-200 bg-red-50 text-red-700 font-medium transition-colors hover:bg-red-100 hover:text-red-800"
             >
               <ArrowRightOnRectangleIcon className="w-5 h-5 shrink-0" />
@@ -235,7 +247,9 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       {/* Overlay para móvil */}
       {sidebarOpen && (
         <button
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
