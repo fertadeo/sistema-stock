@@ -10,13 +10,17 @@ interface ModalDetalleVentasProps {
   onClose: () => void;
   ventasSeleccionadas: VentaCerrada[];
   onVentasActualizadas?: () => void;
+  onDesagrupar?: () => void;
+  isDesagrupando?: boolean;
 }
 
 const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   isOpen,
   onClose,
   ventasSeleccionadas,
-  onVentasActualizadas
+  onVentasActualizadas,
+  onDesagrupar,
+  isDesagrupando = false
 }) => {
   const modalContentRef = useRef<HTMLDivElement>(null);
   // Obtener el porcentaje de comisión de la primera venta si está cerrada
@@ -60,6 +64,7 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
 
   // Verificar si todas las ventas están finalizadas
   const todasFinalizadas = ventasSeleccionadas.every(venta => venta.estado === 'Finalizado');
+  const tieneGrupo = ventasSeleccionadas.some(venta => venta.grupo_cierre);
 
   // Agregar console.log para ver los datos
   console.log('Datos de ventas seleccionadas:', ventasSeleccionadas);
@@ -244,7 +249,9 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                     color="warning"
                     className="mb-4 alert-finalizadas"
                   >
-                    Estas ventas ya están finalizadas y no pueden modificarse
+                    {tieneGrupo
+                      ? 'Estas ventas están finalizadas. Podés desagruparlas para corregir errores y volver a rendir la cuenta.'
+                      : 'Estas ventas ya están finalizadas y no pueden modificarse'}
                   </Alert>
                 </div>
               )}
@@ -422,8 +429,26 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
               </div>
             </ModalBody>
             <ModalFooter className="flex justify-between items-center">
-              <div>
-                {todasFinalizadas ? (
+              <div className="flex gap-2">
+                {todasFinalizadas && tieneGrupo && onDesagrupar ? (
+                  <>
+                    <Button
+                      color="warning"
+                      variant="flat"
+                      onClick={onDesagrupar}
+                      isLoading={isDesagrupando}
+                    >
+                      Desagrupar
+                    </Button>
+                    <Button 
+                      color="primary"
+                      onClick={handleDescargarPDF}
+                      isLoading={isLoading}
+                    >
+                      {isLoading ? 'Generando PDF...' : 'Descargar PDF'}
+                    </Button>
+                  </>
+                ) : todasFinalizadas ? (
                   <Button 
                     color="primary"
                     onClick={handleDescargarPDF}

@@ -43,6 +43,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   });
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDesagrupando, setIsDesagrupando] = useState(false);
 
   // Función auxiliar para convertir a número
   const parseNumber = (value: any): number => {
@@ -209,6 +210,48 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       selectedKeys.has(venta.id.toString())
     );
     return ventas;
+  };
+
+  const getVentasDesagrupables = () => {
+    return getVentasSeleccionadas().filter(
+      venta => venta.grupo_cierre && venta.estado === 'Finalizado'
+    );
+  };
+
+  const handleDesagrupar = async () => {
+    const ventasADesagrupar = getVentasDesagrupables();
+    if (ventasADesagrupar.length === 0) return;
+
+    const confirmacion = window.confirm(
+      `¿Desagrupar ${ventasADesagrupar.length} venta${ventasADesagrupar.length !== 1 ? 's' : ''}? ` +
+      'Volverán a estado de rendición pendiente y podrán agruparse nuevamente.'
+    );
+    if (!confirmacion) return;
+
+    setIsDesagrupando(true);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/desagrupar`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ventasADesagrupar.map(v => v.id) })
+        }
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        setSelectedKeys(new Set());
+        setIsModalOpen(false);
+        onVentasActualizadas?.();
+      } else {
+        alert(data.message || 'Error al desagrupar las ventas');
+      }
+    } catch {
+      alert('Error al desagrupar las ventas');
+    } finally {
+      setIsDesagrupando(false);
+    }
   };
 
   // Función para determinar si una venta es la primera o última de su grupo
@@ -432,7 +475,17 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         </div>
         
         {/* Botones de acción */}
-        <div className="flex justify-end mt-4">
+        <div className="flex gap-2 justify-end mt-4">
+          {getVentasDesagrupables().length > 0 && (
+            <Button
+              color="warning"
+              variant="flat"
+              isLoading={isDesagrupando}
+              onClick={handleDesagrupar}
+            >
+              Desagrupar ({getVentasDesagrupables().length})
+            </Button>
+          )}
           {getSelectedCount() > 0 && (
             <Button
               color="primary"
@@ -450,6 +503,8 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         onClose={() => setIsModalOpen(false)}
         ventasSeleccionadas={getVentasSeleccionadas()}
         onVentasActualizadas={onVentasActualizadas}
+        onDesagrupar={handleDesagrupar}
+        isDesagrupando={isDesagrupando}
       />
     </Card>
   );
