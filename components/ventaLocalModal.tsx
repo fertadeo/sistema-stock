@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@heroui/react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { authFetch } from '@/lib/api/fetchWithAuth';
+import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 
 interface Producto {
   id: string;
@@ -205,21 +205,24 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
   const crearNuevoProducto = async () => {
     try {
       setIsLoading(true);
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos/crear-producto`, {
+      const response = await authFetch(createApiUrl('/api/productos/crear-producto'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          nombreProducto: nuevoProducto.nombreProducto,
+          nombreProducto: nuevoProducto.nombreProducto.trim(),
           precioPublico: parseFloat(nuevoProducto.precioPublico),
           precioRevendedor: parseFloat(nuevoProducto.precioRevendedor),
-          cantidadStock: parseInt(nuevoProducto.cantidadStock),
-          descripcion: nuevoProducto.descripcion
+          cantidadStock: parseInt(nuevoProducto.cantidadStock, 10) || 0,
+          descripcion: nuevoProducto.descripcion.trim(),
         }),
       });
 
-      if (!response.ok) throw new Error('Error al crear el producto');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al crear el producto');
+      }
       
       await cargarProductos();
       setShowNuevoProducto(false);
@@ -231,7 +234,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
         descripcion: ""
       });
     } catch (error) {
-      setError("Error al crear el producto");
+      setError(error instanceof Error ? error.message : 'Error al crear el producto');
     } finally {
       setIsLoading(false);
     }

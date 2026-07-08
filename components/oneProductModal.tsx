@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Spinner,} from "@heroui/react";
 import Notification from "./notification";
-import { authFetch } from '@/lib/api/fetchWithAuth';
+import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 
 
 
@@ -27,7 +27,10 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
   });
   const [inputValidity, setInputValidity] = useState({
     ProductoNombre: true,
-   
+    PrecioPublico: true,
+    PrecioRevendedor: true,
+    CantidadStock: true,
+    Descripción: true,
   });
 
   
@@ -48,16 +51,17 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
   const fetchNextProductId = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await authFetch(`${apiUrl}/api/productos/last-id/obtener`);
-      if (!response.ok) throw new Error("Error al obtener el último ID de producto");
+      const response = await authFetch(createApiUrl('/api/productos/last-id/obtener'));
+      if (!response.ok) throw new Error('Error al obtener el último ID de producto');
       const data = await response.json();
-      console.log('API Response:', data); // Verifica la respuesta de la API
-      const lastId = parseInt(data.ultimoId, 10);
-      setProductData((prevState) => ({ ...prevState, id: isNaN(lastId) ? "1" : (lastId + 1).toString() }));
+      const lastId = Number(data.ultimoId) || 0;
+      setProductData((prevState) => ({
+        ...prevState,
+        id: String(lastId + 1),
+      }));
     } catch (error) {
-      console.error("Error fetching next product ID:", error);
-      setProductData((prevState) => ({ ...prevState, id: "1" }));
+      console.error('Error fetching next product ID:', error);
+      setProductData((prevState) => ({ ...prevState, id: '1' }));
     }
   };
 
@@ -95,46 +99,52 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
     setIsSaving(true);
     try {
       const productToSend = {
-        id: parseInt(productData.id, 10),
-        nombreProducto: productData.ProductoNombre,
-        cantidadStock: productData.CantidadStock,
-        descripcion: productData.Descripción,
-        precioPublico: productData.PrecioPublico,
-        precioRevendedor: productData.PrecioRevendedor,
-        descuento: discountEnabled ? `${productData.Descuento}%` : "0%",
+        nombreProducto: productData.ProductoNombre.trim(),
+        cantidadStock: Number(productData.CantidadStock),
+        descripcion: productData.Descripción.trim(),
+        precioPublico: Number(productData.PrecioPublico),
+        precioRevendedor: Number(productData.PrecioRevendedor),
       };
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const response = await authFetch(`${apiUrl}/api/productos/crear-producto`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await authFetch(createApiUrl('/api/productos/crear-producto'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productToSend),
       });
 
-      if (!response.ok) throw new Error("Error al guardar producto");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al guardar producto');
+      }
+
+      const data = await response.json();
+      if (data?.producto?.id) {
+        setProductData((prevState) => ({
+          ...prevState,
+          id: String(data.producto.id),
+        }));
+      }
 
       setNotification({
         isVisible: true,
         message: 'Producto agregado correctamente',
-        description: '',
+        description: data?.producto?.id ? `ID asignado: ${data.producto.id}` : '',
         type: 'success',
       });
       setTimeout(handleNotificationClose, 3000);
       onProductAdded();
+      setIsSaving(false);
+      onClose();
     } catch (error) {
-      console.error("Error al enviar producto:", error);
+      console.error('Error al enviar producto:', error);
       setNotification({
         isVisible: true,
         message: 'Ocurrió un error',
-        description: 'No se pudo agregar tu producto.',
+        description: error instanceof Error ? error.message : 'No se pudo agregar tu producto.',
         type: 'error',
       });
       setTimeout(handleNotificationClose, 3000);
-    } finally {
-      setTimeout(() => {
-        setIsSaving(false);
-        onClose();
-      }, 2000);
+      setIsSaving(false);
     }
   };
 
