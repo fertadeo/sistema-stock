@@ -88,8 +88,9 @@ function tooltipMontoLine(context: TooltipItem<'line'>): string {
 }
 
 function tooltipMontoBar(context: TooltipItem<'bar'>): string {
-  const val = context.parsed.y ?? context.parsed.x ?? 0;
-  return `${context.dataset.label ?? ''}: ${formatMonto(Number(val))}`;
+  const isHorizontal = context.chart.options.indexAxis === 'y';
+  const val = isHorizontal ? context.parsed.x : context.parsed.y;
+  return `${context.dataset.label ?? ''}: ${formatMonto(Number(val ?? 0))}`;
 }
 
 function tooltipMontoDoughnut(context: TooltipItem<'doughnut'>): string {
