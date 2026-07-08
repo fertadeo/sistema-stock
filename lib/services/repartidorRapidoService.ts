@@ -779,13 +779,13 @@ class RepartidorRapidoService {
       (mov) => mov.categoria === 'fiado' && this.esMismaFechaLocal(mov.fecha, fecha)
     );
 
-    const clientesIds = [
-      ...new Set(
+    const clientesIds = Array.from(
+      new Set(
         fiadosOperativos
           .map((mov) => mov.clienteId)
           .filter((clienteId): clienteId is number => clienteId != null)
-      ),
-    ];
+      )
+    );
 
     const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
     const fiadosDetallados: FiadoDiarioItem[] = [];
