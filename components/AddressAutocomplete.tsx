@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
-import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
+import React, { useRef, useEffect, useState } from 'react';
+import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS, isInRioCuartoBounds } from './GoogleMapsProvider';
 
 interface AddressAutocompleteProps {
   value: string;
@@ -61,6 +61,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const onChangeRef = useRef(onChange);
   const selectingPlaceRef = useRef(false);
+  const [errorFueraDeCiudad, setErrorFueraDeCiudad] = useState(false);
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
   useEffect(() => {
@@ -99,6 +100,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       componentRestrictions: { country: 'ar' },
       bounds,
+      strictBounds: true,
       fields: ['formatted_address', 'geometry', 'name', 'place_id'],
       types: ['address'],
     });
@@ -111,6 +113,16 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         const detalles = await obtenerDetallesLugar(place);
         if (!detalles) return;
 
+        if (!isInRioCuartoBounds(detalles.lat, detalles.lng)) {
+          setErrorFueraDeCiudad(true);
+          if (inputRef.current) {
+            inputRef.current.value = '';
+          }
+          onChangeRef.current('', '', '');
+          return;
+        }
+
+        setErrorFueraDeCiudad(false);
         selectingPlaceRef.current = true;
 
         if (inputRef.current) {
@@ -137,6 +149,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (selectingPlaceRef.current) return;
+    if (errorFueraDeCiudad) {
+      setErrorFueraDeCiudad(false);
+    }
     onChangeRef.current(event.target.value, '', '');
   };
 
@@ -185,6 +200,11 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
         autoComplete="off"
       />
+      {errorFueraDeCiudad && (
+        <p className="mt-1 text-xs text-red-600">
+          La dirección debe estar dentro de Río Cuarto.
+        </p>
+      )}
     </div>
   );
 };

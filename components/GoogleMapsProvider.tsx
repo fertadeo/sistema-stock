@@ -20,6 +20,15 @@ export const RIO_CUARTO_BOUNDS = {
   west: -64.4,
 };
 
+export function isInRioCuartoBounds(lat: number, lng: number): boolean {
+  return (
+    lat >= RIO_CUARTO_BOUNDS.south &&
+    lat <= RIO_CUARTO_BOUNDS.north &&
+    lng >= RIO_CUARTO_BOUNDS.west &&
+    lng <= RIO_CUARTO_BOUNDS.east
+  );
+}
+
 export const EMPRESA_COORDENADAS = { lat: -33.141709, lng: -64.3634274 };
 
 function GoogleMapsSetupMessage() {
