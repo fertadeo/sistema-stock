@@ -246,6 +246,31 @@ export interface MovimientoOperativoRepartidor {
   detalleExtra?: string;
 }
 
+export interface FiadoDiarioItem {
+  id: string;
+  referenciaId: string;
+  clienteId: number;
+  clienteNombre: string;
+  monto: number;
+  fecha: string;
+  descripcion: string;
+  cobrado: boolean;
+  montoCobrado: number;
+  fechaCobro: string | null;
+}
+
+export interface ResumenFiadosDiario {
+  fecha: string;
+  totalFiado: number;
+  cantidadFiados: number;
+  cantidadCobrados: number;
+  totalCobrado: number;
+  cantidadPendientes: number;
+  totalPendiente: number;
+  porcentajeCobrados: number;
+  fiados: FiadoDiarioItem[];
+}
+
 interface MovimientoAuditoria {
   id: number;
   tipo: string;
@@ -738,6 +763,119 @@ class RepartidorRapidoService {
       console.error('Error al obtener registros no encontrado:', error);
       return [];
     }
+  }
+
+  private esMismaFechaLocal(fechaISO: string, fechaReferencia: string): boolean {
+    return fechaISO.split('T')[0] === fechaReferencia;
+  }
+
+  private esMovimientoFiado(mov: MovimientoCuentaCorriente): boolean {
+    return mov.tipo === 'DEBITO_VENTA' && /fiado/i.test(mov.descripcion);
+  }
+
+  async obtenerResumenFiadosPorFecha(fecha: string): Promise<ResumenFiadosDiario> {
+    const movimientosOperativos = await this.obtenerMovimientosOperativos();
+    const fiadosOperativos = movimientosOperativos.filter(
+      (mov) => mov.categoria === 'fiado' && this.esMismaFechaLocal(mov.fecha, fecha)
+    );
+
+    const clientesIds = [
+      ...new Set(
+        fiadosOperativos
+          .map((mov) => mov.clienteId)
+          .filter((clienteId): clienteId is number => clienteId != null)
+      ),
+    ];
+
+    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
+    const fiadosDetallados: FiadoDiarioItem[] = [];
+    const referenciasProcesadas = new Set<string>();
+
+    await this.ejecutarEnLotes(clientesIds, 8, async (clienteId) => {
+      const nombreCliente =
+        fiadosOperativos.find((mov) => mov.clienteId === clienteId)?.clienteNombre ||
+        `Cliente #${clienteId}`;
+
+      try {
+        const { movimientos: historial } = await this.obtenerCuentaCorriente(clienteId, {
+          page: 1,
+          limit: 200,
+        });
+
+        for (const mov of historial) {
+          if (mov.tipo === 'CREDITO_COBRO' && mov.venta_relacionada_id) {
+            cobrosPorVenta.set(mov.venta_relacionada_id, {
+              monto: mov.credito,
+              fecha: mov.fecha,
+            });
+          }
+        }
+
+        for (const mov of historial) {
+          if (!this.esMovimientoFiado(mov) || !this.esMismaFechaLocal(mov.fecha, fecha)) {
+            continue;
+          }
+
+          const clave = `${clienteId}-${mov.referencia_id}`;
+          if (referenciasProcesadas.has(clave)) continue;
+          referenciasProcesadas.add(clave);
+
+          const cobro = cobrosPorVenta.get(mov.referencia_id);
+          fiadosDetallados.push({
+            id: mov.id,
+            referenciaId: mov.referencia_id,
+            clienteId,
+            clienteNombre: nombreCliente,
+            monto: mov.debito,
+            fecha: mov.fecha,
+            descripcion: mov.descripcion,
+            cobrado: !!cobro,
+            montoCobrado: cobro?.monto ?? 0,
+            fechaCobro: cobro?.fecha ?? null,
+          });
+        }
+      } catch {
+        // Si no se puede cargar la cuenta corriente, se usa el movimiento operativo.
+      }
+    });
+
+    if (fiadosDetallados.length === 0) {
+      for (const mov of fiadosOperativos) {
+        fiadosDetallados.push({
+          id: mov.id,
+          referenciaId: mov.id,
+          clienteId: mov.clienteId ?? 0,
+          clienteNombre: mov.clienteNombre || 'Cliente',
+          monto: mov.monto ?? 0,
+          fecha: mov.fecha,
+          descripcion: mov.titulo,
+          cobrado: false,
+          montoCobrado: 0,
+          fechaCobro: null,
+        });
+      }
+    }
+
+    const cobrados = fiadosDetallados.filter((fiado) => fiado.cobrado);
+    const pendientes = fiadosDetallados.filter((fiado) => !fiado.cobrado);
+    const totalFiado = fiadosDetallados.reduce((total, fiado) => total + fiado.monto, 0);
+
+    return {
+      fecha,
+      totalFiado,
+      cantidadFiados: fiadosDetallados.length,
+      cantidadCobrados: cobrados.length,
+      totalCobrado: cobrados.reduce((total, fiado) => total + fiado.montoCobrado, 0),
+      cantidadPendientes: pendientes.length,
+      totalPendiente: pendientes.reduce((total, fiado) => total + fiado.monto, 0),
+      porcentajeCobrados:
+        fiadosDetallados.length > 0
+          ? Math.round((cobrados.length / fiadosDetallados.length) * 100)
+          : 0,
+      fiados: fiadosDetallados.sort(
+        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+      ),
+    };
   }
 
   private parseMontoValor(valor: string | number | null | undefined): number | null {

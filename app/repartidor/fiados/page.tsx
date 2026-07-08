@@ -9,13 +9,25 @@ import {
   UserGroupIcon,
   MagnifyingGlassIcon,
   ArrowPathIcon,
+  CalendarIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import {
   repartidorRapidoService,
   ClienteDeudor,
   CuentaCorrienteResumen,
   MovimientoCuentaCorriente,
+  ResumenFiadosDiario,
 } from '@/lib/services/repartidorRapidoService';
+
+const obtenerFechaLocal = (fecha: Date = new Date()): string => {
+  return fecha.toISOString().split('T')[0];
+};
+
+const formatearFecha = (fecha: string) => {
+  const [anio, mes, dia] = fecha.split('-');
+  return `${dia}/${mes}/${anio}`;
+};
 
 function FiadosPageContent() {
   const router = useRouter();
@@ -30,6 +42,10 @@ function FiadosPageContent() {
   const [resumen, setResumen] = useState<CuentaCorrienteResumen | null>(null);
   const [movimientos, setMovimientos] = useState<MovimientoCuentaCorriente[]>([]);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(obtenerFechaLocal());
+  const [resumenDiario, setResumenDiario] = useState<ResumenFiadosDiario | null>(null);
+  const [cargandoResumenDiario, setCargandoResumenDiario] = useState(true);
+  const [errorResumenDiario, setErrorResumenDiario] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -60,6 +76,32 @@ function FiadosPageContent() {
       mounted = false;
     };
   }, [busqueda]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const cargarResumenDiario = async () => {
+      setCargandoResumenDiario(true);
+      setErrorResumenDiario('');
+
+      try {
+        const data = await repartidorRapidoService.obtenerResumenFiadosPorFecha(fechaSeleccionada);
+        if (!mounted) return;
+        setResumenDiario(data);
+      } catch (err: any) {
+        if (!mounted) return;
+        setErrorResumenDiario(err?.message || 'No se pudo cargar el resumen diario de fiados.');
+        setResumenDiario(null);
+      } finally {
+        if (mounted) setCargandoResumenDiario(false);
+      }
+    };
+
+    cargarResumenDiario();
+    return () => {
+      mounted = false;
+    };
+  }, [fechaSeleccionada]);
 
   useEffect(() => {
     if (!clienteParam || deudores.length === 0) return;
@@ -107,6 +149,151 @@ function FiadosPageContent() {
         <p className="mt-2 text-sm text-gray-600">
           Cuenta corriente real desde backend para consultar saldos y avanzar a cobros.
         </p>
+      </div>
+
+      <div className="rounded-xl bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <CalendarIcon className="h-5 w-5 text-teal-600" />
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Fiados del d├¡a</h2>
+              <p className="text-sm text-gray-500">
+                Resumen del {formatearFecha(fechaSeleccionada)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={fechaSeleccionada}
+              onChange={(e) => setFechaSeleccionada(e.target.value)}
+              className="rounded-lg border border-gray-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+            <button
+              onClick={() => setFechaSeleccionada(obtenerFechaLocal())}
+              className="whitespace-nowrap rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700"
+            >
+              Hoy
+            </button>
+          </div>
+        </div>
+
+        {errorResumenDiario && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {errorResumenDiario}
+          </div>
+        )}
+
+        {cargandoResumenDiario ? (
+          <div className="mt-6 flex items-center gap-3 text-sm text-gray-500">
+            <ArrowPathIcon className="h-5 w-5 animate-spin" />
+            Cargando resumen diario...
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <p className="text-sm font-medium text-orange-700">Total fiado</p>
+                <p className="mt-1 text-2xl font-bold text-orange-800">
+                  ${(resumenDiario?.totalFiado ?? 0).toLocaleString('es-AR')}
+                </p>
+                <p className="mt-1 text-xs text-orange-600">
+                  {resumenDiario?.cantidadFiados ?? 0} fiado
+                  {(resumenDiario?.cantidadFiados ?? 0) !== 1 ? 's' : ''} generado
+                  {(resumenDiario?.cantidadFiados ?? 0) !== 1 ? 's' : ''}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <p className="text-sm font-medium text-green-700">Cobrados</p>
+                <p className="mt-1 text-2xl font-bold text-green-800">
+                  {resumenDiario?.cantidadCobrados ?? 0} de {resumenDiario?.cantidadFiados ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-green-600">
+                  ${(resumenDiario?.totalCobrado ?? 0).toLocaleString('es-AR')} recaudado
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="text-sm font-medium text-red-700">Pendientes</p>
+                <p className="mt-1 text-2xl font-bold text-red-800">
+                  {resumenDiario?.cantidadPendientes ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-red-600">
+                  ${(resumenDiario?.totalPendiente ?? 0).toLocaleString('es-AR')} sin cobrar
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-medium text-blue-700">Tasa de cobro</p>
+                <p className="mt-1 text-2xl font-bold text-blue-800">
+                  {resumenDiario?.porcentajeCobrados ?? 0}%
+                </p>
+                <div className="mt-2 h-2 w-full rounded-full bg-blue-200">
+                  <div
+                    className="h-2 rounded-full bg-blue-600 transition-all"
+                    style={{ width: `${resumenDiario?.porcentajeCobrados ?? 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="font-semibold text-gray-900">
+                Detalle de fiados ΓÇö {formatearFecha(fechaSeleccionada)}
+              </h3>
+              <div className="mt-3 space-y-2">
+                {(resumenDiario?.fiados.length ?? 0) === 0 ? (
+                  <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+                    No hay fiados registrados para esta fecha.
+                  </p>
+                ) : (
+                  resumenDiario?.fiados.map((fiado) => (
+                    <div
+                      key={fiado.id}
+                      className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-gray-900">{fiado.clienteNombre}</p>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              fiado.cobrado
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-orange-100 text-orange-800'
+                            }`}
+                          >
+                            {fiado.cobrado ? 'Cobrado' : 'Pendiente'}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">{fiado.descripcion}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {new Date(fiado.fecha).toLocaleString('es-AR')}
+                          {fiado.cobrado && fiado.fechaCobro && (
+                            <span className="ml-2 text-green-600">
+                              ┬╖ Cobrado: {new Date(fiado.fechaCobro).toLocaleDateString('es-AR')}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">
+                          ${fiado.monto.toLocaleString('es-AR')}
+                        </p>
+                        {fiado.cobrado && (
+                          <p className="mt-1 flex items-center justify-end gap-1 text-xs text-green-600">
+                            <CheckCircleIcon className="h-3.5 w-3.5" />
+                            ${fiado.montoCobrado.toLocaleString('es-AR')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {error && (
