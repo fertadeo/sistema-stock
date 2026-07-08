@@ -102,7 +102,7 @@ interface Cliente {
   longitud?: number | null;
   deuda?: number;
   envases_prestados?: EnvasePrestadoCliente[];
-  activo?: boolean;
+  estado?: boolean;
   cliente_vinculado?: {
     id: number;
     nombre: string;
@@ -179,6 +179,7 @@ export default function RepartidorRapido() {
   const [resumenCuenta, setResumenCuenta] = useState<CuentaCorrienteResumen | null>(null);
   const [resumenEnvases, setResumenEnvases] = useState<ResumenEnvases | null>(null);
   const [mensajeError, setMensajeError] = useState('');
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [pieExito, setPieExito] = useState<{
     mensaje: string;
     telefono: string;
@@ -291,7 +292,44 @@ export default function RepartidorRapido() {
     ...cliente,
     deuda: cliente.deuda ?? 0,
     envases_prestados: cliente.envases_prestados ?? [],
+    estado: cliente.estado !== false,
   });
+
+  const clienteEstaActivo = (cliente?: Cliente | null) => cliente?.estado !== false;
+
+  const cambiarEstadoCliente = async (nuevoEstado: boolean) => {
+    if (!clienteSeleccionado) return;
+
+    const accion = nuevoEstado ? 'activar' : 'inactivar';
+    const confirmar = window.confirm(
+      nuevoEstado
+        ? `¿Activar a ${clienteSeleccionado.nombre}?`
+        : `¿Inactivar a ${clienteSeleccionado.nombre}? No podrá registrar ventas ni fiados.`
+    );
+    if (!confirmar) return;
+
+    setCambiandoEstado(true);
+    setMensajeError('');
+    try {
+      const resultado = await repartidorRapidoService.cambiarEstadoCliente(
+        clienteSeleccionado.id,
+        nuevoEstado
+      );
+      const clienteActualizado = normalizarCliente(resultado.cliente);
+      setClienteSeleccionado(clienteActualizado);
+      setClientesEncontrados((prev) =>
+        prev.map((c) => (c.id === clienteActualizado.id ? { ...c, estado: clienteActualizado.estado } : c))
+      );
+      setClientesFijados((prev) =>
+        prev.map((c) => (c.id === clienteActualizado.id ? { ...c, estado: clienteActualizado.estado } : c))
+      );
+      mostrarExito(resultado.message || `Cliente ${accion === 'activar' ? 'activado' : 'inactivado'}`);
+    } catch (error: unknown) {
+      mostrarError(error instanceof Error ? error.message : `No se pudo ${accion} el cliente`);
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
 
   const cargarFichaCliente = async (clienteId: number, fallbackCliente?: Cliente) => {
     const [detalleResult, cuentaResult, envasesResult] = await Promise.allSettled([
@@ -440,7 +478,12 @@ export default function RepartidorRapido() {
     }
   };
 
-  const abrirModalVenta = (tipo: TipoOperacion) => {
+  const abrirModalVenta = (tipo: TipoOperacion, clienteOverride?: Cliente | null) => {
+    const clienteRef = clienteOverride ?? clienteSeleccionado;
+    if (!clienteEstaActivo(clienteRef)) {
+      mostrarError('El cliente está inactivo. Actívelo para registrar ventas o fiados.');
+      return;
+    }
     setModalOperacionAbierto(true);
     iniciarOperacion();
     setTipoOperacion(tipo);
@@ -853,7 +896,7 @@ export default function RepartidorRapido() {
     const abrirDesdeRuta = async () => {
       setCargando(true);
       try {
-        await cargarFichaCliente(clienteId, {
+        const ficha = await cargarFichaCliente(clienteId, {
           id: clienteId,
           nombre: 'Cliente',
           telefono: '',
@@ -863,7 +906,7 @@ export default function RepartidorRapido() {
         setClientesEncontrados([]);
 
         if (accion === 'venta' || accion === 'fiado') {
-          abrirModalVenta(accion);
+          abrirModalVenta(accion, ficha.cliente);
         } else if (accion === 'cobro') {
           abrirModalCobro();
         } else if (accion === 'envases') {
@@ -904,7 +947,14 @@ export default function RepartidorRapido() {
                 <ArrowLeftIcon className="w-6 h-6" />
               </button>
               <div className="flex-1 ml-2">
-                <h1 className="text-lg font-semibold text-gray-800">{clienteSeleccionado.nombre}</h1>
+                <div className="flex gap-2 items-center">
+                  <h1 className="text-lg font-semibold text-gray-800">{clienteSeleccionado.nombre}</h1>
+                  {!clienteEstaActivo(clienteSeleccionado) && (
+                    <span className="px-2 py-0.5 text-xs font-semibold text-red-700 bg-red-100 rounded-full">
+                      Inactivo
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600">{clienteSeleccionado.telefono}</p>
               </div>
               <button
@@ -1006,6 +1056,11 @@ export default function RepartidorRapido() {
                       className="flex-1 min-w-0 text-left"
                     >
                       <div className="font-medium text-gray-800">{cliente.nombre}</div>
+                      {!clienteEstaActivo(cliente) && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+                          Inactivo
+                        </span>
+                      )}
                       <div className="text-sm text-gray-600">{cliente.telefono}</div>
                       {cliente.direccion && (
                         <div className="text-xs text-gray-500">{cliente.direccion}</div>
@@ -1063,6 +1118,11 @@ export default function RepartidorRapido() {
             className="p-4 w-full text-left bg-white rounded-lg border border-gray-100 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
           >
             <h2 className="mb-3 font-semibold text-gray-800">Información del Cliente</h2>
+            {!clienteEstaActivo(clienteSeleccionado) && (
+              <div className="p-3 mb-3 text-sm text-red-800 bg-red-50 rounded-lg border border-red-200">
+                Cliente inactivo. No se pueden registrar ventas ni fiados hasta reactivarlo.
+              </div>
+            )}
             <div className="space-y-2 text-sm">
               {clienteSeleccionado.direccion && (
                 <div className="flex justify-between">
@@ -1143,14 +1203,24 @@ export default function RepartidorRapido() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => abrirModalVenta('venta')}
-              className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-green-600 rounded-lg"
+              disabled={!clienteEstaActivo(clienteSeleccionado)}
+              className={`flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white rounded-lg ${
+                clienteEstaActivo(clienteSeleccionado)
+                  ? 'bg-green-600'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
             >
               <ShoppingCartIcon className="w-6 h-6" />
               <span>Vender</span>
             </button>
             <button
               onClick={() => abrirModalVenta('fiado')}
-              className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-orange-600 rounded-lg"
+              disabled={!clienteEstaActivo(clienteSeleccionado)}
+              className={`flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white rounded-lg ${
+                clienteEstaActivo(clienteSeleccionado)
+                  ? 'bg-orange-600'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
             >
               <CreditCardIcon className="w-6 h-6" />
               <span>Fiar</span>
@@ -1183,6 +1253,18 @@ export default function RepartidorRapido() {
             >
               <ChatBubbleLeftRightIcon className="w-6 h-6" />
               <span>WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void cambiarEstadoCliente(!clienteEstaActivo(clienteSeleccionado))}
+              disabled={cambiandoEstado}
+              className={`flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white rounded-lg col-span-2 ${
+                clienteEstaActivo(clienteSeleccionado)
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              } ${cambiandoEstado ? 'opacity-60 cursor-wait' : ''}`}
+            >
+              <span>{clienteEstaActivo(clienteSeleccionado) ? 'Inactivar cliente' : 'Activar cliente'}</span>
             </button>
           </div>
 

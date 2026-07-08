@@ -573,6 +573,35 @@ class RepartidorRapidoService {
     }
   }
 
+  async cambiarEstadoCliente(
+    clienteId: number,
+    estado?: boolean
+  ): Promise<{ success: boolean; message: string; cliente: ClienteBasico }> {
+    try {
+      const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/estado`), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(estado !== undefined ? { estado } : {}),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al cambiar el estado del cliente');
+      }
+
+      return {
+        success: data.success ?? true,
+        message: data.message || 'Estado actualizado',
+        cliente: data.cliente,
+      };
+    } catch (error) {
+      console.error('Error al cambiar estado del cliente:', error);
+      throw error;
+    }
+  }
+
   async obtenerCuentaCorrienteResumen(clienteId: number): Promise<CuentaCorrienteResumen> {
     try {
       const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}/cuenta-corriente/resumen`));

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@heroui/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem, Switch } from "@heroui/react";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
@@ -72,6 +72,9 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
   const [vinculando, setVinculando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensajeVinculo, setMensajeVinculo] = useState("");
+  const [estado, setEstado] = useState(true);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [mensajeEstado, setMensajeEstado] = useState("");
 
   // Efecto para cargar productos y actualizar envases prestados
   useEffect(() => {
@@ -139,6 +142,8 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       setCandidatosVinculo([]);
       setMensajeVinculo("");
       setGuardando(false);
+      setEstado(cliente.estado !== false);
+      setMensajeEstado("");
     }
   }, [cliente, isOpen]);
 
@@ -260,6 +265,41 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
     setLongitud(lon);
   };
 
+  const handleCambiarEstado = async (nuevoEstado: boolean) => {
+    if (!cliente?.id) return;
+
+    const confirmar = window.confirm(
+      nuevoEstado
+        ? `¿Activar a ${nombre || cliente.nombre}?`
+        : `¿Inactivar a ${nombre || cliente.nombre}? No podrá registrar ventas ni fiados.`
+    );
+    if (!confirmar) return;
+
+    setCambiandoEstado(true);
+    setMensajeEstado("");
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}/estado`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: nuevoEstado }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Error al cambiar el estado del cliente");
+      }
+      setEstado(data.cliente?.estado !== false);
+      setMensajeEstado(data.message || "Estado actualizado");
+      await onSave(data.cliente);
+    } catch (error) {
+      setMensajeEstado(error instanceof Error ? error.message : "Error al cambiar el estado");
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
+
   const handleSave = async () => {
     if (cliente) {
       setGuardando(true);
@@ -338,6 +378,30 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
       <ModalContent>
         <ModalHeader>Editar datos de cliente</ModalHeader>
         <ModalBody>
+          <div className="p-4 mb-4 rounded-lg border border-gray-200 bg-gray-50">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-gray-900">Estado del cliente</p>
+                <p className="text-sm text-gray-600">
+                  {estado
+                    ? "Activo: puede operar con ventas y fiados."
+                    : "Inactivo: no puede registrar ventas ni fiados."}
+                </p>
+              </div>
+              <Switch
+                isSelected={estado}
+                isDisabled={cambiandoEstado}
+                onValueChange={(valor) => void handleCambiarEstado(valor)}
+                color={estado ? "success" : "danger"}
+              >
+                {estado ? "Activo" : "Inactivo"}
+              </Switch>
+            </div>
+            {mensajeEstado && (
+              <p className="mt-2 text-sm text-gray-700">{mensajeEstado}</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="DNI o CUIL/CUIT"

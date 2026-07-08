@@ -44,6 +44,7 @@ type User = {
   dni: string;
   repartidor: string;
   dia_reparto: string;
+  estado?: boolean;
   envases_prestados: EnvasePrestado[];
   cliente_vinculado?: { id: number; nombre: string } | null;
 };
@@ -243,6 +244,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               name={
                 <span>
                   {user.nombre}
+                  {user.estado === false && (
+                    <span className="ml-2 text-xs font-semibold text-red-600">(Inactivo)</span>
+                  )}
                   {user.cliente_vinculado && (
                     <span className="ml-2 text-xs font-normal text-blue-600">
                       (vinc. {user.cliente_vinculado.nombre})

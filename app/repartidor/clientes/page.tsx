@@ -50,6 +50,36 @@ export default function ClientesPage() {
   const [error, setError] = useState('');
   const [detalle, setDetalle] = useState<ClienteDetalleState | null>(null);
   const [mostrarMovimientos, setMostrarMovimientos] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+
+  const clienteEstaActivo = (cliente: ClienteBasico) => cliente.estado !== false;
+
+  const cambiarEstadoCliente = async (clienteId: number, nuevoEstado: boolean) => {
+    const cliente = detalle?.cliente;
+    const nombre = cliente?.nombre || 'este cliente';
+    const confirmar = window.confirm(
+      nuevoEstado
+        ? `¿Activar a ${nombre}?`
+        : `¿Inactivar a ${nombre}? No podrá registrar ventas ni fiados.`
+    );
+    if (!confirmar) return;
+
+    setCambiandoEstado(true);
+    setError('');
+    try {
+      const resultado = await repartidorRapidoService.cambiarEstadoCliente(clienteId, nuevoEstado);
+      setDetalle((prev) =>
+        prev ? { ...prev, cliente: { ...prev.cliente, estado: resultado.cliente.estado } } : prev
+      );
+      setClientes((prev) =>
+        prev.map((c) => (c.id === clienteId ? { ...c, estado: resultado.cliente.estado } : c))
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado del cliente.');
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -146,7 +176,14 @@ export default function ClientesPage() {
               <ArrowLeftIcon className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{detalle.cliente.nombre}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">{detalle.cliente.nombre}</h1>
+                {!clienteEstaActivo(detalle.cliente) && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                    Inactivo
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-500">Ficha operativa del cliente</p>
             </div>
           </div>
@@ -247,6 +284,11 @@ export default function ClientesPage() {
 
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">Acciones rápidas</h2>
+          {!clienteEstaActivo(detalle.cliente) && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              Cliente inactivo. Las ventas y fiados están bloqueados hasta reactivarlo.
+            </div>
+          )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
@@ -261,7 +303,12 @@ export default function ClientesPage() {
             </button>
             <button
               onClick={() => router.push(`/repartidor/rapido?cliente=${detalle.cliente.id}&accion=venta`)}
-              className="rounded-xl bg-green-600 p-4 text-left text-white hover:bg-green-700"
+              disabled={!clienteEstaActivo(detalle.cliente)}
+              className={`rounded-xl p-4 text-left text-white ${
+                clienteEstaActivo(detalle.cliente)
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'cursor-not-allowed bg-gray-300'
+              }`}
             >
               <ShoppingCartIcon className="h-6 w-6" />
               <p className="mt-3 font-semibold">Registrar venta</p>
@@ -279,6 +326,25 @@ export default function ClientesPage() {
             >
               <CubeIcon className="h-6 w-6" />
               <p className="mt-3 font-semibold">Gestionar envases</p>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void cambiarEstadoCliente(
+                  detalle.cliente.id,
+                  !clienteEstaActivo(detalle.cliente)
+                )
+              }
+              disabled={cambiandoEstado}
+              className={`rounded-xl p-4 text-left text-white sm:col-span-2 lg:col-span-4 ${
+                clienteEstaActivo(detalle.cliente)
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              } ${cambiandoEstado ? 'cursor-wait opacity-60' : ''}`}
+            >
+              <p className="font-semibold">
+                {clienteEstaActivo(detalle.cliente) ? 'Inactivar cliente' : 'Activar cliente'}
+              </p>
             </button>
           </div>
         </div>
@@ -386,7 +452,12 @@ export default function ClientesPage() {
                     <UserIcon className="h-6 w-6 text-teal-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{cliente.nombre}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {cliente.nombre}
+                      {cliente.estado === false && (
+                        <span className="ml-2 text-xs font-semibold text-red-600">(Inactivo)</span>
+                      )}
+                    </h3>
                     <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
                       <MapPinIcon className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{cliente.direccion || 'Sin dirección cargada'}</span>
