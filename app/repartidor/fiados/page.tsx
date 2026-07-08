@@ -21,7 +21,10 @@ import {
 } from '@/lib/services/repartidorRapidoService';
 
 const obtenerFechaLocal = (fecha: Date = new Date()): string => {
-  return fecha.toISOString().split('T')[0];
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
 };
 
 const formatearFecha = (fecha: string) => {
@@ -156,7 +159,7 @@ function FiadosPageContent() {
           <div className="flex items-center gap-3">
             <CalendarIcon className="h-5 w-5 text-teal-600" />
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Fiados del d├¡a</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Fiados del día</h2>
               <p className="text-sm text-gray-500">
                 Resumen del {formatearFecha(fechaSeleccionada)}
               </p>
@@ -240,7 +243,7 @@ function FiadosPageContent() {
 
             <div className="mt-6">
               <h3 className="font-semibold text-gray-900">
-                Detalle de fiados ΓÇö {formatearFecha(fechaSeleccionada)}
+                Detalle de fiados - {formatearFecha(fechaSeleccionada)}
               </h3>
               <div className="mt-3 space-y-2">
                 {(resumenDiario?.fiados.length ?? 0) === 0 ? (

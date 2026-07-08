@@ -283,6 +283,11 @@ interface MovimientoAuditoria {
     producto_nombre?: string;
     cantidad?: number;
     tipo_envase?: string;
+    venta_id?: string | number;
+    venta_relacionada_id?: string | number;
+    saldo_monto?: string | number;
+    forma_pago?: string;
+    saldo?: boolean;
   };
 }
 
@@ -765,37 +770,206 @@ class RepartidorRapidoService {
     }
   }
 
+  private obtenerFechaLocalDeISO(fechaISO: string): string {
+    const fecha = new Date(fechaISO);
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+  }
+
   private esMismaFechaLocal(fechaISO: string, fechaReferencia: string): boolean {
-    return fechaISO.split('T')[0] === fechaReferencia;
+    return this.obtenerFechaLocalDeISO(fechaISO) === fechaReferencia;
   }
 
   private esMovimientoFiado(mov: MovimientoCuentaCorriente): boolean {
-    return mov.tipo === 'DEBITO_VENTA' && /fiado/i.test(mov.descripcion);
+    if (mov.tipo !== 'DEBITO_VENTA') return false;
+    const descripcion = mov.descripcion.toLowerCase();
+    return /fiado|saldo|parcial|cr[eé]dito/.test(descripcion);
+  }
+
+  private obtenerReferenciaVentaAuditoria(mov: MovimientoAuditoria): string | null {
+    const ventaId = mov.detalles?.venta_id ?? mov.detalles?.venta_relacionada_id;
+    return ventaId != null ? String(ventaId) : null;
+  }
+
+  private async obtenerMovimientosAuditoriaDelDia(
+    fecha: string,
+    tipos: string[]
+  ): Promise<MovimientoAuditoria[]> {
+    const tiposNormalizados = new Set(tipos.map((tipo) => tipo.toUpperCase()));
+    const resultados: MovimientoAuditoria[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+    const porPagina = 200;
+
+    while (pagina <= totalPaginas && pagina <= 30) {
+      const searchParams = new URLSearchParams({
+        pagina: String(pagina),
+        porPagina: String(porPagina),
+      });
+      const response = await authFetch(this.buildApiUrl(`/api/movimientos?${searchParams}`));
+      if (!response.ok) break;
+
+      const data = await response.json().catch(() => ({}));
+      const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
+      totalPaginas = data?.paginacion?.totalPaginas ?? pagina;
+      if (lista.length === 0) break;
+
+      for (const mov of lista) {
+        const fechaMov = this.obtenerFechaLocalDeISO(mov.fecha);
+        if (fechaMov !== fecha) continue;
+        if (tiposNormalizados.has(mov.tipo.toUpperCase())) {
+          resultados.push(mov);
+        }
+      }
+
+      const fechaMasAntigua = this.obtenerFechaLocalDeISO(lista[lista.length - 1].fecha);
+      if (fechaMasAntigua < fecha) break;
+
+      pagina += 1;
+    }
+
+    return resultados;
+  }
+
+  private async obtenerCobrosAuditoriaPorVentas(
+    referenciasVenta: string[]
+  ): Promise<Map<string, { monto: number; fecha: string }>> {
+    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
+    if (referenciasVenta.length === 0) return cobrosPorVenta;
+
+    const referencias = new Set(referenciasVenta);
+    let pagina = 1;
+    let totalPaginas = 1;
+    const porPagina = 200;
+
+    while (pagina <= totalPaginas && pagina <= 30) {
+      const searchParams = new URLSearchParams({
+        pagina: String(pagina),
+        porPagina: String(porPagina),
+      });
+      const response = await authFetch(this.buildApiUrl(`/api/movimientos?${searchParams}`));
+      if (!response.ok) break;
+
+      const data = await response.json().catch(() => ({}));
+      const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
+      totalPaginas = data?.paginacion?.totalPaginas ?? pagina;
+      if (lista.length === 0) break;
+
+      for (const mov of lista) {
+        if (mov.tipo.toUpperCase() !== 'COBRO_RAPIDO') continue;
+        const referencia = this.obtenerReferenciaVentaAuditoria(mov);
+        if (!referencia || !referencias.has(referencia)) continue;
+
+        const monto = Math.abs(this.parseMontoValor(mov.monto) ?? 0);
+        cobrosPorVenta.set(referencia, { monto, fecha: mov.fecha });
+      }
+
+      pagina += 1;
+    }
+
+    return cobrosPorVenta;
   }
 
   async obtenerResumenFiadosPorFecha(fecha: string): Promise<ResumenFiadosDiario> {
-    const movimientosOperativos = await this.obtenerMovimientosOperativos();
-    const fiadosOperativos = movimientosOperativos.filter(
-      (mov) => mov.categoria === 'fiado' && this.esMismaFechaLocal(mov.fecha, fecha)
-    );
+    const fiadosMap = new Map<string, FiadoDiarioItem>();
+    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
 
-    const clientesIds = Array.from(
+    const agregarFiado = (fiado: FiadoDiarioItem) => {
+      const clave = `${fiado.clienteId}-${fiado.referenciaId}`;
+      if (!fiadosMap.has(clave)) {
+        fiadosMap.set(clave, fiado);
+      }
+    };
+
+    const fiadosAuditoria = await this.obtenerMovimientosAuditoriaDelDia(fecha, ['FIADO_RAPIDO']);
+    for (const mov of fiadosAuditoria) {
+      const referenciaId = this.obtenerReferenciaVentaAuditoria(mov) ?? `auditoria-${mov.id}`;
+      agregarFiado({
+        id: `auditoria-${mov.id}`,
+        referenciaId,
+        clienteId: mov.detalles?.cliente_id ?? 0,
+        clienteNombre: mov.detalles?.cliente_nombre || 'Cliente',
+        monto: Math.abs(this.parseMontoValor(mov.monto) ?? 0),
+        fecha: mov.fecha,
+        descripcion: mov.descripcion || 'Fiado rapido',
+        cobrado: false,
+        montoCobrado: 0,
+        fechaCobro: null,
+      });
+    }
+
+    const ventasAuditoria = await this.obtenerMovimientosAuditoriaDelDia(fecha, ['VENTA_RAPIDA']);
+    for (const mov of ventasAuditoria) {
+      const saldoMonto = this.parseMontoValor(mov.detalles?.saldo_monto);
+      const esParcial =
+        mov.detalles?.forma_pago === 'parcial' ||
+        mov.detalles?.saldo === true ||
+        (saldoMonto != null && saldoMonto > 0);
+
+      if (!esParcial || !saldoMonto || saldoMonto <= 0) continue;
+
+      const referenciaId = this.obtenerReferenciaVentaAuditoria(mov) ?? `auditoria-saldo-${mov.id}`;
+      agregarFiado({
+        id: `auditoria-saldo-${mov.id}`,
+        referenciaId,
+        clienteId: mov.detalles?.cliente_id ?? 0,
+        clienteNombre: mov.detalles?.cliente_nombre || 'Cliente',
+        monto: saldoMonto,
+        fecha: mov.fecha,
+        descripcion: mov.descripcion || 'Venta con saldo',
+        cobrado: false,
+        montoCobrado: 0,
+        fechaCobro: null,
+      });
+    }
+
+    const { clientes: deudores } = await this.obtenerClientesDeudores({ page: 1, limit: 200 });
+
+    await this.ejecutarEnLotes(deudores, 8, async (deudor) => {
+      try {
+        const { movimientos: delDia } = await this.obtenerCuentaCorriente(deudor.cliente_id, {
+          desde: fecha,
+          hasta: fecha,
+          page: 1,
+          limit: 100,
+        });
+
+        for (const mov of delDia) {
+          if (!this.esMovimientoFiado(mov)) continue;
+
+          agregarFiado({
+            id: mov.id,
+            referenciaId: mov.referencia_id,
+            clienteId: deudor.cliente_id,
+            clienteNombre: deudor.nombre,
+            monto: mov.debito,
+            fecha: mov.fecha,
+            descripcion: mov.descripcion,
+            cobrado: false,
+            montoCobrado: 0,
+            fechaCobro: null,
+          });
+        }
+      } catch {
+        // Continuar con el resto de clientes si uno falla.
+      }
+    });
+
+    const referenciasVenta = Array.from(fiadosMap.values())
+      .map((fiado) => fiado.referenciaId)
+      .filter((referencia) => !referencia.startsWith('auditoria-'));
+
+    const clientesFiados = Array.from(
       new Set(
-        fiadosOperativos
-          .map((mov) => mov.clienteId)
-          .filter((clienteId): clienteId is number => clienteId != null)
+        Array.from(fiadosMap.values())
+          .map((fiado) => fiado.clienteId)
+          .filter((clienteId) => clienteId > 0)
       )
     );
 
-    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
-    const fiadosDetallados: FiadoDiarioItem[] = [];
-    const referenciasProcesadas = new Set<string>();
-
-    await this.ejecutarEnLotes(clientesIds, 8, async (clienteId) => {
-      const nombreCliente =
-        fiadosOperativos.find((mov) => mov.clienteId === clienteId)?.clienteNombre ||
-        `Cliente #${clienteId}`;
-
+    await this.ejecutarEnLotes(clientesFiados, 8, async (clienteId) => {
       try {
         const { movimientos: historial } = await this.obtenerCuentaCorriente(clienteId, {
           page: 1,
@@ -810,51 +984,25 @@ class RepartidorRapidoService {
             });
           }
         }
-
-        for (const mov of historial) {
-          if (!this.esMovimientoFiado(mov) || !this.esMismaFechaLocal(mov.fecha, fecha)) {
-            continue;
-          }
-
-          const clave = `${clienteId}-${mov.referencia_id}`;
-          if (referenciasProcesadas.has(clave)) continue;
-          referenciasProcesadas.add(clave);
-
-          const cobro = cobrosPorVenta.get(mov.referencia_id);
-          fiadosDetallados.push({
-            id: mov.id,
-            referenciaId: mov.referencia_id,
-            clienteId,
-            clienteNombre: nombreCliente,
-            monto: mov.debito,
-            fecha: mov.fecha,
-            descripcion: mov.descripcion,
-            cobrado: !!cobro,
-            montoCobrado: cobro?.monto ?? 0,
-            fechaCobro: cobro?.fecha ?? null,
-          });
-        }
       } catch {
-        // Si no se puede cargar la cuenta corriente, se usa el movimiento operativo.
+        // Continuar si no se puede consultar la cuenta corriente del cliente.
       }
     });
 
-    if (fiadosDetallados.length === 0) {
-      for (const mov of fiadosOperativos) {
-        fiadosDetallados.push({
-          id: mov.id,
-          referenciaId: mov.id,
-          clienteId: mov.clienteId ?? 0,
-          clienteNombre: mov.clienteNombre || 'Cliente',
-          monto: mov.monto ?? 0,
-          fecha: mov.fecha,
-          descripcion: mov.titulo,
-          cobrado: false,
-          montoCobrado: 0,
-          fechaCobro: null,
-        });
-      }
-    }
+    const cobrosAuditoria = await this.obtenerCobrosAuditoriaPorVentas(referenciasVenta);
+    cobrosAuditoria.forEach((cobro, referencia) => {
+      cobrosPorVenta.set(referencia, cobro);
+    });
+
+    const fiadosDetallados = Array.from(fiadosMap.values()).map((fiado) => {
+      const cobro = cobrosPorVenta.get(fiado.referenciaId);
+      return {
+        ...fiado,
+        cobrado: !!cobro,
+        montoCobrado: cobro?.monto ?? 0,
+        fechaCobro: cobro?.fecha ?? null,
+      };
+    });
 
     const cobrados = fiadosDetallados.filter((fiado) => fiado.cobrado);
     const pendientes = fiadosDetallados.filter((fiado) => !fiado.cobrado);
@@ -920,7 +1068,7 @@ class RepartidorRapidoService {
   ): MovimientoOperativoRepartidor {
     const esCobro = mov.tipo === 'CREDITO_COBRO';
     const monto = esCobro ? mov.credito : mov.debito;
-    const esFiado = !esCobro && /fiado/i.test(mov.descripcion);
+    const esFiado = !esCobro && this.esMovimientoFiado(mov);
     return {
       id: `cuenta-${mov.id}`,
       categoria: esCobro ? 'cobro' : esFiado ? 'fiado' : 'venta',
