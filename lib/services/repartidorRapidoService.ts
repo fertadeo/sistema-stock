@@ -292,6 +292,8 @@ interface MovimientoAuditoria {
 }
 
 class RepartidorRapidoService {
+  private readonly maxPaginaApi = 100;
+
   private buildApiUrl(path: string): string {
     return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   }
@@ -788,6 +790,55 @@ class RepartidorRapidoService {
     return /fiado|saldo|parcial|cr[eé]dito/.test(descripcion);
   }
 
+  private async obtenerTodosDeudores(): Promise<ClienteDeudor[]> {
+    const deudores: ClienteDeudor[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    while (pagina <= totalPaginas && pagina <= 10) {
+      const response = await this.obtenerClientesDeudores({
+        page: pagina,
+        limit: this.maxPaginaApi,
+      });
+      deudores.push(...response.clientes);
+      totalPaginas = response.meta?.totalPaginas ?? pagina;
+      if (response.clientes.length === 0) break;
+      pagina += 1;
+    }
+
+    return deudores;
+  }
+
+  private async obtenerCobrosCuentaCorriente(
+    clienteId: number
+  ): Promise<Map<string, { monto: number; fecha: string }>> {
+    const cobros = new Map<string, { monto: number; fecha: string }>();
+    let pagina = 1;
+    let totalPaginas = 1;
+
+    while (pagina <= totalPaginas && pagina <= 5) {
+      const { movimientos, meta } = await this.obtenerCuentaCorriente(clienteId, {
+        page: pagina,
+        limit: this.maxPaginaApi,
+      });
+
+      for (const mov of movimientos) {
+        if (mov.tipo === 'CREDITO_COBRO' && mov.venta_relacionada_id) {
+          cobros.set(mov.venta_relacionada_id, {
+            monto: mov.credito,
+            fecha: mov.fecha,
+          });
+        }
+      }
+
+      totalPaginas = meta?.totalPaginas ?? pagina;
+      if (movimientos.length === 0) break;
+      pagina += 1;
+    }
+
+    return cobros;
+  }
+
   private obtenerReferenciaVentaAuditoria(mov: MovimientoAuditoria): string | null {
     const ventaId = mov.detalles?.venta_id ?? mov.detalles?.venta_relacionada_id;
     return ventaId != null ? String(ventaId) : null;
@@ -801,7 +852,7 @@ class RepartidorRapidoService {
     const resultados: MovimientoAuditoria[] = [];
     let pagina = 1;
     let totalPaginas = 1;
-    const porPagina = 200;
+    const porPagina = this.maxPaginaApi;
 
     while (pagina <= totalPaginas && pagina <= 30) {
       const searchParams = new URLSearchParams({
@@ -842,7 +893,7 @@ class RepartidorRapidoService {
     const referencias = new Set(referenciasVenta);
     let pagina = 1;
     let totalPaginas = 1;
-    const porPagina = 200;
+    const porPagina = this.maxPaginaApi;
 
     while (pagina <= totalPaginas && pagina <= 30) {
       const searchParams = new URLSearchParams({
@@ -925,7 +976,7 @@ class RepartidorRapidoService {
       });
     }
 
-    const { clientes: deudores } = await this.obtenerClientesDeudores({ page: 1, limit: 200 });
+    const deudores = await this.obtenerTodosDeudores();
 
     await this.ejecutarEnLotes(deudores, 8, async (deudor) => {
       try {
@@ -933,7 +984,7 @@ class RepartidorRapidoService {
           desde: fecha,
           hasta: fecha,
           page: 1,
-          limit: 100,
+          limit: this.maxPaginaApi,
         });
 
         for (const mov of delDia) {
@@ -971,19 +1022,10 @@ class RepartidorRapidoService {
 
     await this.ejecutarEnLotes(clientesFiados, 8, async (clienteId) => {
       try {
-        const { movimientos: historial } = await this.obtenerCuentaCorriente(clienteId, {
-          page: 1,
-          limit: 200,
+        const cobrosCliente = await this.obtenerCobrosCuentaCorriente(clienteId);
+        cobrosCliente.forEach((cobro, referencia) => {
+          cobrosPorVenta.set(referencia, cobro);
         });
-
-        for (const mov of historial) {
-          if (mov.tipo === 'CREDITO_COBRO' && mov.venta_relacionada_id) {
-            cobrosPorVenta.set(mov.venta_relacionada_id, {
-              monto: mov.credito,
-              fecha: mov.fecha,
-            });
-          }
-        }
       } catch {
         // Continuar si no se puede consultar la cuenta corriente del cliente.
       }
