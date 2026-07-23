@@ -1002,8 +1002,8 @@ export default function RepartidorRapido() {
       }`}
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white shadow-sm">
-        <div className="px-4 py-3">
+      <div className="sticky top-0 z-10 mt-3 rounded-xl bg-white shadow-sm">
+        <div className="px-4 py-4">
           {clienteSeleccionado ? (
             <div className="flex justify-between items-center">
               <button
@@ -1049,7 +1049,7 @@ export default function RepartidorRapido() {
               )}
             </div>
           ) : (
-            <h1 className="text-xl font-bold text-gray-800">Repartidor Rápido</h1>
+            <h1 className="text-xl font-bold text-gray-800">Búsqueda Rápida</h1>
           )}
         </div>
       </div>
