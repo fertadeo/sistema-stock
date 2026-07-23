@@ -532,6 +532,7 @@ class RepartidorRapidoService {
     dni?: string;
     latitud?: string | number;
     longitud?: string | number;
+    repartidor?: string | null;
   }): Promise<any> {
     try {
       const response = await authFetch(this.buildApiUrl('/api/clientes'), {
@@ -556,6 +557,7 @@ class RepartidorRapidoService {
     email?: string;
     latitud?: string | number;
     longitud?: string | number;
+    repartidor?: string | null;
   }): Promise<any> {
     try {
       const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {
@@ -571,6 +573,21 @@ class RepartidorRapidoService {
       console.error('Error al actualizar cliente:', error);
       throw error;
     }
+  }
+
+  async obtenerRepartidores(): Promise<Array<{ id: number; nombre: string }>> {
+    const response = await authFetch(this.buildApiUrl('/api/repartidores'));
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || 'No se pudieron cargar los repartidores');
+    }
+    const lista = Array.isArray(data) ? data : [];
+    return lista
+      .filter((item: { id?: number; nombre?: string; activo?: boolean }) => item?.nombre?.trim())
+      .map((item: { id: number; nombre: string }) => ({
+        id: item.id,
+        nombre: item.nombre.trim(),
+      }));
   }
 
   async cambiarEstadoCliente(

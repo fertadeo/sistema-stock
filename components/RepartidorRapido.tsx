@@ -59,6 +59,7 @@ interface ClienteFormData {
   email: string;
   latitud: string;
   longitud: string;
+  repartidor: string;
 }
 
 const CLIENTE_FORM_VACIO: ClienteFormData = {
@@ -68,6 +69,7 @@ const CLIENTE_FORM_VACIO: ClienteFormData = {
   email: '',
   latitud: '',
   longitud: '',
+  repartidor: '',
 };
 
 async function prepararPayloadCliente(form: ClienteFormData) {
@@ -91,6 +93,7 @@ async function prepararPayloadCliente(form: ClienteFormData) {
     email: form.email,
     latitud: latitud || undefined,
     longitud: longitud || undefined,
+    repartidor: form.repartidor.trim() || null,
   };
 }
 
@@ -160,6 +163,8 @@ export default function RepartidorRapido() {
   useRepartidorGeolocation(true);
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
+  const [resumenClientes, setResumenClientes] = useState({ disponibles: 0, inactivos: 0 });
+  const [repartidoresLista, setRepartidoresLista] = useState<Array<{ id: number; nombre: string }>>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [productosVenta, setProductosVenta] = useState<ProductoVenta[]>([]);
@@ -235,16 +240,47 @@ export default function RepartidorRapido() {
   };
 
   useEffect(() => {
-    cargarProductos();
+    void cargarProductos();
+    void cargarResumenClientes();
+    void cargarRepartidores();
   }, []);
 
   useEffect(() => {
     if (busquedaCliente.length >= 2) {
-      buscarClientes();
+      void buscarClientes();
     } else {
       setClientesEncontrados([]);
     }
   }, [busquedaCliente]);
+
+  const repartidorPorDefecto = () => user?.repartidor_nombre?.trim() || '';
+
+  const cargarResumenClientes = async () => {
+    try {
+      const todos = await repartidorRapidoService.obtenerTodosClientes();
+      let disponibles = 0;
+      let inactivos = 0;
+      for (const cliente of todos) {
+        if (cliente.estado === false) {
+          inactivos += 1;
+        } else {
+          disponibles += 1;
+        }
+      }
+      setResumenClientes({ disponibles, inactivos });
+    } catch {
+      // La leyenda es informativa; no bloquear la pantalla
+    }
+  };
+
+  const cargarRepartidores = async () => {
+    try {
+      const lista = await repartidorRapidoService.obtenerRepartidores();
+      setRepartidoresLista(lista);
+    } catch {
+      setRepartidoresLista([]);
+    }
+  };
 
   const cargarProductos = async () => {
     try {
@@ -319,6 +355,7 @@ export default function RepartidorRapido() {
       email: cliente.email || '',
       latitud: cliente.latitud != null ? String(cliente.latitud) : '',
       longitud: cliente.longitud != null ? String(cliente.longitud) : '',
+      repartidor: cliente.repartidor?.trim() || repartidorPorDefecto(),
     });
     setMostrarModalCliente(true);
   };
@@ -359,6 +396,7 @@ export default function RepartidorRapido() {
         prev.map((c) => (c.id === clienteActualizado.id ? { ...c, estado: clienteActualizado.estado } : c))
       );
       mostrarExito(resultado.message || `Cliente ${accion === 'activar' ? 'activado' : 'inactivado'}`);
+      void cargarResumenClientes();
     } catch (error: unknown) {
       mostrarError(error instanceof Error ? error.message : `No se pudo ${accion} el cliente`);
     } finally {
@@ -456,6 +494,7 @@ export default function RepartidorRapido() {
     setClienteForm({
       ...CLIENTE_FORM_VACIO,
       nombre: busquedaCliente,
+      repartidor: repartidorPorDefecto(),
     });
     setMostrarModalCliente(true);
   };
@@ -474,6 +513,7 @@ export default function RepartidorRapido() {
       setMostrarModalCliente(false);
       setBusquedaCliente('');
       mostrarExito('Cliente creado exitosamente');
+      void cargarResumenClientes();
     } catch (error: any) {
       mostrarError(error.message || 'Error al crear cliente');
     } finally {
@@ -897,10 +937,13 @@ export default function RepartidorRapido() {
     setResumenEnvases(null);
     setClientesEncontrados([]);
     setBusquedaCliente('');
-    setClienteForm(CLIENTE_FORM_VACIO);
+    setClienteForm({
+      ...CLIENTE_FORM_VACIO,
+      repartidor: repartidorPorDefecto(),
+    });
     setMostrarModalCliente(true);
     router.replace('/repartidor/rapido');
-  }, [router, searchParams]);
+  }, [router, searchParams, user?.repartidor_nombre]);
 
   useEffect(() => {
     if (!searchParams) return;
@@ -1069,10 +1112,23 @@ export default function RepartidorRapido() {
             <MagnifyingGlassIcon className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
           </div>
 
+          <p className="mt-2 text-sm text-gray-600">
+            <span className="font-medium text-teal-700">
+              {resumenClientes.disponibles} clientes disponibles
+            </span>
+            <span className="text-gray-400"> · </span>
+            <span className="font-medium text-red-600">
+              {resumenClientes.inactivos} clientes inactivos
+            </span>
+          </p>
+
           <button
             type="button"
             onClick={() => {
-              setClienteForm(CLIENTE_FORM_VACIO);
+              setClienteForm({
+                ...CLIENTE_FORM_VACIO,
+                repartidor: repartidorPorDefecto(),
+              });
               setMostrarModalCliente(true);
             }}
             className="mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100"
@@ -1373,6 +1429,7 @@ export default function RepartidorRapido() {
           cliente={clienteSeleccionado}
           clienteForm={clienteForm}
           setClienteForm={setClienteForm}
+          repartidores={repartidoresLista}
           onGuardar={clienteSeleccionado ? actualizarCliente : crearCliente}
           onCerrar={() => setMostrarModalCliente(false)}
           cargando={cargando}
@@ -1512,6 +1569,7 @@ function ModalCliente({
   cliente,
   clienteForm,
   setClienteForm,
+  repartidores,
   onGuardar,
   onCerrar,
   cargando,
@@ -1519,10 +1577,19 @@ function ModalCliente({
   cliente: Cliente | null;
   clienteForm: ClienteFormData;
   setClienteForm: React.Dispatch<React.SetStateAction<ClienteFormData>>;
+  repartidores: Array<{ id: number; nombre: string }>;
   onGuardar: () => void;
   onCerrar: () => void;
   cargando: boolean;
 }) {
+  const opcionesRepartidor = (() => {
+    const nombres = repartidores.map((r) => r.nombre.trim()).filter(Boolean);
+    if (clienteForm.repartidor && !nombres.includes(clienteForm.repartidor)) {
+      return [clienteForm.repartidor, ...nombres];
+    }
+    return nombres;
+  })();
+
   return (
     <div className="flex fixed inset-0 z-50 justify-center items-start p-4 pt-8 pb-8 bg-black bg-opacity-50 sm:items-center sm:pt-0 sm:pb-0">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
@@ -1536,8 +1603,9 @@ function ModalCliente({
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label htmlFor="nombre" className="block mb-1 text-sm font-medium text-gray-700">Nombre *</label>
+            <label htmlFor="cliente-nombre" className="block mb-1 text-sm font-medium text-gray-700">Nombre *</label>
             <input
+              id="cliente-nombre"
               type="text"
               value={clienteForm.nombre}
               onChange={(e) => setClienteForm({ ...clienteForm, nombre: e.target.value })}
@@ -1546,8 +1614,9 @@ function ModalCliente({
             />
           </div>
           <div>
-            <label htmlFor="telefono" className="block mb-1 text-sm font-medium text-gray-700">Teléfono *</label>
+            <label htmlFor="cliente-telefono" className="block mb-1 text-sm font-medium text-gray-700">Teléfono *</label>
             <input
+              id="cliente-telefono"
               type="tel"
               value={clienteForm.telefono}
               onChange={(e) => setClienteForm({ ...clienteForm, telefono: e.target.value })}
@@ -1581,14 +1650,36 @@ function ModalCliente({
             )}
           </div>
           <div>
-            <label htmlFor="email" className="block mb-1 text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="cliente-email" className="block mb-1 text-sm font-medium text-gray-700">Email</label>
             <input
+              id="cliente-email"
               type="email"
               value={clienteForm.email}
               onChange={(e) => setClienteForm({ ...clienteForm, email: e.target.value })}
               className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
               placeholder="Email (opcional)"
             />
+          </div>
+          <div>
+            <label htmlFor="cliente-repartidor" className="block mb-1 text-sm font-medium text-gray-700">
+              Repartidor
+            </label>
+            <select
+              id="cliente-repartidor"
+              value={clienteForm.repartidor}
+              onChange={(e) => setClienteForm({ ...clienteForm, repartidor: e.target.value })}
+              className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Sin repartidor</option>
+              {opcionesRepartidor.map((nombre) => (
+                <option key={nombre} value={nombre}>
+                  {nombre}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Por defecto se asigna el repartidor de tu cuenta. Podés cambiarlo antes de guardar.
+            </p>
           </div>
           <div className="flex pt-4 space-x-3">
             <button
