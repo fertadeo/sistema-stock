@@ -41,6 +41,7 @@ import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstado
 import ModalReporteWhatsApp from '@/components/repartidor/ModalReporteWhatsApp';
 import { useAuth } from '@/contexts/AuthContext';
 import { puedeModificarCliente } from '@/lib/auth/clientePermisos';
+import { buildGoogleMapsDirectionsUrl, openGoogleMapsNavigation } from '@/lib/map/openGoogleMaps';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 import { useRepartidorGeolocation } from '@/lib/hooks/useRepartidorGeolocation';
@@ -338,6 +339,25 @@ export default function RepartidorRapido() {
 
   const clienteEstaActivo = (cliente?: Cliente | null) => cliente?.estado !== false;
   const puedeEditarClienteSeleccionado = puedeModificarCliente(clienteSeleccionado || {}, user);
+  const mapsDirectionsUrl = clienteSeleccionado
+    ? buildGoogleMapsDirectionsUrl({
+        latitud: clienteSeleccionado.latitud,
+        longitud: clienteSeleccionado.longitud,
+        direccion: clienteSeleccionado.direccion,
+      })
+    : null;
+
+  const irConGoogleMaps = () => {
+    if (!clienteSeleccionado) return;
+    const ok = openGoogleMapsNavigation({
+      latitud: clienteSeleccionado.latitud,
+      longitud: clienteSeleccionado.longitud,
+      direccion: clienteSeleccionado.direccion,
+    });
+    if (!ok) {
+      mostrarError('Este cliente no tiene dirección ni coordenadas para abrir Maps.');
+    }
+  };
 
   const abrirModalEditarCliente = (cliente: Cliente) => {
     if (!puedeModificarCliente(cliente, user)) {
@@ -663,16 +683,32 @@ export default function RepartidorRapido() {
     !mostrarModalReporteWhatsApp &&
     !pieExito;
 
-  const totalEnvasesCliente = useMemo(() => {
-    if (resumenEnvases) {
-      return resumenEnvases.cantidad_total;
+  const detalleEnvasesCliente = useMemo(() => {
+    if (resumenEnvases?.saldo_actual?.length) {
+      return resumenEnvases.saldo_actual
+        .filter((item) => (Number(item.cantidad) || 0) > 0)
+        .map((item) => ({
+          producto_id: item.producto_id,
+          nombre: item.producto_nombre,
+          cantidad: Number(item.cantidad) || 0,
+        }));
     }
 
-    return (clienteSeleccionado?.envases_prestados || []).reduce(
-      (total, envase) => total + (Number(envase.cantidad) || 0),
-      0
-    );
+    return (clienteSeleccionado?.envases_prestados || [])
+      .filter((envase) => (Number(envase.cantidad) || 0) > 0)
+      .map((envase) => ({
+        producto_id: envase.producto_id,
+        nombre: envase.producto_nombre || `Producto #${envase.producto_id}`,
+        cantidad: Number(envase.cantidad) || 0,
+      }));
   }, [resumenEnvases, clienteSeleccionado?.envases_prestados]);
+
+  const totalEnvasesCliente = useMemo(
+    () =>
+      resumenEnvases?.cantidad_total ??
+      detalleEnvasesCliente.reduce((total, envase) => total + envase.cantidad, 0),
+    [resumenEnvases?.cantidad_total, detalleEnvasesCliente]
+  );
 
   const procesarVenta = async () => {
     if (!clienteSeleccionado) return;
@@ -1233,10 +1269,15 @@ export default function RepartidorRapido() {
             )}
             <div className="space-y-2 text-sm">
               {clienteSeleccionado.direccion && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Dirección:</span>
-                  <span className="font-medium">{clienteSeleccionado.direccion}</span>
+                <div className="flex justify-between gap-3 items-start">
+                  <span className="text-gray-600 shrink-0">Dirección:</span>
+                  <span className="font-medium text-right">{clienteSeleccionado.direccion}</span>
                 </div>
+              )}
+              {!mapsDirectionsUrl && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                  Sin dirección ni coordenadas: no se puede abrir Google Maps.
+                </p>
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Deuda actual:</span>
@@ -1244,9 +1285,24 @@ export default function RepartidorRapido() {
                   ${saldoActualCliente.toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Envases prestados:</span>
-                <span className="font-semibold">{totalEnvasesCliente}</span>
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Envases prestados:</span>
+                  <span className="font-semibold">{totalEnvasesCliente}</span>
+                </div>
+                {detalleEnvasesCliente.length > 0 ? (
+                  <ul className="mt-1.5 space-y-0.5 pl-0">
+                    {detalleEnvasesCliente.map((envase) => (
+                      <li
+                        key={envase.producto_id}
+                        className="flex justify-between gap-3 text-xs text-gray-600"
+                      >
+                        <span className="truncate">{envase.nombre}</span>
+                        <span className="font-medium text-gray-800 shrink-0">{envase.cantidad}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
               {resumenCuenta?.ultimo_movimiento_at && (
                 <div className="flex justify-between">
@@ -1306,6 +1362,17 @@ export default function RepartidorRapido() {
               </p>
             </div>
           </button>
+
+          {mapsDirectionsUrl && (
+            <button
+              type="button"
+              onClick={irConGoogleMaps}
+              className="flex gap-3 items-center justify-center w-full px-4 py-3.5 font-semibold text-white bg-[#1a73e8] rounded-xl shadow-sm hover:bg-[#1765cc] active:bg-[#1557b0]"
+            >
+              <MapPinIconSolid className="w-6 h-6" />
+              <span>Ir con Google Maps</span>
+            </button>
+          )}
 
           {/* Botones de Acción */}
           <div className="grid grid-cols-2 gap-3">

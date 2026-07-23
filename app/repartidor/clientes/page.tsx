@@ -40,6 +40,31 @@ function sumarEnvases(cliente: ClienteBasico) {
   );
 }
 
+function detalleEnvasesFicha(
+  resumenEnvases: ResumenEnvases | null,
+  cliente: ClienteBasico
+): Array<{ producto_id: number; nombre: string; cantidad: number }> {
+  const desdeResumen = (resumenEnvases?.saldo_actual || [])
+    .filter((item) => (Number(item.cantidad) || 0) > 0)
+    .map((item) => ({
+      producto_id: item.producto_id,
+      nombre: item.producto_nombre,
+      cantidad: Number(item.cantidad) || 0,
+    }));
+
+  if (desdeResumen.length > 0 || resumenEnvases) {
+    return desdeResumen;
+  }
+
+  return (cliente.envases_prestados || [])
+    .filter((envase) => (Number(envase.cantidad) || 0) > 0)
+    .map((envase) => ({
+      producto_id: envase.producto_id,
+      nombre: envase.producto_nombre || `Producto #${envase.producto_id}`,
+      cantidad: Number(envase.cantidad) || 0,
+    }));
+}
+
 export default function ClientesPage() {
   const router = useRouter();
   const [clientes, setClientes] = useState<ClienteBasico[]>([]);
@@ -157,6 +182,7 @@ export default function ClientesPage() {
     const zonaNombre =
       zonas.find((zona) => zona.id === detalle.cliente.zona)?.nombre ||
       (detalle.cliente.zona != null ? `Zona ${detalle.cliente.zona}` : 'Sin zona');
+    const envasesDetalle = detalleEnvasesFicha(detalle.resumenEnvases, detalle.cliente);
 
     const datosWhatsApp = {
       clienteNombre: detalle.cliente.nombre,
@@ -262,6 +288,19 @@ export default function ClientesPage() {
                   <p className="font-semibold text-blue-600">
                     {detalle.resumenEnvases?.cantidad_total ?? sumarEnvases(detalle.cliente)}
                   </p>
+                  {envasesDetalle.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {envasesDetalle.map((envase) => (
+                        <li
+                          key={envase.producto_id}
+                          className="flex justify-between gap-2 text-xs text-gray-600"
+                        >
+                          <span className="truncate">{envase.nombre}</span>
+                          <span className="font-medium text-gray-800 shrink-0">{envase.cantidad}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
               {detalle.cliente.cliente_vinculado && detalle.cliente.resumen_domicilio && (

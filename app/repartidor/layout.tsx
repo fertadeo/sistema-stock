@@ -13,7 +13,6 @@ import {
   XMarkIcon,
   BoltIcon,
   ArrowRightOnRectangleIcon,
-  MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
 import { asegurarSuscripcionPushSilenciosa } from '@/lib/services/repartidorRutaService';
@@ -104,11 +103,6 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       icon: <BoltIcon className="w-6 h-6" />
     },
     {
-      href: '/repartidor/ruta',
-      label: 'Ruta',
-      icon: <MapPinIcon className="w-6 h-6" />
-    },
-    {
       href: '/repartidor/ventas',
       label: 'Ventas',
       icon: <ShoppingCartIcon className="w-6 h-6" />
@@ -140,7 +134,6 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const subtituloActual = (() => {
     if (currentPathname === '/repartidor') return 'Panel operativo';
     if (currentPathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
-    if (currentPathname === '/repartidor/ruta') return 'Clientes fijados y alertas del día';
     if (currentPathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
     if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
     if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
