@@ -13,6 +13,8 @@ export interface SessionUser {
   role_label: string;
   repartidor_id?: string | null;
   repartidor_nombre?: string | null;
+  /** Si true, el repartidor solo ve sus clientes asignados. Default false = ve todos. */
+  solo_clientes_propios?: boolean;
   created_at?: string;
 }
 

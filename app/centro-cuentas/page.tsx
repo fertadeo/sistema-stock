@@ -26,6 +26,7 @@ interface RepartidorOption {
 interface EditFormState {
   role: UserRole;
   repartidor_id: string;
+  solo_clientes_propios: boolean;
 }
 
 const roleBadgeClass: Record<UserRole, string> = {
@@ -74,12 +75,14 @@ export default function CentroCuentasPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>(USER_ROLES.ADMIN);
   const [repartidorId, setRepartidorId] = useState('');
+  const [createSoloClientesPropios, setCreateSoloClientesPropios] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [editingUser, setEditingUser] = useState<SessionUser | null>(null);
   const [editForm, setEditForm] = useState<EditFormState>({
     role: USER_ROLES.ADMIN,
     repartidor_id: '',
+    solo_clientes_propios: false,
   });
   const [updating, setUpdating] = useState(false);
 
@@ -87,10 +90,6 @@ export default function CentroCuentasPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
-
-  const [soloClientesPropios, setSoloClientesPropios] = useState(false);
-  const [guardandoConfig, setGuardandoConfig] = useState(false);
-  const [configCargada, setConfigCargada] = useState(false);
 
   const assignableRoles = useMemo(
     () => (currentUser?.role ? assignableRolesFor(currentUser.role) : []),
@@ -147,31 +146,12 @@ export default function CentroCuentasPage() {
     setUsers(data.data || []);
   };
 
-  const loadConfiguracion = async () => {
-    try {
-      const response = await authFetch(createApiUrl('api/configuracion'));
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'No se pudo cargar la configuración');
-      }
-
-      setSoloClientesPropios(Boolean(data.data?.repartidor_solo_clientes_propios));
-      setConfigCargada(true);
-    } catch (err) {
-      setConfigCargada(false);
-      setError(
-        err instanceof Error ? err.message : 'Error al cargar la configuración de la cuenta'
-      );
-    }
-  };
-
   const loadData = async () => {
     setLoading(true);
     setError('');
     setRepartidoresError('');
 
-    await Promise.all([loadRepartidores(), loadConfiguracion()]);
+    await loadRepartidores();
 
     try {
       await loadUsers();
@@ -209,6 +189,8 @@ export default function CentroCuentasPage() {
           password,
           role,
           repartidor_id: role === USER_ROLES.REPARTIDOR ? repartidorId : null,
+          solo_clientes_propios:
+            role === USER_ROLES.REPARTIDOR ? createSoloClientesPropios : false,
         }),
       });
       const data = await response.json();
@@ -220,6 +202,7 @@ export default function CentroCuentasPage() {
       setEmail('');
       setPassword('');
       setRepartidorId('');
+      setCreateSoloClientesPropios(false);
       setRole(USER_ROLES.ADMIN);
       setSuccess('Usuario creado correctamente.');
       await loadData();
@@ -235,6 +218,7 @@ export default function CentroCuentasPage() {
     setEditForm({
       role: user.role,
       repartidor_id: user.repartidor_id || '',
+      solo_clientes_propios: Boolean(user.solo_clientes_propios),
     });
     setError('');
     setSuccess('');
@@ -242,7 +226,11 @@ export default function CentroCuentasPage() {
 
   const closeEdit = () => {
     setEditingUser(null);
-    setEditForm({ role: USER_ROLES.ADMIN, repartidor_id: '' });
+    setEditForm({
+      role: USER_ROLES.ADMIN,
+      repartidor_id: '',
+      solo_clientes_propios: false,
+    });
   };
 
   const openPasswordChange = (user: SessionUser) => {
@@ -257,40 +245,6 @@ export default function CentroCuentasPage() {
     setPasswordChangeUser(null);
     setNewPassword('');
     setConfirmPassword('');
-  };
-
-  const handleToggleSoloClientesPropios = async (activo: boolean) => {
-    const anterior = soloClientesPropios;
-    setSoloClientesPropios(activo);
-    setGuardandoConfig(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await authFetch(createApiUrl('api/configuracion'), {
-        method: 'PUT',
-        body: JSON.stringify({
-          repartidor_solo_clientes_propios: activo,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'No se pudo guardar la configuración');
-      }
-
-      setSoloClientesPropios(Boolean(data.data?.repartidor_solo_clientes_propios));
-      setSuccess(
-        activo
-          ? 'Los repartidores ahora solo ven sus clientes asignados.'
-          : 'Los repartidores vuelven a ver todos los clientes.'
-      );
-    } catch (err) {
-      setSoloClientesPropios(anterior);
-      setError(err instanceof Error ? err.message : 'Error al guardar la configuración');
-    } finally {
-      setGuardandoConfig(false);
-    }
   };
 
   const canManageUser = (user: SessionUser): boolean => {
@@ -308,12 +262,15 @@ export default function CentroCuentasPage() {
     setSuccess('');
 
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | boolean | null> = {
         role: editForm.role,
       };
 
       if (editForm.role === USER_ROLES.REPARTIDOR) {
         payload.repartidor_id = editForm.repartidor_id;
+        payload.solo_clientes_propios = editForm.solo_clientes_propios;
+      } else {
+        payload.solo_clientes_propios = false;
       }
 
       const response = await authFetch(createApiUrl(`api/users/${editingUser.id}`), {
@@ -391,8 +348,8 @@ export default function CentroCuentasPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Centro de cuentas</h1>
         <p className="mt-2 text-sm text-gray-600">
           Creá y administrá los accesos al sistema: repartidores, administradores
-          {isSuperAdmin ? ' y superadministradores' : ''}. Podés cambiar contraseñas de las cuentas
-          que tengas permiso para gestionar.
+          {isSuperAdmin ? ' y superadministradores' : ''}. En cada cuenta de repartidor
+          podés definir si ve todos los clientes o solo los propios.
         </p>
       </div>
 
@@ -413,55 +370,6 @@ export default function CentroCuentasPage() {
           {repartidoresError}
         </div>
       )}
-
-      <div className="p-6 bg-white rounded-xl shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">Configuración de la cuenta</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Ajustes que aplican a todos los repartidores del sistema.
-        </p>
-
-        <div className="flex flex-col gap-3 justify-between mt-5 sm:flex-row sm:items-start">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-gray-900">
-              Repartidores: solo clientes propios
-            </p>
-            <p className="mt-1 text-sm text-gray-600">
-              Por defecto ven todos los clientes. Activá esta opción para que cada
-              repartidor vea únicamente los clientes asignados a él.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={soloClientesPropios}
-            aria-label="Repartidores solo ven clientes propios"
-            disabled={guardandoConfig || !configCargada}
-            onClick={() => void handleToggleSoloClientesPropios(!soloClientesPropios)}
-            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-              soloClientesPropios ? 'bg-teal-600' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                soloClientesPropios ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        <p className="mt-3 text-xs text-gray-500">
-          Estado actual:{' '}
-          <span className="font-medium text-gray-700">
-            {!configCargada
-              ? 'cargando…'
-              : soloClientesPropios
-                ? 'solo clientes propios'
-                : 'todos los clientes'}
-          </span>
-          {guardandoConfig ? ' · guardando…' : ''}
-        </p>
-      </div>
 
       <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
         <form onSubmit={handleCreate} className="p-6 space-y-4 bg-white rounded-xl shadow-sm h-fit">
@@ -509,24 +417,43 @@ export default function CentroCuentasPage() {
           </div>
 
           {role === USER_ROLES.REPARTIDOR && (
-            <div>
-              <label htmlFor="create-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
-              <select
-                id="create-repartidor"
-                value={repartidorId}
-                onChange={(e) => setRepartidorId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                required
-              >
-                <option value="">Seleccionar repartidor</option>
-                {repartidores.map((repartidor) => (
-                  <option key={repartidor.id} value={repartidor.id}>
-                    {repartidor.nombre}
-                    {repartidor.zona_reparto ? ` (${repartidor.zona_reparto})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label htmlFor="create-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
+                <select
+                  id="create-repartidor"
+                  value={repartidorId}
+                  onChange={(e) => setRepartidorId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  required
+                >
+                  <option value="">Seleccionar repartidor</option>
+                  {repartidores.map((repartidor) => (
+                    <option key={repartidor.id} value={repartidor.id}>
+                      {repartidor.nombre}
+                      {repartidor.zona_reparto ? ` (${repartidor.zona_reparto})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={createSoloClientesPropios}
+                  onChange={(e) => setCreateSoloClientesPropios(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900">
+                    Solo clientes propios
+                  </span>
+                  <span className="block mt-0.5 text-xs text-gray-600">
+                    Ideal para empleados. Desactivado = ve todos (dueño). Activado = solo los asignados a él.
+                  </span>
+                </span>
+              </label>
+            </>
           )}
 
           <button
@@ -568,6 +495,12 @@ export default function CentroCuentasPage() {
                     </div>
                     <div className="mt-3 space-y-1 text-sm text-gray-600">
                       <p><span className="font-medium text-gray-700">Repartidor:</span> {repartidorNombre(user.repartidor_id)}</p>
+                      {user.role === USER_ROLES.REPARTIDOR && (
+                        <p>
+                          <span className="font-medium text-gray-700">Clientes:</span>{' '}
+                          {user.solo_clientes_propios ? 'Solo propios' : 'Todos'}
+                        </p>
+                      )}
                       <p>
                         <span className="font-medium text-gray-700">Alta:</span>{' '}
                         {user.created_at
@@ -608,6 +541,7 @@ export default function CentroCuentasPage() {
                     <th className="py-3 pr-4 font-medium">Email</th>
                     <th className="py-3 pr-4 font-medium">Rol</th>
                     <th className="py-3 pr-4 font-medium">Repartidor</th>
+                    <th className="py-3 pr-4 font-medium">Clientes</th>
                     <th className="py-3 pr-4 font-medium">Alta</th>
                     <th className="py-3 font-medium">Acciones</th>
                   </tr>
@@ -630,6 +564,21 @@ export default function CentroCuentasPage() {
                       </td>
                       <td className="py-3 pr-4 text-gray-700">
                         {repartidorNombre(user.repartidor_id)}
+                      </td>
+                      <td className="py-3 pr-4 text-gray-700">
+                        {user.role === USER_ROLES.REPARTIDOR ? (
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                              user.solo_clientes_propios
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
+                            {user.solo_clientes_propios ? 'Solo propios' : 'Todos'}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="py-3 pr-4 text-gray-600">
                         {user.created_at
@@ -702,25 +651,49 @@ export default function CentroCuentasPage() {
             </div>
 
             {editForm.role === USER_ROLES.REPARTIDOR && (
-              <div>
-                <label htmlFor="edit-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
-                <select
-                  id="edit-repartidor"
-                  value={editForm.repartidor_id}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, repartidor_id: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300"
-                  required
-                >
-                  <option value="">Seleccionar repartidor</option>
-                  {repartidores.map((repartidor) => (
-                    <option key={repartidor.id} value={repartidor.id}>
-                      {repartidor.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div>
+                  <label htmlFor="edit-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
+                  <select
+                    id="edit-repartidor"
+                    value={editForm.repartidor_id}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, repartidor_id: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300"
+                    required
+                  >
+                    <option value="">Seleccionar repartidor</option>
+                    {repartidores.map((repartidor) => (
+                      <option key={repartidor.id} value={repartidor.id}>
+                        {repartidor.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={editForm.solo_clientes_propios}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        solo_clientes_propios: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">
+                      Solo clientes propios
+                    </span>
+                    <span className="block mt-0.5 text-xs text-gray-600">
+                      Ideal para empleados. Desactivado = ve todos (dueño). Activado = solo los asignados a él.
+                    </span>
+                  </span>
+                </label>
+              </>
             )}
 
             <div className="flex gap-3 pt-2">
