@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { SideBar } from '@/components/sidebar';
-import { TopBar } from '@/components/topBar';
+import TopBar from '@/components/topBar';
 
 // Tipos para las facturas
 interface Factura {

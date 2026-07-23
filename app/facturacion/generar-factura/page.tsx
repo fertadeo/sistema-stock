@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { SideBar } from '@/components/sidebar';
-import { TopBar } from '@/components/topBar';
+import TopBar from '@/components/topBar';
 
 interface Cliente {
   id: string;
@@ -128,10 +128,11 @@ export default function GenerarFacturaPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="factura-cliente" className="block text-sm font-medium text-gray-700 mb-2">
                         Seleccionar Cliente
                       </label>
                       <select
+                        id="factura-cliente"
                         value={cliente?.id || ''}
                         onChange={(e) => {
                           const clienteSeleccionado = clientesEjemplo.find(c => c.id === e.target.value);
@@ -149,10 +150,11 @@ export default function GenerarFacturaPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="factura-tipo" className="block text-sm font-medium text-gray-700 mb-2">
                         Tipo de Factura
                       </label>
                       <select
+                        id="factura-tipo"
                         value={tipoFactura}
                         onChange={(e) => setTipoFactura(e.target.value as 'A' | 'B' | 'C')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -266,10 +268,11 @@ export default function GenerarFacturaPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="factura-vencimiento" className="block text-sm font-medium text-gray-700 mb-2">
                         Fecha de Vencimiento
                       </label>
                       <input
+                        id="factura-vencimiento"
                         type="date"
                         value={fechaVencimiento}
                         onChange={(e) => setFechaVencimiento(e.target.value)}
@@ -279,10 +282,11 @@ export default function GenerarFacturaPage() {
                   </div>
 
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="factura-observaciones" className="block text-sm font-medium text-gray-700 mb-2">
                       Observaciones
                     </label>
                     <textarea
+                      id="factura-observaciones"
                       value={observaciones}
                       onChange={(e) => setObservaciones(e.target.value)}
                       rows={3}
