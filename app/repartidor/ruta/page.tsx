@@ -433,6 +433,22 @@ export default function RepartidorRutaPage() {
               className="w-full text-left px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50"
             >
               <p className="font-medium text-gray-900">{cliente.nombre}</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {cliente.estado === false && (
+                  <span className="px-1.5 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+                    Inactivo
+                  </span>
+                )}
+                {cliente.repartidor?.trim() ? (
+                  <span className="px-1.5 py-0.5 text-xs font-medium text-teal-700 bg-teal-50 rounded">
+                    {cliente.repartidor}
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
+                    Sin repartidor
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-500 mt-0.5">{cliente.direccion || 'Sin dirección'}</p>
               <p className="text-xs text-gray-400">{cliente.telefono}</p>
             </button>

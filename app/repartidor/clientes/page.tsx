@@ -184,6 +184,15 @@ export default function ClientesPage() {
                     Inactivo
                   </span>
                 )}
+                {detalle.cliente.repartidor?.trim() ? (
+                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-700">
+                    {detalle.cliente.repartidor}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                    Sin repartidor
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-500">Ficha operativa del cliente</p>
             </div>
@@ -487,6 +496,15 @@ export default function ClientesPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                       <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">{zonaNombre}</span>
+                      {cliente.repartidor?.trim() ? (
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 font-semibold text-teal-700">
+                          {cliente.repartidor}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-600">
+                          Sin repartidor
+                        </span>
+                      )}
                       {sumarEnvases(cliente) > 0 && (
                         <span className="rounded bg-blue-100 px-2 py-1 text-blue-700">
                           {sumarEnvases(cliente)} envases

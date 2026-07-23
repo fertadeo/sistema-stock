@@ -12,6 +12,7 @@ export interface SessionUser {
   role: UserRole;
   role_label: string;
   repartidor_id?: string | null;
+  repartidor_nombre?: string | null;
   created_at?: string;
 }
 

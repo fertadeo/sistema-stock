@@ -39,6 +39,8 @@ import PieResumenOperacion from '@/components/repartidor/PieResumenOperacion';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
 import ModalReporteWhatsApp from '@/components/repartidor/ModalReporteWhatsApp';
+import { useAuth } from '@/contexts/AuthContext';
+import { puedeModificarCliente } from '@/lib/auth/clientePermisos';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 import { useRepartidorGeolocation } from '@/lib/hooks/useRepartidorGeolocation';
@@ -103,6 +105,7 @@ interface Cliente {
   deuda?: number;
   envases_prestados?: EnvasePrestadoCliente[];
   estado?: boolean;
+  repartidor?: string | null;
   cliente_vinculado?: {
     id: number;
     nombre: string;
@@ -146,6 +149,7 @@ function parsearInputNumerico(raw: string): number {
 export default function RepartidorRapido() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const {
     iniciarOperacion,
     finalizarOperacion,
@@ -293,12 +297,43 @@ export default function RepartidorRapido() {
     deuda: cliente.deuda ?? 0,
     envases_prestados: cliente.envases_prestados ?? [],
     estado: cliente.estado !== false,
+    repartidor: cliente.repartidor ?? null,
   });
 
   const clienteEstaActivo = (cliente?: Cliente | null) => cliente?.estado !== false;
+  const puedeEditarClienteSeleccionado = puedeModificarCliente(clienteSeleccionado || {}, user);
+
+  const abrirModalEditarCliente = (cliente: Cliente) => {
+    if (!puedeModificarCliente(cliente, user)) {
+      mostrarError(
+        cliente.repartidor
+          ? `Este cliente está asignado a ${cliente.repartidor}. No podés modificarlo.`
+          : 'No tenés permiso para modificar este cliente.'
+      );
+      return;
+    }
+    setClienteForm({
+      nombre: cliente.nombre,
+      telefono: cliente.telefono,
+      direccion: cliente.direccion || '',
+      email: cliente.email || '',
+      latitud: cliente.latitud != null ? String(cliente.latitud) : '',
+      longitud: cliente.longitud != null ? String(cliente.longitud) : '',
+    });
+    setMostrarModalCliente(true);
+  };
 
   const cambiarEstadoCliente = async (nuevoEstado: boolean) => {
     if (!clienteSeleccionado) return;
+
+    if (!puedeModificarCliente(clienteSeleccionado, user)) {
+      mostrarError(
+        clienteSeleccionado.repartidor
+          ? `Este cliente está asignado a ${clienteSeleccionado.repartidor}. No podés modificarlo.`
+          : 'No tenés permiso para modificar este cliente.'
+      );
+      return;
+    }
 
     const accion = nuevoEstado ? 'activar' : 'inactivar';
     const confirmar = window.confirm(
@@ -421,18 +456,6 @@ export default function RepartidorRapido() {
     setClienteForm({
       ...CLIENTE_FORM_VACIO,
       nombre: busquedaCliente,
-    });
-    setMostrarModalCliente(true);
-  };
-
-  const abrirModalEditarCliente = (cliente: Cliente) => {
-    setClienteForm({
-      nombre: cliente.nombre,
-      telefono: cliente.telefono,
-      direccion: cliente.direccion || '',
-      email: cliente.email || '',
-      latitud: cliente.latitud != null ? String(cliente.latitud) : '',
-      longitud: cliente.longitud != null ? String(cliente.longitud) : '',
     });
     setMostrarModalCliente(true);
   };
@@ -947,22 +970,40 @@ export default function RepartidorRapido() {
                 <ArrowLeftIcon className="w-6 h-6" />
               </button>
               <div className="flex-1 ml-2">
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap">
                   <h1 className="text-lg font-semibold text-gray-800">{clienteSeleccionado.nombre}</h1>
                   {!clienteEstaActivo(clienteSeleccionado) && (
                     <span className="px-2 py-0.5 text-xs font-semibold text-red-700 bg-red-100 rounded-full">
                       Inactivo
                     </span>
                   )}
+                  {clienteSeleccionado.repartidor?.trim() ? (
+                    <span className="px-2 py-0.5 text-xs font-semibold text-teal-700 bg-teal-100 rounded-full">
+                      {clienteSeleccionado.repartidor}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-full">
+                      Sin repartidor
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600">{clienteSeleccionado.telefono}</p>
               </div>
-              <button
-                onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
-                className="p-2 text-blue-600 hover:text-blue-800"
-              >
-                <PencilIcon className="w-6 h-6" />
-              </button>
+              {puedeEditarClienteSeleccionado ? (
+                <button
+                  onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
+                  className="p-2 text-blue-600 hover:text-blue-800"
+                >
+                  <PencilIcon className="w-6 h-6" />
+                </button>
+              ) : (
+                <span
+                  className="p-2 text-gray-300"
+                  title="Cliente asignado a otro repartidor"
+                >
+                  <PencilIcon className="w-6 h-6" />
+                </span>
+              )}
             </div>
           ) : (
             <h1 className="text-xl font-bold text-gray-800">Repartidor Rápido</h1>
@@ -1056,11 +1097,22 @@ export default function RepartidorRapido() {
                       className="flex-1 min-w-0 text-left"
                     >
                       <div className="font-medium text-gray-800">{cliente.nombre}</div>
-                      {!clienteEstaActivo(cliente) && (
-                        <span className="inline-block mt-0.5 px-1.5 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
-                          Inactivo
-                        </span>
-                      )}
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {!clienteEstaActivo(cliente) && (
+                          <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+                            Inactivo
+                          </span>
+                        )}
+                        {cliente.repartidor?.trim() ? (
+                          <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-teal-700 bg-teal-50 rounded">
+                            {cliente.repartidor}
+                          </span>
+                        ) : (
+                          <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
+                            Sin repartidor
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-600">{cliente.telefono}</div>
                       {cliente.direccion && (
                         <div className="text-xs text-gray-500">{cliente.direccion}</div>
@@ -1241,7 +1293,12 @@ export default function RepartidorRapido() {
             </button>
             <button
               onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
-              className="flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white bg-gray-600 rounded-lg"
+              disabled={!puedeEditarClienteSeleccionado}
+              className={`flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white rounded-lg ${
+                puedeEditarClienteSeleccionado
+                  ? 'bg-gray-600'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
             >
               <PencilIcon className="w-6 h-6" />
               <span>Editar</span>
@@ -1257,9 +1314,11 @@ export default function RepartidorRapido() {
             <button
               type="button"
               onClick={() => void cambiarEstadoCliente(!clienteEstaActivo(clienteSeleccionado))}
-              disabled={cambiandoEstado}
+              disabled={cambiandoEstado || !puedeEditarClienteSeleccionado}
               className={`flex flex-col items-center px-4 py-4 space-y-2 font-semibold text-white rounded-lg col-span-2 ${
-                clienteEstaActivo(clienteSeleccionado)
+                !puedeEditarClienteSeleccionado
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : clienteEstaActivo(clienteSeleccionado)
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-emerald-600 hover:bg-emerald-700'
               } ${cambiandoEstado ? 'opacity-60 cursor-wait' : ''}`}
