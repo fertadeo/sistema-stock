@@ -88,6 +88,10 @@ export default function CentroCuentasPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
+  const [soloClientesPropios, setSoloClientesPropios] = useState(false);
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+  const [configCargada, setConfigCargada] = useState(false);
+
   const assignableRoles = useMemo(
     () => (currentUser?.role ? assignableRolesFor(currentUser.role) : []),
     [currentUser?.role]
@@ -143,12 +147,31 @@ export default function CentroCuentasPage() {
     setUsers(data.data || []);
   };
 
+  const loadConfiguracion = async () => {
+    try {
+      const response = await authFetch(createApiUrl('api/configuracion'));
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'No se pudo cargar la configuración');
+      }
+
+      setSoloClientesPropios(Boolean(data.data?.repartidor_solo_clientes_propios));
+      setConfigCargada(true);
+    } catch (err) {
+      setConfigCargada(false);
+      setError(
+        err instanceof Error ? err.message : 'Error al cargar la configuración de la cuenta'
+      );
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError('');
     setRepartidoresError('');
 
-    await loadRepartidores();
+    await Promise.all([loadRepartidores(), loadConfiguracion()]);
 
     try {
       await loadUsers();
@@ -234,6 +257,40 @@ export default function CentroCuentasPage() {
     setPasswordChangeUser(null);
     setNewPassword('');
     setConfirmPassword('');
+  };
+
+  const handleToggleSoloClientesPropios = async (activo: boolean) => {
+    const anterior = soloClientesPropios;
+    setSoloClientesPropios(activo);
+    setGuardandoConfig(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await authFetch(createApiUrl('api/configuracion'), {
+        method: 'PUT',
+        body: JSON.stringify({
+          repartidor_solo_clientes_propios: activo,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'No se pudo guardar la configuración');
+      }
+
+      setSoloClientesPropios(Boolean(data.data?.repartidor_solo_clientes_propios));
+      setSuccess(
+        activo
+          ? 'Los repartidores ahora solo ven sus clientes asignados.'
+          : 'Los repartidores vuelven a ver todos los clientes.'
+      );
+    } catch (err) {
+      setSoloClientesPropios(anterior);
+      setError(err instanceof Error ? err.message : 'Error al guardar la configuración');
+    } finally {
+      setGuardandoConfig(false);
+    }
   };
 
   const canManageUser = (user: SessionUser): boolean => {
@@ -356,6 +413,55 @@ export default function CentroCuentasPage() {
           {repartidoresError}
         </div>
       )}
+
+      <div className="p-6 bg-white rounded-xl shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900">Configuración de la cuenta</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Ajustes que aplican a todos los repartidores del sistema.
+        </p>
+
+        <div className="flex flex-col gap-3 justify-between mt-5 sm:flex-row sm:items-start">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-gray-900">
+              Repartidores: solo clientes propios
+            </p>
+            <p className="mt-1 text-sm text-gray-600">
+              Por defecto ven todos los clientes. Activá esta opción para que cada
+              repartidor vea únicamente los clientes asignados a él.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soloClientesPropios}
+            aria-label="Repartidores solo ven clientes propios"
+            disabled={guardandoConfig || !configCargada}
+            onClick={() => void handleToggleSoloClientesPropios(!soloClientesPropios)}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+              soloClientesPropios ? 'bg-teal-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                soloClientesPropios ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-gray-500">
+          Estado actual:{' '}
+          <span className="font-medium text-gray-700">
+            {!configCargada
+              ? 'cargando…'
+              : soloClientesPropios
+                ? 'solo clientes propios'
+                : 'todos los clientes'}
+          </span>
+          {guardandoConfig ? ' · guardando…' : ''}
+        </p>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
         <form onSubmit={handleCreate} className="p-6 space-y-4 bg-white rounded-xl shadow-sm h-fit">
