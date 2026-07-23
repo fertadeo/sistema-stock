@@ -122,6 +122,7 @@ const PageZonasyRepartos = () => {
   const [clientesIncluidos, setClientesIncluidos] = useState<number[]>([]);
   const [clientesAtendidos, setClientesAtendidos] = useState<number[]>([]);
   const [seguirRecorrido, setSeguirRecorrido] = useState(false);
+  const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -542,6 +543,7 @@ const PageZonasyRepartos = () => {
 
     setCargandoRuta(false);
     fetchClientesAtendidos();
+    setVistaMovil('mapa');
   };
 
   // Modificar la función para descargar la hoja de ruta
@@ -626,8 +628,38 @@ const PageZonasyRepartos = () => {
   return (
     <>
       <div className="flex flex-col lg:flex-row items-stretch min-h-[calc(100dvh-8rem)] w-full bg-gray-100 rounded-xl p-2 sm:p-4 pb-24 lg:pb-4">
+        {/* Tabs solo mobile: filtros vs mapa a pantalla usable */}
+        <div className="lg:hidden mb-2 flex gap-2 rounded-xl bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setVistaMovil('filtros')}
+            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              vistaMovil === 'filtros'
+                ? 'bg-teal-600 text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Filtros
+          </button>
+          <button
+            type="button"
+            onClick={() => setVistaMovil('mapa')}
+            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              vistaMovil === 'mapa'
+                ? 'bg-teal-600 text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Mapa
+          </button>
+        </div>
+
         {/* Panel izquierdo */}
-        <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 w-full lg:max-w-md bg-white rounded-xl lg:rounded-r-none shadow-lg shrink-0">
+        <div
+          className={`flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 w-full lg:max-w-md bg-white rounded-xl lg:rounded-r-none shadow-lg shrink-0 ${
+            vistaMovil === 'mapa' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           <h1 className="mb-2 text-xl sm:text-2xl font-bold">Zonas y Repartos</h1>
           <div className="flex flex-col gap-4">
             <label className="font-semibold" htmlFor="buscarCliente">Buscar cliente</label>
@@ -687,6 +719,13 @@ const PageZonasyRepartos = () => {
             </select>
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <button
+                type="button"
+                className="lg:hidden px-4 py-2 mt-2 text-sm font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded w-full"
+                onClick={() => setVistaMovil('mapa')}
+              >
+                Ver mapa
+              </button>
               <button
                 className={`px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white rounded w-full sm:w-auto ${
                   seguirRecorrido
@@ -750,6 +789,7 @@ const PageZonasyRepartos = () => {
               <ul className="space-y-2 text-sm">
                 {repartidorPalette.map((item) => (
                   <li key={item.nombre} className="flex gap-2 items-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.icon.url}
                       alt=""
@@ -763,6 +803,7 @@ const PageZonasyRepartos = () => {
                   <li className="text-gray-500">No hay repartidores registrados.</li>
                 )}
                 <li className="flex gap-2 items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={MARKER_ICONS.gris.url}
                     alt=""
@@ -772,6 +813,7 @@ const PageZonasyRepartos = () => {
                   <span>Pendiente de atención hoy</span>
                 </li>
                 <li className="flex gap-2 items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={MARKER_ICONS.repartidorActivo.url}
                     alt=""
@@ -781,6 +823,7 @@ const PageZonasyRepartos = () => {
                   <span>Repartidor en vivo</span>
                 </li>
                 <li className="flex gap-2 items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={MARKER_ICONS.gris.url}
                     alt=""
@@ -790,6 +833,7 @@ const PageZonasyRepartos = () => {
                   <span>Clientes fuera del filtro</span>
                 </li>
                 <li className="flex gap-2 items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={MARKER_ICONS.gris.url}
                     alt=""
@@ -799,6 +843,7 @@ const PageZonasyRepartos = () => {
                   <span>Clientes sin repartidor asignado</span>
                 </li>
                 <li className="flex gap-2 items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={MARKER_ICONS.empresa.url}
                     alt=""
@@ -822,7 +867,11 @@ const PageZonasyRepartos = () => {
         </div>
 
         {/* Mapa */}
-        <div className="overflow-hidden flex-1 min-h-[45vh] lg:min-h-[70vh] bg-white rounded-xl lg:rounded-l-none shadow-lg">
+        <div
+          className={`overflow-hidden flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg ${
+            vistaMovil === 'filtros' ? 'hidden lg:block' : 'block'
+          } min-h-[calc(100dvh-11rem)] lg:min-h-[70vh]`}
+        >
           <MapComponent
             clientes={clientes}
             mostrarRuta={mostrarRuta}

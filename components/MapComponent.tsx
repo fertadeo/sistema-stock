@@ -6,6 +6,7 @@ import { authFetch } from '@/lib/api/fetchWithAuth';
 import { EMPRESA_COORDENADAS } from './GoogleMapsProvider';
 import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
 import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
+import { openInGoogleMaps } from '@/lib/map/openGoogleMaps';
 import {
   clienteCoincideFiltros,
   FiltrosCliente,
@@ -383,7 +384,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     selectedCliente != null && repartidorEditado !== (selectedCliente.repartidor ?? '');
 
   return (
-    <div className="relative w-full h-full min-h-[45vh] lg:min-h-[70vh]">
+    <div className="relative w-full h-full min-h-[calc(100dvh-11rem)] lg:min-h-[70vh]">
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={EMPRESA_COORDENADAS}
@@ -393,6 +394,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: true,
+          // En móvil permite pan/zoom con un dedo (sin exigir dos dedos).
+          gestureHandling: 'greedy',
+          clickableIcons: false,
         }}
         onClick={() => {
           if (!pendingConfirm) {
@@ -526,6 +530,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
               )}
 
               <div className="map-info-window-actions">
+                <button
+                  type="button"
+                  className="map-info-window-btn map-info-window-btn-primary"
+                  onClick={() =>
+                    openInGoogleMaps({
+                      latitud: selectedCliente.latitud,
+                      longitud: selectedCliente.longitud,
+                      direccion: selectedCliente.direccion,
+                    })
+                  }
+                >
+                  Abrir en Google Maps
+                </button>
                 {mostrarRuta && (
                   <>
                     {selectedEnRuta && (

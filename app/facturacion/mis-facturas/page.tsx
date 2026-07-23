@@ -137,11 +137,12 @@ export default function MisFacturasPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Búsqueda */}
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="factura-busqueda" className="block text-sm font-medium text-gray-700 mb-2">
                     Buscar factura
                   </label>
                   <div className="relative">
                     <input
+                      id="factura-busqueda"
                       type="text"
                       placeholder="Número de factura o cliente..."
                       value={busqueda}
@@ -166,10 +167,11 @@ export default function MisFacturasPage() {
 
                 {/* Filtro por estado */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="factura-estado" className="block text-sm font-medium text-gray-700 mb-2">
                     Estado
                   </label>
                   <select
+                    id="factura-estado"
                     value={filtroEstado}
                     onChange={(e) => setFiltroEstado(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -183,10 +185,11 @@ export default function MisFacturasPage() {
 
                 {/* Filtro por tipo */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="factura-tipo" className="block text-sm font-medium text-gray-700 mb-2">
                     Tipo
                   </label>
                   <select
+                    id="factura-tipo"
                     value={filtroTipo}
                     onChange={(e) => setFiltroTipo(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent"

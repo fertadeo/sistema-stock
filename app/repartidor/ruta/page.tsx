@@ -25,6 +25,7 @@ import {
   type RutaParada,
 } from '@/lib/services/repartidorRutaService';
 import { obtenerDiagnosticoServiceWorker } from '@/lib/pwa/serviceWorker';
+import { buildGoogleMapsUrl } from '@/lib/map/openGoogleMaps';
 
 function puntuarCliente(c: ClienteBasico, termo: string): number {
   const t = termo.toLowerCase().trim();
@@ -606,6 +607,12 @@ type ParadaCardProps = {
 };
 
 function ParadaCard({ parada, onEditar, onEliminar, onVisitado, onIrRapido }: ParadaCardProps) {
+  const mapsUrl = buildGoogleMapsUrl({
+    latitud: parada.cliente?.latitud,
+    longitud: parada.cliente?.longitud,
+    direccion: formatearDireccion(parada.cliente),
+  });
+
   return (
     <div
       className={`rounded-xl border bg-white p-4 shadow-sm ${
@@ -633,6 +640,17 @@ function ParadaCard({ parada, onEditar, onEliminar, onVisitado, onIrRapido }: Pa
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
+        {mapsUrl && (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700"
+          >
+            <MapPinIcon className="w-4 h-4" />
+            Abrir en Maps
+          </a>
+        )}
         <button
           type="button"
           onClick={onIrRapido}

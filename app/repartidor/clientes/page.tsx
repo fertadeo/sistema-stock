@@ -25,6 +25,7 @@ import {
 } from '@/lib/services/repartidorRapidoService';
 import MovimientosCliente from '@/components/repartidor/MovimientosCliente';
 import BarraEnviarEstadoWhatsApp from '@/components/repartidor/BarraEnviarEstadoWhatsApp';
+import { buildGoogleMapsUrl } from '@/lib/map/openGoogleMaps';
 
 type ClienteDetalleState = {
   cliente: ClienteBasico;
@@ -290,6 +291,28 @@ export default function ClientesPage() {
             </div>
           )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(() => {
+              const mapsUrl = buildGoogleMapsUrl({
+                latitud: detalle.cliente.latitud,
+                longitud: detalle.cliente.longitud,
+                direccion: detalle.cliente.direccion,
+              });
+              if (!mapsUrl) return null;
+              return (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4 text-left hover:bg-blue-100"
+                >
+                  <MapPinIcon className="h-6 w-6 text-blue-700" />
+                  <p className="mt-3 font-semibold text-blue-900">Abrir en Google Maps</p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    Ver ubicación y navegar desde el celular
+                  </p>
+                </a>
+              );
+            })()}
             <button
               type="button"
               onClick={() => setMostrarMovimientos(true)}
