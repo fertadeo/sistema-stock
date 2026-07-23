@@ -2,6 +2,9 @@ import { SessionUser, UserRole } from './roles';
 
 const SESSION_USER_KEY = 'session_user';
 
+export const isPublicPath = (pathname: string): boolean =>
+  pathname === '/' || pathname === '/recuperar-password';
+
 export const persistSession = (token: string, user: SessionUser) => {
   if (typeof window === 'undefined') return;
 
@@ -27,6 +30,15 @@ export const clearSession = () => {
 
   document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'user_role=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+};
+
+/** Limpia la sesión y fuerza ir al login (rompe historial/bfcache del back). */
+export const redirectToLogin = () => {
+  clearSession();
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname !== '/') {
+    window.location.replace('/');
+  }
 };
 
 export const getStoredToken = (): string | null => {

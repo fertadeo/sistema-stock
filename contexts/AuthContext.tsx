@@ -14,7 +14,9 @@ import {
   clearSession,
   getStoredToken,
   getStoredUser,
+  isPublicPath,
   persistSession,
+  redirectToLogin,
 } from '@/lib/auth/session';
 
 interface AuthContextValue {
@@ -30,7 +32,7 @@ interface AuthContextValue {
   defaultRoute: string;
   login: (token: string, user: SessionUser) => void;
   logout: () => void;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -40,16 +42,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = useCallback(async () => {
+  const invalidateSession = useCallback((shouldRedirect: boolean) => {
+    clearSession();
+    setUser(null);
+    setToken(null);
+    if (shouldRedirect) {
+      redirectToLogin();
+    }
+  }, []);
+
+  const refreshUser = useCallback(async (): Promise<boolean> => {
     const storedToken = getStoredToken();
     if (!storedToken) {
       setUser(null);
       setToken(null);
-      return;
+      return false;
     }
 
     try {
-      const response = await authFetch(createApiUrl('api/auth/me'));
+      const response = await authFetch(createApiUrl('api/auth/me'), {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Sesión inválida');
       }
@@ -58,26 +71,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       persistSession(storedToken, data.user);
       setUser(data.user);
       setToken(storedToken);
+      return true;
     } catch {
-      clearSession();
-      setUser(null);
-      setToken(null);
+      const onPublic = isPublicPath(window.location.pathname);
+      invalidateSession(!onPublic);
+      return false;
     }
-  }, []);
+  }, [invalidateSession]);
 
   useEffect(() => {
-    const storedUser = getStoredUser();
-    const storedToken = getStoredToken();
+    let cancelled = false;
 
-    if (storedUser && storedToken) {
-      setUser(storedUser);
-      setToken(storedToken);
-      void refreshUser().finally(() => setLoading(false));
-      return;
-    }
+    const hydrate = async () => {
+      const storedUser = getStoredUser();
+      const storedToken = getStoredToken();
 
-    setLoading(false);
-  }, [refreshUser]);
+      if (storedUser && storedToken) {
+        setUser(storedUser);
+        setToken(storedToken);
+        await refreshUser();
+      } else {
+        clearSession();
+        setUser(null);
+        setToken(null);
+        if (!isPublicPath(window.location.pathname)) {
+          redirectToLogin();
+        }
+      }
+
+      if (!cancelled) {
+        setLoading(false);
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
+    // Solo al montar: hidratar y validar contra /api/auth/me
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Al volver con "atrás" el navegador puede restaurar la página desde bfcache.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+
+      const storedToken = getStoredToken();
+      if (!storedToken) {
+        setUser(null);
+        setToken(null);
+        if (!isPublicPath(window.location.pathname)) {
+          redirectToLogin();
+        }
+        return;
+      }
+
+      void refreshUser();
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== 'token') return;
+      if (!event.newValue) {
+        invalidateSession(!isPublicPath(window.location.pathname));
+      } else {
+        void refreshUser();
+      }
+    };
+
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [invalidateSession, refreshUser]);
 
   const login = useCallback((nextToken: string, nextUser: SessionUser) => {
     persistSession(nextToken, nextUser);
@@ -89,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearSession();
     setToken(null);
     setUser(null);
+    window.location.replace('/');
   }, []);
 
   const role: UserRole | null = user?.role ?? null;

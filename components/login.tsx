@@ -57,7 +57,7 @@ export const Login = () => {
 
       const user = data.user as SessionUser;
       login(data.token, user);
-      router.push(getDefaultRouteForRole(user.role));
+      router.replace(getDefaultRouteForRole(user.role));
     } catch {
       setError('Ocurrió un error. Intenta de nuevo más tarde.');
       setLoading(false);

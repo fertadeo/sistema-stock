@@ -1,4 +1,4 @@
-import { getStoredToken } from '@/lib/auth/session';
+import { getStoredToken, isPublicPath, redirectToLogin } from '@/lib/auth/session';
 
 export const createApiUrl = (path: string): string => {
   const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080')
@@ -17,6 +17,16 @@ export const getAuthHeaders = (headers?: HeadersInit): HeadersInit => {
   };
 };
 
+const resolveRequestUrl = (input: RequestInfo | URL): string => {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+};
+
+const shouldHandleUnauthorized = (url: string): boolean => {
+  return !url.includes('/api/auth/login') && !url.includes('/api/auth/register');
+};
+
 export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
 
@@ -29,10 +39,18 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
     headers.set('Content-Type', 'application/json');
   }
 
-  return fetch(input, {
+  const response = await fetch(input, {
     ...init,
     headers,
   });
+
+  if (response.status === 401 && shouldHandleUnauthorized(resolveRequestUrl(input))) {
+    if (typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
+      redirectToLogin();
+    }
+  }
+
+  return response;
 }
 
 /** Para EventSource/SSE, que no admite headers Authorization. */

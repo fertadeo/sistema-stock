@@ -150,7 +150,6 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const handleLogout = () => {
     logout();
-    router.push('/');
     setSidebarOpen(false);
   };
 

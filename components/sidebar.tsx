@@ -143,7 +143,6 @@ export const SideBar = () => {
               <button
                 onClick={() => {
                   logout();
-                  router.push('/');
                 }}
                 className="flex gap-3 items-center px-3 py-2.5 w-full text-sm font-medium text-red-700 rounded-md transition duration-150 ease-in-out hover:bg-red-500 hover:text-white"
               >
