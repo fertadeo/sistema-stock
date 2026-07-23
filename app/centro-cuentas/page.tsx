@@ -437,22 +437,23 @@ export default function CentroCuentasPage() {
                 </select>
               </div>
 
-              <label className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+              <div className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
                 <input
+                  id="create-solo-clientes"
                   type="checkbox"
                   className="mt-1"
                   checked={createSoloClientesPropios}
                   onChange={(e) => setCreateSoloClientesPropios(e.target.checked)}
                 />
-                <span>
+                <label htmlFor="create-solo-clientes" className="cursor-pointer">
                   <span className="block text-sm font-medium text-gray-900">
                     Solo clientes propios
                   </span>
                   <span className="block mt-0.5 text-xs text-gray-600">
                     Ideal para empleados. Desactivado = ve todos (dueño). Activado = solo los asignados a él.
                   </span>
-                </span>
-              </label>
+                </label>
+              </div>
             </>
           )}
 
@@ -672,8 +673,9 @@ export default function CentroCuentasPage() {
                   </select>
                 </div>
 
-                <label className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <div className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
                   <input
+                    id="edit-solo-clientes"
                     type="checkbox"
                     className="mt-1"
                     checked={editForm.solo_clientes_propios}
@@ -684,15 +686,15 @@ export default function CentroCuentasPage() {
                       }))
                     }
                   />
-                  <span>
+                  <label htmlFor="edit-solo-clientes" className="cursor-pointer">
                     <span className="block text-sm font-medium text-gray-900">
                       Solo clientes propios
                     </span>
                     <span className="block mt-0.5 text-xs text-gray-600">
                       Ideal para empleados. Desactivado = ve todos (dueño). Activado = solo los asignados a él.
                     </span>
-                  </span>
-                </label>
+                  </label>
+                </div>
               </>
             )}
 
