@@ -48,12 +48,24 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   const [modalConfirmarAnular, setModalConfirmarAnular] = useState(false);
   const [ventaAAnular, setVentaAAnular] = useState<VentaCerrada | null>(null);
   const [anulandoId, setAnulandoId] = useState<number | null>(null);
+  const [restaurandoId, setRestaurandoId] = useState<number | null>(null);
   const [notification, setNotification] = useState({
     isVisible: false,
     message: '',
     description: '',
     type: 'success' as 'success' | 'error'
   });
+
+  const esAnulada = (venta: VentaCerrada) => Boolean(venta.deleted_at);
+
+  const esSeleccionable = (venta: VentaCerrada) => {
+    if (esAnulada(venta)) return false;
+    // Finalizadas sueltas (sin grupo) no se seleccionan
+    if (venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === '')) {
+      return false;
+    }
+    return true;
+  };
 
   // Función auxiliar para convertir a número
   const parseNumber = (value: any): number => {
@@ -86,7 +98,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   };
 
   useEffect(() => {
-    const ventasFiltradas = ventasCerradas
+    const filtradas = ventasCerradas
       .filter(venta => {
         const fechaVenta = venta.fecha_carga ? new Date(venta.fecha_carga) : new Date(venta.fecha_cierre);
         // Ajustar las fechas de inicio y fin para incluir el día completo
@@ -110,6 +122,10 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         return cumpleFechaInicio && cumpleFechaFin && cumpleEstadoBalance;
       })
       .sort((a, b) => {
+        // Anuladas al final del listado
+        if (esAnulada(a) !== esAnulada(b)) {
+          return esAnulada(a) ? 1 : -1;
+        }
         if (a.grupo_cierre === b.grupo_cierre) {
           return new Date(a.fecha_cierre).getTime() - new Date(b.fecha_cierre).getTime();
         }
@@ -118,11 +134,13 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         return a.grupo_cierre.localeCompare(b.grupo_cierre);
       });
 
-    setVentasFiltradas(ventasFiltradas);
+    setVentasFiltradas(filtradas);
+
+    const ventasParaTotales = filtradas.filter(venta => !esAnulada(venta));
 
     setTotales({
-      ventasTotal: ventasFiltradas.reduce((sum, venta) => sum + parseNumber(venta.total_venta), 0),
-      balanceTotal: ventasFiltradas
+      ventasTotal: ventasParaTotales.reduce((sum, venta) => sum + parseNumber(venta.total_venta), 0),
+      balanceTotal: ventasParaTotales
         .filter(venta => venta.estado !== 'Finalizado')
         .reduce((sum, venta) => {
           const totalVenta = parseNumber(venta.total_venta);
@@ -131,17 +149,21 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
           const totalRecaudado = montoEfectivo + montoTransferencia;
           return sum + (totalRecaudado - totalVenta);
         }, 0),
-      cantidadVentas: ventasFiltradas.length
+      cantidadVentas: ventasParaTotales.length
     });
   }, [ventasCerradas, filtros]);
 
   const handleSelectionChange = (selection: Selection) => {
     if (selection === "all") {
-      const pendientesIds = ventasFiltradas
-        .filter(venta => venta.estado === 'Pendiente')
+      // Seleccionar todas las filas seleccionables (no anuladas ni bloqueadas)
+      const idsSeleccionables = ventasFiltradas
+        .filter(esSeleccionable)
         .map(venta => venta.id.toString());
-      setSelectedKeys(new Set(pendientesIds));
-    } else if (selection instanceof Set) {
+      setSelectedKeys(new Set(idsSeleccionables));
+      return;
+    }
+
+    if (selection instanceof Set) {
       // Obtener la última venta seleccionada o deseleccionada
       const currentKeys = Array.from(selectedKeys).map(String);
       const newKeys = Array.from(selection).map(String);
@@ -153,10 +175,10 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       
       if (changedId) {
         const venta = ventasFiltradas.find(v => v.id.toString() === changedId);
-        if (venta?.grupo_cierre) {
+        if (venta?.grupo_cierre && !esAnulada(venta)) {
           // Si la venta pertenece a un grupo
           const ventasDelMismoGrupo = ventasFiltradas
-            .filter(v => v.grupo_cierre === venta.grupo_cierre)
+            .filter(v => v.grupo_cierre === venta.grupo_cierre && !esAnulada(v))
             .map(v => v.id.toString());
           
           if (currentKeys.length > newKeys.length) {
@@ -169,10 +191,16 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
           }
         } else {
           // Si no pertenece a un grupo, mantener la selección normal
-          setSelectedKeys(selection as Set<string>);
+          setSelectedKeys(new Set(newKeys.filter(id => {
+            const v = ventasFiltradas.find(venta => venta.id.toString() === id);
+            return v ? esSeleccionable(v) : false;
+          })));
         }
       } else {
-        setSelectedKeys(selection as Set<string>);
+        setSelectedKeys(new Set(newKeys.filter(id => {
+          const v = ventasFiltradas.find(venta => venta.id.toString() === id);
+          return v ? esSeleccionable(v) : false;
+        })));
       }
     } else {
       setSelectedKeys(new Set());
@@ -216,15 +244,14 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
 
   // Función para obtener las ventas seleccionadas
   const getVentasSeleccionadas = () => {
-    const ventas = ventasFiltradas.filter(venta => 
-      selectedKeys.has(venta.id.toString())
+    return ventasFiltradas.filter(venta => 
+      selectedKeys.has(venta.id.toString()) && !esAnulada(venta)
     );
-    return ventas;
   };
 
   const getVentasDesagrupables = () => {
     return getVentasSeleccionadas().filter(
-      venta => venta.grupo_cierre && venta.estado === 'Finalizado'
+      venta => venta.grupo_cierre && venta.estado === 'Finalizado' && !esAnulada(venta)
     );
   };
 
@@ -265,7 +292,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   };
 
   const puedeAnularVenta = (venta: VentaCerrada) =>
-    venta.estado !== 'Finalizado';
+    !esAnulada(venta) && venta.estado !== 'Finalizado';
 
   const abrirConfirmacionAnular = (venta: VentaCerrada) => {
     if (!puedeAnularVenta(venta)) {
@@ -304,7 +331,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
       setNotification({
         isVisible: true,
         message: 'Venta anulada',
-        description: 'Ya no cuenta en los totales. La carga y descarga se conservaron.',
+        description: 'Sigue visible en la tabla pero ya no cuenta en los totales.',
         type: 'success'
       });
     } catch (error) {
@@ -321,9 +348,49 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
     }
   };
 
+  const handleRestaurarVenta = async (venta: VentaCerrada) => {
+    setRestaurandoId(venta.id);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/${venta.id}/restaurar`,
+        { method: 'PUT' }
+      );
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Error al rehabilitar la venta');
+      }
+
+      onVentasActualizadas?.();
+      setNotification({
+        isVisible: true,
+        message: 'Venta rehabilitada',
+        description: 'Vuelve a contar en los totales.',
+        type: 'success'
+      });
+    } catch (error) {
+      setNotification({
+        isVisible: true,
+        message: 'Error al rehabilitar',
+        description: error instanceof Error ? error.message : 'No se pudo rehabilitar la venta',
+        type: 'error'
+      });
+    } finally {
+      setRestaurandoId(null);
+    }
+  };
+
   // Función para determinar si una venta es la primera o última de su grupo
   const getVentaGroupStyle = (venta: VentaCerrada, index: number, ventas: VentaCerrada[]) => {
-    if (!venta.grupo_cierre) return '';
+    const classes: string[] = [];
+
+    if (esAnulada(venta)) {
+      classes.push('opacity-50 bg-red-50/40');
+    }
+
+    if (!venta.grupo_cierre || esAnulada(venta)) {
+      return classes.join(' ');
+    }
 
     const prevVenta = index > 0 ? ventas[index - 1] : null;
     const nextVenta = index < ventas.length - 1 ? ventas[index + 1] : null;
@@ -331,7 +398,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
     const isFirstInGroup = !prevVenta || prevVenta.grupo_cierre !== venta.grupo_cierre;
     const isLastInGroup = !nextVenta || nextVenta.grupo_cierre !== venta.grupo_cierre;
 
-    const classes = ['relative', 'border-l-2', 'border-r-2', 'border-green-500/30', 'bg-green-50/30'];
+    classes.push('relative', 'border-l-2', 'border-r-2', 'border-green-500/30', 'bg-green-50/30');
 
     if (isFirstInGroup) {
       classes.push('border-t-2', 'rounded-t-[15px]');
@@ -344,9 +411,10 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   };
 
   const handleRowClick = (venta: VentaCerrada) => {
+    if (esAnulada(venta)) return;
     if (venta.grupo_cierre && venta.estado === 'Finalizado') {
       const ventasDelMismoGrupo = ventasFiltradas.filter(v => 
-        v.grupo_cierre === venta.grupo_cierre
+        v.grupo_cierre === venta.grupo_cierre && !esAnulada(v)
       );
       setSelectedKeys(new Set(ventasDelMismoGrupo.map(v => v.id.toString())));
       setIsModalOpen(true);
@@ -434,7 +502,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
               selectedKeys={selectedKeys}
               onSelectionChange={handleSelectionChange}
               disabledKeys={new Set(ventasFiltradas
-                .filter(venta => venta.estado === 'Finalizado' && (!venta.grupo_cierre || venta.grupo_cierre === ''))
+                .filter(venta => !esSeleccionable(venta))
                 .map(venta => venta.id.toString()))}
               classNames={{
                 base: "min-w-[720px]",
@@ -508,11 +576,13 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs ${
-                          venta.estado === 'Finalizado' 
+                          esAnulada(venta)
+                            ? 'bg-red-100 text-red-800'
+                            : venta.estado === 'Finalizado' 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {venta.estado}
+                          {esAnulada(venta) ? 'Anulada' : venta.estado}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -533,7 +603,24 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
                             </svg>
                           </Button>
-                          {puedeAnularVenta(venta) && (
+                          {esAnulada(venta) ? (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              color="success"
+                              isIconOnly
+                              isLoading={restaurandoId === venta.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestaurarVenta(venta);
+                              }}
+                              title="Rehabilitar venta"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                              </svg>
+                            </Button>
+                          ) : puedeAnularVenta(venta) ? (
                             <Button
                               size="sm"
                               variant="flat"
@@ -550,7 +637,7 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                               </svg>
                             </Button>
-                          )}
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -611,8 +698,9 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
               <span className="font-semibold">#{ventaAAnular?.proceso_id}</span>?
             </p>
             <p className="text-sm text-gray-600">
-              Dejará de contar en los totales (Total Ventas, Balance y Cantidad).
-              La carga y la descarga asociadas <span className="font-semibold">no se borran</span>.
+              Seguirá visible en la tabla marcada como anulada, pero dejará de contar
+              en los totales. La carga y la descarga asociadas{' '}
+              <span className="font-semibold">no se borran</span>.
             </p>
           </ModalBody>
           <ModalFooter>

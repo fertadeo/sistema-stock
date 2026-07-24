@@ -44,6 +44,7 @@ export interface VentaCerrada {
   observaciones: string;
   created_at: string;
   grupo_cierre?: string;
+  deleted_at?: string | null;
   productos_detalle?: {
     producto_id: number;
     nombre: string;
