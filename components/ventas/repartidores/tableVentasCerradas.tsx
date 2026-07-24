@@ -516,13 +516,14 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                         </span>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1 items-center">
                           <Button
                             size="sm"
                             variant="flat"
                             color="primary"
                             isIconOnly
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               // Aquí deberías llamar a la función para ver el PDF
                               // Por ejemplo: verPDF(venta)
                             }}
@@ -539,7 +540,10 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                               color="danger"
                               isIconOnly
                               isLoading={anulandoId === venta.id}
-                              onClick={() => abrirConfirmacionAnular(venta)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirConfirmacionAnular(venta);
+                              }}
                               title="Anular venta (no cuenta en totales)"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
