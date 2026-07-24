@@ -826,291 +826,60 @@ class RepartidorRapidoService {
     return `${anio}-${mes}-${dia}`;
   }
 
-  private esMismaFechaLocal(fechaISO: string, fechaReferencia: string): boolean {
-    return this.obtenerFechaLocalDeISO(fechaISO) === fechaReferencia;
-  }
-
   private esMovimientoFiado(mov: MovimientoCuentaCorriente): boolean {
     if (mov.tipo !== 'DEBITO_VENTA') return false;
     const descripcion = mov.descripcion.toLowerCase();
     return /fiado|saldo|parcial|cr[eé]dito/.test(descripcion);
   }
 
-  private async obtenerTodosDeudores(): Promise<ClienteDeudor[]> {
-    const deudores: ClienteDeudor[] = [];
-    let pagina = 1;
-    let totalPaginas = 1;
-
-    while (pagina <= totalPaginas && pagina <= 10) {
-      const response = await this.obtenerClientesDeudores({
-        page: pagina,
-        limit: this.maxPaginaApi,
-      });
-      deudores.push(...response.clientes);
-      totalPaginas = response.meta?.totalPaginas ?? pagina;
-      if (response.clientes.length === 0) break;
-      pagina += 1;
-    }
-
-    return deudores;
-  }
-
-  private async obtenerCobrosCuentaCorriente(
-    clienteId: number
-  ): Promise<Map<string, { monto: number; fecha: string }>> {
-    const cobros = new Map<string, { monto: number; fecha: string }>();
-    let pagina = 1;
-    let totalPaginas = 1;
-
-    while (pagina <= totalPaginas && pagina <= 5) {
-      const { movimientos, meta } = await this.obtenerCuentaCorriente(clienteId, {
-        page: pagina,
-        limit: this.maxPaginaApi,
-      });
-
-      for (const mov of movimientos) {
-        if (mov.tipo === 'CREDITO_COBRO' && mov.venta_relacionada_id) {
-          cobros.set(mov.venta_relacionada_id, {
-            monto: mov.credito,
-            fecha: mov.fecha,
-          });
-        }
-      }
-
-      totalPaginas = meta?.totalPaginas ?? pagina;
-      if (movimientos.length === 0) break;
-      pagina += 1;
-    }
-
-    return cobros;
-  }
-
-  private obtenerReferenciaVentaAuditoria(mov: MovimientoAuditoria): string | null {
-    const ventaId = mov.detalles?.venta_id ?? mov.detalles?.venta_relacionada_id;
-    return ventaId != null ? String(ventaId) : null;
-  }
-
-  private async obtenerMovimientosAuditoriaDelDia(
-    fecha: string,
-    tipos: string[]
-  ): Promise<MovimientoAuditoria[]> {
-    const tiposNormalizados = new Set(tipos.map((tipo) => tipo.toUpperCase()));
-    const resultados: MovimientoAuditoria[] = [];
-    let pagina = 1;
-    let totalPaginas = 1;
-    const porPagina = this.maxPaginaApi;
-
-    while (pagina <= totalPaginas && pagina <= 30) {
-      const searchParams = new URLSearchParams({
-        pagina: String(pagina),
-        porPagina: String(porPagina),
-      });
-      const response = await authFetch(this.buildApiUrl(`/api/movimientos?${searchParams}`));
-      if (!response.ok) break;
-
-      const data = await response.json().catch(() => ({}));
-      const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
-      totalPaginas = data?.paginacion?.totalPaginas ?? pagina;
-      if (lista.length === 0) break;
-
-      for (const mov of lista) {
-        const fechaMov = this.obtenerFechaLocalDeISO(mov.fecha);
-        if (fechaMov !== fecha) continue;
-        if (tiposNormalizados.has(mov.tipo.toUpperCase())) {
-          resultados.push(mov);
-        }
-      }
-
-      const fechaMasAntigua = this.obtenerFechaLocalDeISO(lista[lista.length - 1].fecha);
-      if (fechaMasAntigua < fecha) break;
-
-      pagina += 1;
-    }
-
-    return resultados;
-  }
-
-  private async obtenerCobrosAuditoriaPorVentas(
-    referenciasVenta: string[]
-  ): Promise<Map<string, { monto: number; fecha: string }>> {
-    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
-    if (referenciasVenta.length === 0) return cobrosPorVenta;
-
-    const referencias = new Set(referenciasVenta);
-    let pagina = 1;
-    let totalPaginas = 1;
-    const porPagina = this.maxPaginaApi;
-
-    while (pagina <= totalPaginas && pagina <= 30) {
-      const searchParams = new URLSearchParams({
-        pagina: String(pagina),
-        porPagina: String(porPagina),
-      });
-      const response = await authFetch(this.buildApiUrl(`/api/movimientos?${searchParams}`));
-      if (!response.ok) break;
-
-      const data = await response.json().catch(() => ({}));
-      const lista: MovimientoAuditoria[] = data?.movimientos ?? [];
-      totalPaginas = data?.paginacion?.totalPaginas ?? pagina;
-      if (lista.length === 0) break;
-
-      for (const mov of lista) {
-        if (mov.tipo.toUpperCase() !== 'COBRO_RAPIDO') continue;
-        const referencia = this.obtenerReferenciaVentaAuditoria(mov);
-        if (!referencia || !referencias.has(referencia)) continue;
-
-        const monto = Math.abs(this.parseMontoValor(mov.monto) ?? 0);
-        cobrosPorVenta.set(referencia, { monto, fecha: mov.fecha });
-      }
-
-      pagina += 1;
-    }
-
-    return cobrosPorVenta;
-  }
-
   async obtenerResumenFiadosPorFecha(fecha: string): Promise<ResumenFiadosDiario> {
-    const fiadosMap = new Map<string, FiadoDiarioItem>();
-    const cobrosPorVenta = new Map<string, { monto: number; fecha: string }>();
-
-    const agregarFiado = (fiado: FiadoDiarioItem) => {
-      const clave = `${fiado.clienteId}-${fiado.referenciaId}`;
-      if (!fiadosMap.has(clave)) {
-        fiadosMap.set(clave, fiado);
-      }
-    };
-
-    const fiadosAuditoria = await this.obtenerMovimientosAuditoriaDelDia(fecha, ['FIADO_RAPIDO']);
-    for (const mov of fiadosAuditoria) {
-      const referenciaId = this.obtenerReferenciaVentaAuditoria(mov) ?? `auditoria-${mov.id}`;
-      agregarFiado({
-        id: `auditoria-${mov.id}`,
-        referenciaId,
-        clienteId: mov.detalles?.cliente_id ?? 0,
-        clienteNombre: mov.detalles?.cliente_nombre || 'Cliente',
-        monto: Math.abs(this.parseMontoValor(mov.monto) ?? 0),
-        fecha: mov.fecha,
-        descripcion: mov.descripcion || 'Fiado rapido',
-        cobrado: false,
-        montoCobrado: 0,
-        fechaCobro: null,
-      });
-    }
-
-    const ventasAuditoria = await this.obtenerMovimientosAuditoriaDelDia(fecha, ['VENTA_RAPIDA']);
-    for (const mov of ventasAuditoria) {
-      const saldoMonto = this.parseMontoValor(mov.detalles?.saldo_monto);
-      const esParcial =
-        mov.detalles?.forma_pago === 'parcial' ||
-        mov.detalles?.saldo === true ||
-        (saldoMonto != null && saldoMonto > 0);
-
-      if (!esParcial || !saldoMonto || saldoMonto <= 0) continue;
-
-      const referenciaId = this.obtenerReferenciaVentaAuditoria(mov) ?? `auditoria-saldo-${mov.id}`;
-      agregarFiado({
-        id: `auditoria-saldo-${mov.id}`,
-        referenciaId,
-        clienteId: mov.detalles?.cliente_id ?? 0,
-        clienteNombre: mov.detalles?.cliente_nombre || 'Cliente',
-        monto: saldoMonto,
-        fecha: mov.fecha,
-        descripcion: mov.descripcion || 'Venta con saldo',
-        cobrado: false,
-        montoCobrado: 0,
-        fechaCobro: null,
-      });
-    }
-
-    const deudores = await this.obtenerTodosDeudores();
-
-    await this.ejecutarEnLotes(deudores, 8, async (deudor) => {
-      try {
-        const { movimientos: delDia } = await this.obtenerCuentaCorriente(deudor.cliente_id, {
-          desde: fecha,
-          hasta: fecha,
-          page: 1,
-          limit: this.maxPaginaApi,
-        });
-
-        for (const mov of delDia) {
-          if (!this.esMovimientoFiado(mov)) continue;
-
-          agregarFiado({
-            id: mov.id,
-            referenciaId: mov.referencia_id,
-            clienteId: deudor.cliente_id,
-            clienteNombre: deudor.nombre,
-            monto: mov.debito,
-            fecha: mov.fecha,
-            descripcion: mov.descripcion,
-            cobrado: false,
-            montoCobrado: 0,
-            fechaCobro: null,
-          });
-        }
-      } catch {
-        // Continuar con el resto de clientes si uno falla.
-      }
-    });
-
-    const referenciasVenta = Array.from(fiadosMap.values())
-      .map((fiado) => fiado.referenciaId)
-      .filter((referencia) => !referencia.startsWith('auditoria-'));
-
-    const clientesFiados = Array.from(
-      new Set(
-        Array.from(fiadosMap.values())
-          .map((fiado) => fiado.clienteId)
-          .filter((clienteId) => clienteId > 0)
-      )
+    const response = await authFetch(
+      this.buildApiUrl(`/api/clientes/fiados-diario?fecha=${encodeURIComponent(fecha)}`)
     );
-
-    await this.ejecutarEnLotes(clientesFiados, 8, async (clienteId) => {
-      try {
-        const cobrosCliente = await this.obtenerCobrosCuentaCorriente(clienteId);
-        cobrosCliente.forEach((cobro, referencia) => {
-          cobrosPorVenta.set(referencia, cobro);
-        });
-      } catch {
-        // Continuar si no se puede consultar la cuenta corriente del cliente.
-      }
-    });
-
-    const cobrosAuditoria = await this.obtenerCobrosAuditoriaPorVentas(referenciasVenta);
-    cobrosAuditoria.forEach((cobro, referencia) => {
-      cobrosPorVenta.set(referencia, cobro);
-    });
-
-    const fiadosDetallados = Array.from(fiadosMap.values()).map((fiado) => {
-      const cobro = cobrosPorVenta.get(fiado.referenciaId);
-      return {
-        ...fiado,
-        cobrado: !!cobro,
-        montoCobrado: cobro?.monto ?? 0,
-        fechaCobro: cobro?.fecha ?? null,
-      };
-    });
-
-    const cobrados = fiadosDetallados.filter((fiado) => fiado.cobrado);
-    const pendientes = fiadosDetallados.filter((fiado) => !fiado.cobrado);
-    const totalFiado = fiadosDetallados.reduce((total, fiado) => total + fiado.monto, 0);
+    const data = await this.parseWrappedResponse<{
+      fecha: string;
+      totalFiado: number;
+      cantidadFiados: number;
+      cantidadCobrados: number;
+      totalCobrado: number;
+      cantidadPendientes: number;
+      totalPendiente: number;
+      porcentajeCobrados: number;
+      fiados: Array<{
+        id: string;
+        referenciaId: string;
+        clienteId: number;
+        clienteNombre: string;
+        monto: number;
+        fecha: string;
+        descripcion: string;
+        cobrado: boolean;
+        montoCobrado: number;
+        fechaCobro: string | null;
+      }>;
+    }>(response);
 
     return {
-      fecha,
-      totalFiado,
-      cantidadFiados: fiadosDetallados.length,
-      cantidadCobrados: cobrados.length,
-      totalCobrado: cobrados.reduce((total, fiado) => total + fiado.montoCobrado, 0),
-      cantidadPendientes: pendientes.length,
-      totalPendiente: pendientes.reduce((total, fiado) => total + fiado.monto, 0),
-      porcentajeCobrados:
-        fiadosDetallados.length > 0
-          ? Math.round((cobrados.length / fiadosDetallados.length) * 100)
-          : 0,
-      fiados: fiadosDetallados.sort(
-        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-      ),
+      fecha: data.fecha,
+      totalFiado: data.totalFiado,
+      cantidadFiados: data.cantidadFiados,
+      cantidadCobrados: data.cantidadCobrados,
+      totalCobrado: data.totalCobrado,
+      cantidadPendientes: data.cantidadPendientes,
+      totalPendiente: data.totalPendiente,
+      porcentajeCobrados: data.porcentajeCobrados,
+      fiados: data.fiados.map((fiado) => ({
+        id: fiado.id,
+        referenciaId: fiado.referenciaId,
+        clienteId: fiado.clienteId,
+        clienteNombre: fiado.clienteNombre,
+        monto: fiado.monto,
+        fecha: fiado.fecha,
+        descripcion: fiado.descripcion,
+        cobrado: fiado.cobrado,
+        montoCobrado: fiado.montoCobrado,
+        fechaCobro: fiado.fechaCobro,
+      })),
     };
   }
 
@@ -1320,7 +1089,7 @@ class RepartidorRapidoService {
 
     try {
       const { clientes: deudores } = await this.obtenerClientesDeudores({ page: 1, limit: 60 });
-      const movimientosCuenta = await this.ejecutarEnLotes(deudores, 8, async (deudor) => {
+      const movimientosCuenta = await this.ejecutarEnLotes(deudores, 2, async (deudor) => {
         try {
           const { movimientos: lista } = await this.obtenerCuentaCorriente(deudor.cliente_id, {
             page: 1,
@@ -1353,7 +1122,7 @@ class RepartidorRapidoService {
         .sort((a, b) => b.cantidad - a.cantidad)
         .slice(0, 40);
 
-      const movimientosEnvases = await this.ejecutarEnLotes(clientesConEnvases, 6, async ({ cliente }) => {
+      const movimientosEnvases = await this.ejecutarEnLotes(clientesConEnvases, 2, async ({ cliente }) => {
         try {
           const { movimientos: lista } = await this.obtenerMovimientosEnvases(cliente.id, {
             page: 1,
