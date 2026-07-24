@@ -4,7 +4,7 @@ import React, { PropsWithChildren, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SideBar } from './sidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import { isPublicPath, redirectToLogin } from '@/lib/auth/session';
+import { getStoredToken, isPublicPath, redirectToLogin } from '@/lib/auth/session';
 
 const ConditionalLayout: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const pathname = usePathname();
@@ -16,19 +16,25 @@ const ConditionalLayout: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const isRecoverPasswordPage = currentPath === '/recuperar-password';
   const isRepartidorRoute = currentPath.startsWith('/repartidor');
   const isPublic = isPublicPath(currentPath);
+  const hasStoredToken = Boolean(getStoredToken());
 
   useEffect(() => {
     if (loading) return;
+
+    // Si hay token en storage pero user aún no hidrató (race post-login), no expulsar.
     if (!isPublic && !user) {
-      redirectToLogin();
+      if (!getStoredToken()) {
+        redirectToLogin();
+      }
       return;
     }
+
     if (isLoginPage && user) {
       router.replace(defaultRoute);
     }
   }, [loading, isPublic, isLoginPage, user, defaultRoute, router]);
 
-  if (loading && !isLoginPage) {
+  if ((loading || (!user && hasStoredToken)) && !isLoginPage) {
     return (
       <div className="flex justify-center items-center min-h-screen text-gray-500">
         Cargando sesión...
@@ -36,7 +42,7 @@ const ConditionalLayout: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     );
   }
 
-  if (!loading && !isPublic && !user) {
+  if (!loading && !isPublic && !user && !hasStoredToken) {
     return (
       <div className="flex justify-center items-center min-h-screen text-gray-500">
         Redirigiendo al login...

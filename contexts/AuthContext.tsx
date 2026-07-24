@@ -63,8 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await authFetch(createApiUrl('api/auth/me'), {
         cache: 'no-store',
       });
+
+      // Solo invalidar ante 401 real. Errores 5xx/red (p.ej. MySQL saturado) no deben cerrar sesión.
+      if (response.status === 401) {
+        const onPublic = isPublicPath(window.location.pathname);
+        invalidateSession(!onPublic);
+        return false;
+      }
+
       if (!response.ok) {
-        throw new Error('Sesión inválida');
+        console.warn('[auth] No se pudo validar sesión (HTTP', response.status, '). Se mantiene sesión local.');
+        const storedUser = getStoredUser();
+        if (storedUser) {
+          setUser(storedUser);
+          setToken(storedToken);
+        }
+        return Boolean(storedUser);
       }
 
       const data = await response.json();
@@ -73,8 +87,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(storedToken);
       return true;
     } catch {
-      const onPublic = isPublicPath(window.location.pathname);
-      invalidateSession(!onPublic);
+      console.warn('[auth] Error de red al validar sesión. Se mantiene sesión local.');
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        setUser(storedUser);
+        setToken(storedToken);
+        return true;
+      }
       return false;
     }
   }, [invalidateSession]);

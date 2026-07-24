@@ -45,6 +45,12 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
   });
 
   if (response.status === 401 && shouldHandleUnauthorized(resolveRequestUrl(input))) {
+    // /api/auth/me lo maneja AuthContext (distingue 401 vs errores temporales).
+    const url = resolveRequestUrl(input);
+    if (url.includes('/api/auth/me')) {
+      return response;
+    }
+
     if (typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
       redirectToLogin();
     }

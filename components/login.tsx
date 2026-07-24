@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Spinner } from '@heroui/react';
 import Link from 'next/link';
@@ -19,7 +18,6 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const { login } = useAuth();
 
   const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -57,7 +55,8 @@ export const Login = () => {
 
       const user = data.user as SessionUser;
       login(data.token, user);
-      router.replace(getDefaultRouteForRole(user.role));
+      // Hard navigation: evita race entre setUser (async) y el gate del layout.
+      window.location.assign(getDefaultRouteForRole(user.role));
     } catch {
       setError('Ocurrió un error. Intenta de nuevo más tarde.');
       setLoading(false);
