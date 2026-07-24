@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Card, CardHeader, CardBody, Input, Select, SelectItem, Button, Checkbox, Selection, Alert } from "@heroui/react";
+import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Card, CardHeader, CardBody, Input, Select, SelectItem, Button, Checkbox, Selection, Alert, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import ModalDetalleVentas from './modalDetalleVentas';
 import { VentaCerrada } from '@/types/ventas';
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import Notification from '@/components/notification';
 
 interface TableVentasCerradasProps {
   repartidorId: string;
@@ -44,6 +45,15 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDesagrupando, setIsDesagrupando] = useState(false);
+  const [modalConfirmarAnular, setModalConfirmarAnular] = useState(false);
+  const [ventaAAnular, setVentaAAnular] = useState<VentaCerrada | null>(null);
+  const [anulandoId, setAnulandoId] = useState<number | null>(null);
+  const [notification, setNotification] = useState({
+    isVisible: false,
+    message: '',
+    description: '',
+    type: 'success' as 'success' | 'error'
+  });
 
   // Función auxiliar para convertir a número
   const parseNumber = (value: any): number => {
@@ -254,6 +264,63 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
     }
   };
 
+  const puedeAnularVenta = (venta: VentaCerrada) =>
+    venta.estado !== 'Finalizado';
+
+  const abrirConfirmacionAnular = (venta: VentaCerrada) => {
+    if (!puedeAnularVenta(venta)) {
+      setNotification({
+        isVisible: true,
+        message: 'No se puede anular',
+        description: 'Las ventas con rendición finalizada no se pueden anular. Primero desagrúpelas.',
+        type: 'error'
+      });
+      return;
+    }
+    setVentaAAnular(venta);
+    setModalConfirmarAnular(true);
+  };
+
+  const handleAnularVenta = async () => {
+    if (!ventaAAnular) return;
+    setAnulandoId(ventaAAnular.id);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/${ventaAAnular.id}`,
+        { method: 'DELETE' }
+      );
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Error al anular la venta');
+      }
+
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        next.delete(ventaAAnular.id.toString());
+        return next;
+      });
+      onVentasActualizadas?.();
+      setNotification({
+        isVisible: true,
+        message: 'Venta anulada',
+        description: 'Ya no cuenta en los totales. La carga y descarga se conservaron.',
+        type: 'success'
+      });
+    } catch (error) {
+      setNotification({
+        isVisible: true,
+        message: 'Error al anular',
+        description: error instanceof Error ? error.message : 'No se pudo anular la venta',
+        type: 'error'
+      });
+    } finally {
+      setAnulandoId(null);
+      setModalConfirmarAnular(false);
+      setVentaAAnular(null);
+    }
+  };
+
   // Función para determinar si una venta es la primera o última de su grupo
   const getVentaGroupStyle = (venta: VentaCerrada, index: number, ventas: VentaCerrada[]) => {
     if (!venta.grupo_cierre) return '';
@@ -449,22 +516,38 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          color="primary"
-                          isIconOnly
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Aquí deberías llamar a la función para ver el PDF
-                            // Por ejemplo: verPDF(venta)
-                          }}
-                          title="Ver PDF"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
-                          </svg>
-                        </Button>
+                        <div className="flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            color="primary"
+                            isIconOnly
+                            onClick={() => {
+                              // Aquí deberías llamar a la función para ver el PDF
+                              // Por ejemplo: verPDF(venta)
+                            }}
+                            title="Ver PDF"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v2.25A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25m3-1.5 6 6m0 0H15a.75.75 0 0 1-.75-.75V3.75m6 6v7.5A2.25 2.25 0 0 1 17.25 18.75H6.75A2.25 2.25 0 0 1 4.5 16.5V7.5A2.25 2.25 0 0 1 6.75 5.25h2.25" />
+                            </svg>
+                          </Button>
+                          {puedeAnularVenta(venta) && (
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              color="danger"
+                              isIconOnly
+                              isLoading={anulandoId === venta.id}
+                              onClick={() => abrirConfirmacionAnular(venta)}
+                              title="Anular venta (no cuenta en totales)"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                              </svg>
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -505,6 +588,58 @@ const TableVentasCerradas: React.FC<TableVentasCerradasProps> = ({
         onVentasActualizadas={onVentasActualizadas}
         onDesagrupar={handleDesagrupar}
         isDesagrupando={isDesagrupando}
+      />
+
+      <Modal
+        isOpen={modalConfirmarAnular}
+        onClose={() => {
+          if (!anulandoId) {
+            setModalConfirmarAnular(false);
+            setVentaAAnular(null);
+          }
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>Anular venta cerrada</ModalHeader>
+          <ModalBody>
+            <p>
+              ¿Anular la venta del proceso{' '}
+              <span className="font-semibold">#{ventaAAnular?.proceso_id}</span>?
+            </p>
+            <p className="text-sm text-gray-600">
+              Dejará de contar en los totales (Total Ventas, Balance y Cantidad).
+              La carga y la descarga asociadas <span className="font-semibold">no se borran</span>.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color="danger"
+              onClick={handleAnularVenta}
+              isLoading={!!anulandoId}
+            >
+              Sí, anular
+            </Button>
+            <Button
+              color="primary"
+              variant="light"
+              onClick={() => {
+                setModalConfirmarAnular(false);
+                setVentaAAnular(null);
+              }}
+              isDisabled={!!anulandoId}
+            >
+              Cancelar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Notification
+        message={notification.message}
+        description={notification.description}
+        isVisible={notification.isVisible}
+        onClose={() => setNotification(prev => ({ ...prev, isVisible: false }))}
+        type={notification.type}
       />
     </Card>
   );
