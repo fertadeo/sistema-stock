@@ -317,6 +317,23 @@ class RepartidorRapidoService {
     return data as T;
   }
 
+  private mapearErrorRed(error: unknown, fallback: string): Error {
+    const msg = error instanceof Error ? error.message : String(error ?? '');
+    const name = error instanceof Error ? error.name : '';
+    if (
+      error instanceof TypeError ||
+      name === 'TimeoutError' ||
+      name === 'AbortError' ||
+      /failed to fetch|networkerror|load failed|network request failed|timed out|aborted/i.test(msg)
+    ) {
+      return new Error(
+        'No se pudo conectar con el servidor. Revisá que el backend esté en línea o reintentá en unos segundos.'
+      );
+    }
+    if (error instanceof Error) return error;
+    return new Error(fallback);
+  }
+
   private async parseWrappedResponse<T>(response: Response): Promise<T> {
     const data = await this.parseResponse<ApiEnvelope<T>>(response);
     return data.data;
@@ -510,7 +527,10 @@ class RepartidorRapidoService {
 
       const query = searchParams.toString();
       const response = await authFetch(
-        this.buildApiUrl(`/api/clientes/deudores${query ? `?${query}` : ''}`)
+        this.buildApiUrl(`/api/clientes/deudores${query ? `?${query}` : ''}`),
+        typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+          ? { signal: AbortSignal.timeout(45_000) }
+          : undefined
       );
       const data = await this.parseResponse<ApiEnvelope<ClienteDeudor[]>>(response);
 
@@ -520,7 +540,7 @@ class RepartidorRapidoService {
       };
     } catch (error) {
       console.error('Error al obtener clientes deudores:', error);
-      throw error;
+      throw this.mapearErrorRed(error, 'No se pudo cargar la lista de deudores.');
     }
   }
 
@@ -833,54 +853,62 @@ class RepartidorRapidoService {
   }
 
   async obtenerResumenFiadosPorFecha(fecha: string): Promise<ResumenFiadosDiario> {
-    const response = await authFetch(
-      this.buildApiUrl(`/api/clientes/fiados-diario?fecha=${encodeURIComponent(fecha)}`)
-    );
-    const data = await this.parseWrappedResponse<{
-      fecha: string;
-      totalFiado: number;
-      cantidadFiados: number;
-      cantidadCobrados: number;
-      totalCobrado: number;
-      cantidadPendientes: number;
-      totalPendiente: number;
-      porcentajeCobrados: number;
-      fiados: Array<{
-        id: string;
-        referenciaId: string;
-        clienteId: number;
-        clienteNombre: string;
-        monto: number;
+    try {
+      const response = await authFetch(
+        this.buildApiUrl(`/api/clientes/fiados-diario?fecha=${encodeURIComponent(fecha)}`),
+        typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+          ? { signal: AbortSignal.timeout(45_000) }
+          : undefined
+      );
+      const data = await this.parseWrappedResponse<{
         fecha: string;
-        descripcion: string;
-        cobrado: boolean;
-        montoCobrado: number;
-        fechaCobro: string | null;
-      }>;
-    }>(response);
+        totalFiado: number;
+        cantidadFiados: number;
+        cantidadCobrados: number;
+        totalCobrado: number;
+        cantidadPendientes: number;
+        totalPendiente: number;
+        porcentajeCobrados: number;
+        fiados: Array<{
+          id: string;
+          referenciaId: string;
+          clienteId: number;
+          clienteNombre: string;
+          monto: number;
+          fecha: string;
+          descripcion: string;
+          cobrado: boolean;
+          montoCobrado: number;
+          fechaCobro: string | null;
+        }>;
+      }>(response);
 
-    return {
-      fecha: data.fecha,
-      totalFiado: data.totalFiado,
-      cantidadFiados: data.cantidadFiados,
-      cantidadCobrados: data.cantidadCobrados,
-      totalCobrado: data.totalCobrado,
-      cantidadPendientes: data.cantidadPendientes,
-      totalPendiente: data.totalPendiente,
-      porcentajeCobrados: data.porcentajeCobrados,
-      fiados: data.fiados.map((fiado) => ({
-        id: fiado.id,
-        referenciaId: fiado.referenciaId,
-        clienteId: fiado.clienteId,
-        clienteNombre: fiado.clienteNombre,
-        monto: fiado.monto,
-        fecha: fiado.fecha,
-        descripcion: fiado.descripcion,
-        cobrado: fiado.cobrado,
-        montoCobrado: fiado.montoCobrado,
-        fechaCobro: fiado.fechaCobro,
-      })),
-    };
+      return {
+        fecha: data.fecha,
+        totalFiado: data.totalFiado,
+        cantidadFiados: data.cantidadFiados,
+        cantidadCobrados: data.cantidadCobrados,
+        totalCobrado: data.totalCobrado,
+        cantidadPendientes: data.cantidadPendientes,
+        totalPendiente: data.totalPendiente,
+        porcentajeCobrados: data.porcentajeCobrados,
+        fiados: data.fiados.map((fiado) => ({
+          id: fiado.id,
+          referenciaId: fiado.referenciaId,
+          clienteId: fiado.clienteId,
+          clienteNombre: fiado.clienteNombre,
+          monto: fiado.monto,
+          fecha: fiado.fecha,
+          descripcion: fiado.descripcion,
+          cobrado: fiado.cobrado,
+          montoCobrado: fiado.montoCobrado,
+          fechaCobro: fiado.fechaCobro,
+        })),
+      };
+    } catch (error) {
+      console.error('Error al obtener resumen de fiados por fecha:', error);
+      throw this.mapearErrorRed(error, 'No se pudo cargar el resumen diario de fiados.');
+    }
   }
 
   private parseMontoValor(valor: string | number | null | undefined): number | null {
