@@ -454,7 +454,7 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
             )}
             {direccion.trim() && !latitud && (
               <p className="text-xs text-gray-500 sm:col-span-2">
-                Elegí una sugerencia de Google para guardar las coordenadas en el mapa.
+                Elegí una sugerencia de Google o usá &quot;Mi ubicación&quot; para guardar las coordenadas en el mapa.
               </p>
             )}
             <Select

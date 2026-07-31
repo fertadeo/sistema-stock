@@ -489,6 +489,16 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                   value={direccion}
                   onChange={handleAddressChange}
                 />
+                {latitud && longitud && (
+                  <p className="mt-1 text-xs text-green-600">
+                    Ubicación detectada: {Number(latitud).toFixed(5)}, {Number(longitud).toFixed(5)}
+                  </p>
+                )}
+                {direccion.trim() && !latitud && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Elegí una sugerencia de Google o usá &quot;Mi ubicación&quot; si la ruta no coincide.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

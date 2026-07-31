@@ -1712,7 +1712,7 @@ function ModalCliente({
             )}
             {clienteForm.direccion.trim() && !clienteForm.latitud && (
               <p className="mt-1 text-xs text-gray-500">
-                Si no elegís una sugerencia, se geocodificará al guardar.
+                Elegí una sugerencia, usá &quot;Mi ubicación&quot; o se geocodificará al guardar.
               </p>
             )}
           </div>

@@ -53,9 +53,16 @@ interface MapComponentProps {
     en_linea: boolean;
     actualizado_at: string;
   } | null;
+  /** En mobile, false cuando el panel de filtros está activo (mapa con display:none). */
+  mapaVisible?: boolean;
 }
 
-const mapContainerStyle = { width: '100%', height: '100%' };
+const mapContainerStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  position: 'absolute',
+  inset: 0,
+};
 
 const INFO_WINDOW_STYLES = `
   .gm-style-iw-c {
@@ -206,6 +213,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   repartidores = [],
   seguirRecorrido = false,
   repartidorUbicacion = null,
+  mapaVisible = true,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -220,6 +228,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
   } | null>(null);
   const [dragPosition, setDragPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  // Tras display:none → visible, Google Maps queda en 0×0 hasta el resize.
+  useEffect(() => {
+    if (!map || !mapaVisible) return;
+    const timer = window.setTimeout(() => {
+      google.maps.event.trigger(map, 'resize');
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [map, mapaVisible]);
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -384,7 +401,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     selectedCliente != null && repartidorEditado !== (selectedCliente.repartidor ?? '');
 
   return (
-    <div className="relative w-full h-full min-h-[calc(100dvh-11rem)] lg:min-h-[70vh]">
+    <div className="relative w-full h-[calc(100dvh-11rem)] lg:h-[70vh]">
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={EMPRESA_COORDENADAS}

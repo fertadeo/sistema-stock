@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
+import { MapPinIcon } from '@heroicons/react/24/outline';
 import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS, isInRioCuartoBounds } from './GoogleMapsProvider';
+import {
+  obtenerMiUbicacion,
+  MiUbicacionError,
+} from '@/lib/geocode/obtenerMiUbicacion';
 
 interface AddressAutocompleteProps {
   value: string;
@@ -9,6 +14,8 @@ interface AddressAutocompleteProps {
   placeholder?: string;
   label?: string;
   className?: string;
+  /** Muestra el botón para tomar coordenadas del GPS. Por defecto true. */
+  showMiUbicacion?: boolean;
 }
 
 function obtenerDetallesLugar(
@@ -56,12 +63,16 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   placeholder = 'Ingrese la dirección',
   label = 'Dirección',
   className = '',
+  showMiUbicacion = true,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const onChangeRef = useRef(onChange);
+  const valueRef = useRef(value);
   const selectingPlaceRef = useRef(false);
   const [errorFueraDeCiudad, setErrorFueraDeCiudad] = useState(false);
+  const [errorMiUbicacion, setErrorMiUbicacion] = useState<string | null>(null);
+  const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
   useEffect(() => {
@@ -82,6 +93,10 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     if (inputRef.current && document.activeElement !== inputRef.current) {
@@ -123,6 +138,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         }
 
         setErrorFueraDeCiudad(false);
+        setErrorMiUbicacion(null);
         selectingPlaceRef.current = true;
 
         if (inputRef.current) {
@@ -152,8 +168,69 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     if (errorFueraDeCiudad) {
       setErrorFueraDeCiudad(false);
     }
+    if (errorMiUbicacion) {
+      setErrorMiUbicacion(null);
+    }
     onChangeRef.current(event.target.value, '', '');
   };
+
+  const handleMiUbicacion = async () => {
+    setErrorMiUbicacion(null);
+    setErrorFueraDeCiudad(false);
+    setObteniendoUbicacion(true);
+
+    try {
+      const resultado = await obtenerMiUbicacion(valueRef.current);
+      selectingPlaceRef.current = true;
+
+      if (inputRef.current) {
+        inputRef.current.value = resultado.direccion;
+      }
+
+      onChangeRef.current(
+        resultado.direccion,
+        resultado.latitud,
+        resultado.longitud
+      );
+
+      window.setTimeout(() => {
+        selectingPlaceRef.current = false;
+      }, 200);
+    } catch (error) {
+      const mensaje =
+        error instanceof MiUbicacionError
+          ? error.message
+          : 'No se pudo obtener tu ubicación.';
+      setErrorMiUbicacion(mensaje);
+    } finally {
+      setObteniendoUbicacion(false);
+    }
+  };
+
+  const botonMiUbicacion = showMiUbicacion ? (
+    <button
+      type="button"
+      onClick={() => void handleMiUbicacion()}
+      disabled={obteniendoUbicacion}
+      className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      <MapPinIcon className="w-4 h-4 shrink-0" />
+      {obteniendoUbicacion ? 'Obteniendo ubicación...' : 'Mi ubicación'}
+    </button>
+  ) : null;
+
+  const mensajesError = (
+    <>
+      {errorFueraDeCiudad && (
+        <p className="mt-1 text-xs text-red-600">
+          La dirección debe estar dentro de Río Cuarto.
+        </p>
+      )}
+      {errorMiUbicacion && (
+        <p className="mt-1 text-xs text-red-600">{errorMiUbicacion}</p>
+      )}
+    </>
+  );
 
   if (loadError) {
     return (
@@ -169,6 +246,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         <p className="mt-1 text-xs text-gray-500">
           Google Maps no disponible. Ingrese la dirección manualmente.
         </p>
+        {botonMiUbicacion}
+        {mensajesError}
       </div>
     );
   }
@@ -184,6 +263,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           disabled
           className="px-3 py-2 w-full rounded-lg border border-gray-300 bg-gray-100"
         />
+        {botonMiUbicacion}
+        {mensajesError}
       </div>
     );
   }
@@ -200,11 +281,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
         autoComplete="off"
       />
-      {errorFueraDeCiudad && (
-        <p className="mt-1 text-xs text-red-600">
-          La dirección debe estar dentro de Río Cuarto.
-        </p>
-      )}
+      {botonMiUbicacion}
+      {mensajesError}
     </div>
   );
 };

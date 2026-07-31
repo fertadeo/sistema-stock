@@ -123,6 +123,7 @@ const PageZonasyRepartos = () => {
   const [clientesAtendidos, setClientesAtendidos] = useState<number[]>([]);
   const [seguirRecorrido, setSeguirRecorrido] = useState(false);
   const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
+  const [esDesktop, setEsDesktop] = useState(false);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -130,6 +131,14 @@ const PageZonasyRepartos = () => {
     en_linea: boolean;
     actualizado_at: string;
   } | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setEsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const fetchClientesAtendidos = useCallback(async () => {
     try {
@@ -866,11 +875,11 @@ const PageZonasyRepartos = () => {
           )}
         </div>
 
-        {/* Mapa */}
+        {/* Mapa: altura explícita (no solo min-h) para que height:100% del canvas de Google Maps resuelva en mobile */}
         <div
-          className={`overflow-hidden flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg ${
+          className={`overflow-hidden relative flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg ${
             vistaMovil === 'filtros' ? 'hidden lg:block' : 'block'
-          } min-h-[calc(100dvh-11rem)] lg:min-h-[70vh]`}
+          } h-[calc(100dvh-11rem)] lg:h-auto lg:min-h-[70vh]`}
         >
           <MapComponent
             clientes={clientes}
@@ -889,6 +898,7 @@ const PageZonasyRepartos = () => {
             repartidores={repartidores}
             seguirRecorrido={seguirRecorrido}
             repartidorUbicacion={repartidorUbicacion}
+            mapaVisible={vistaMovil === 'mapa' || esDesktop}
           />
         </div>
       </div>
