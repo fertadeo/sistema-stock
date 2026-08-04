@@ -198,9 +198,11 @@ export default function ClientesPage() {
           <div className="mb-4 flex items-center gap-3">
             <button
               onClick={() => setDetalle(null)}
-              className="rounded-lg bg-gray-100 p-2 text-gray-700 hover:bg-gray-200"
+              className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-gray-700 hover:bg-gray-200"
+              aria-label="Volver atrás"
             >
               <ArrowLeftIcon className="h-5 w-5" />
+              <span className="text-sm font-medium">Volver atrás</span>
             </button>
             <div>
               <div className="flex flex-wrap items-center gap-2">

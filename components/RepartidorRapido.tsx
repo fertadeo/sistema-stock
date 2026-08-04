@@ -190,6 +190,7 @@ export default function RepartidorRapido() {
   const [resumenEnvases, setResumenEnvases] = useState<ResumenEnvases | null>(null);
   const [mensajeError, setMensajeError] = useState('');
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [rutaRetorno, setRutaRetorno] = useState<string | null>(null);
   const [pieExito, setPieExito] = useState<{
     mensaje: string;
     telefono: string;
@@ -961,6 +962,17 @@ export default function RepartidorRapido() {
     setClientesEncontrados([]);
     setProductosVenta([]);
     setMostrarModalEnvases(false);
+    setRutaRetorno(null);
+  };
+
+  const volverAtras = () => {
+    if (rutaRetorno) {
+      const destino = rutaRetorno;
+      setRutaRetorno(null);
+      router.push(destino);
+      return;
+    }
+    resetearSeleccion();
   };
 
   useEffect(() => {
@@ -994,6 +1006,10 @@ export default function RepartidorRapido() {
 
     const accion = searchParams.get('accion');
     const abrirMovimientos = searchParams.get('movimientos') === '1';
+    const from = searchParams.get('from');
+    if (from === 'fiados') {
+      setRutaRetorno('/repartidor/fiados');
+    }
 
     const abrirDesdeRuta = async () => {
       setCargando(true);
@@ -1043,12 +1059,14 @@ export default function RepartidorRapido() {
           {clienteSeleccionado ? (
             <div className="flex justify-between items-center">
               <button
-                onClick={resetearSeleccion}
-                className="p-2 -ml-2 text-gray-600 hover:text-gray-800"
+                onClick={volverAtras}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-2 -ml-2 text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+                aria-label="Volver atrás"
               >
-                <ArrowLeftIcon className="w-6 h-6" />
+                <ArrowLeftIcon className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium">Volver atrás</span>
               </button>
-              <div className="flex-1 ml-2">
+              <div className="flex-1 ml-2 min-w-0">
                 <div className="flex gap-2 items-center flex-wrap">
                   <h1 className="text-lg font-semibold text-gray-800">{clienteSeleccionado.nombre}</h1>
                   {!clienteEstaActivo(clienteSeleccionado) && (

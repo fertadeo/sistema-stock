@@ -106,14 +106,12 @@ function FiadosPageContent() {
     };
   }, [fechaSeleccionada]);
 
-  useEffect(() => {
-    if (!clienteParam || deudores.length === 0) return;
-    const cliente = deudores.find((item) => item.cliente_id === Number(clienteParam));
-    if (cliente) {
-      void abrirDetalle(cliente);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteParam, deudores]);
+  const abrirFichaCliente = (cliente: ClienteDeudor) => {
+    router.push(`/repartidor/rapido?cliente=${cliente.cliente_id}&from=fiados`);
+  };
+
+  const esDesktop = () =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
 
   const abrirDetalle = async (cliente: ClienteDeudor) => {
     setClienteSeleccionado(cliente);
@@ -132,6 +130,27 @@ function FiadosPageContent() {
       setCargandoDetalle(false);
     }
   };
+
+  const manejarClickDeudor = (cliente: ClienteDeudor) => {
+    // En mobile abre la ficha directo; el panel lateral queda solo en desktop.
+    if (esDesktop()) {
+      void abrirDetalle(cliente);
+      return;
+    }
+    abrirFichaCliente(cliente);
+  };
+
+  useEffect(() => {
+    if (!clienteParam || deudores.length === 0) return;
+    const cliente = deudores.find((item) => item.cliente_id === Number(clienteParam));
+    if (!cliente) return;
+    if (esDesktop()) {
+      void abrirDetalle(cliente);
+    } else {
+      abrirFichaCliente(cliente);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteParam, deudores]);
 
   const resumenGeneral = useMemo(
     () => ({
@@ -377,7 +396,7 @@ function FiadosPageContent() {
               {deudores.map((cliente) => (
                 <button
                   key={cliente.cliente_id}
-                  onClick={() => abrirDetalle(cliente)}
+                  onClick={() => manejarClickDeudor(cliente)}
                   className={`w-full p-6 text-left transition-colors hover:bg-gray-50 ${
                     clienteSeleccionado?.cliente_id === cliente.cliente_id ? 'bg-gray-50' : ''
                   }`}
@@ -403,7 +422,7 @@ function FiadosPageContent() {
           )}
         </section>
 
-        <aside className="rounded-xl bg-white p-6 shadow-sm">
+        <aside className="hidden rounded-xl bg-white p-6 shadow-sm xl:block">
           {!clienteSeleccionado ? (
             <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
               Seleccioná un cliente para ver su cuenta corriente y avanzar al cobro.
@@ -450,16 +469,16 @@ function FiadosPageContent() {
               <div className="space-y-2">
                 <button
                   onClick={() =>
-                    router.push(`/repartidor/rapido?cliente=${clienteSeleccionado.cliente_id}&accion=cobro`)
+                    router.push(
+                      `/repartidor/rapido?cliente=${clienteSeleccionado.cliente_id}&accion=cobro&from=fiados`
+                    )
                   }
                   className="w-full rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700"
                 >
                   Registrar cobro
                 </button>
                 <button
-                  onClick={() =>
-                    router.push(`/repartidor/rapido?cliente=${clienteSeleccionado.cliente_id}`)
-                  }
+                  onClick={() => abrirFichaCliente(clienteSeleccionado)}
                   className="w-full rounded-lg bg-gray-100 px-4 py-3 font-medium text-gray-700 hover:bg-gray-200"
                 >
                   Abrir ficha en Repartidor Rápido
