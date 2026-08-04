@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GoogleMap, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import { EMPRESA_COORDENADAS } from './GoogleMapsProvider';
+import { EMPRESA_COORDENADAS, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
 import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
 import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
 import { openInGoogleMaps } from '@/lib/map/openGoogleMaps';
@@ -229,25 +229,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [dragPosition, setDragPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
-  // Tras display:none → visible, Google Maps queda en 0×0 hasta el resize.
-  useEffect(() => {
-    if (!map || !mapaVisible) return;
-    const timer = window.setTimeout(() => {
-      google.maps.event.trigger(map, 'resize');
-    }, 80);
-    return () => window.clearTimeout(timer);
-  }, [map, mapaVisible]);
-
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.setAttribute('data-map-info-window', 'true');
-    style.textContent = INFO_WINDOW_STYLES;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   const clientesConCoords = useMemo(
     () =>
       clientes
@@ -270,6 +251,50 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
   }, [clientesConCoords, filtrosMapa, clientesIncluidos]);
 
+  const enfocarRioCuarto = useCallback((
+    mapInstance: google.maps.Map,
+    clientesVista: Cliente[] = [],
+    acercarAClientes = false
+  ) => {
+    // Por defecto: zona de Río Cuarto. Solo acercar a clientes si hay filtros activos.
+    if (acercarAClientes && clientesVista.length > 0) {
+      const clientesBounds = new google.maps.LatLngBounds();
+      clientesBounds.extend(EMPRESA_COORDENADAS);
+      clientesVista.forEach((cliente) => {
+        clientesBounds.extend({ lat: cliente.latitud, lng: cliente.longitud });
+      });
+      mapInstance.fitBounds(clientesBounds, 48);
+      return;
+    }
+
+    const ciudadBounds = new google.maps.LatLngBounds(
+      { lat: RIO_CUARTO_BOUNDS.south, lng: RIO_CUARTO_BOUNDS.west },
+      { lat: RIO_CUARTO_BOUNDS.north, lng: RIO_CUARTO_BOUNDS.east }
+    );
+    mapInstance.fitBounds(ciudadBounds, 24);
+  }, []);
+
+  // Tras display:none → visible el canvas queda en 0×0; resize + enfocar Río Cuarto.
+  useEffect(() => {
+    if (!map || !mapaVisible) return;
+    const acercarAClientes = Boolean(filtrosMapa && hayFiltrosActivos(filtrosMapa));
+    const timer = window.setTimeout(() => {
+      google.maps.event.trigger(map, 'resize');
+      enfocarRioCuarto(map, clientesParaVista, acercarAClientes);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [map, mapaVisible, enfocarRioCuarto, clientesParaVista, filtrosMapa]);
+
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.setAttribute('data-map-info-window', 'true');
+    style.textContent = INFO_WINDOW_STYLES;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   useEffect(() => {
     if (!selectedCliente) return;
     const actualizado = clientesConCoords.find((c) => c.id === selectedCliente.id);
@@ -283,17 +308,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       setRepartidorEditado(selectedCliente.repartidor ?? '');
     }
   }, [selectedCliente?.id]);
-
-  useEffect(() => {
-    if (!map || clientesParaVista.length === 0) return;
-
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend(EMPRESA_COORDENADAS);
-    clientesParaVista.forEach((cliente) => {
-      bounds.extend({ lat: cliente.latitud, lng: cliente.longitud });
-    });
-    map.fitBounds(bounds, 48);
-  }, [map, clientesParaVista]);
 
   const obtenerDireccion = async (lat: number, lon: number) => {
     try {
