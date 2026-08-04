@@ -194,35 +194,46 @@ export default function ClientesPage() {
 
     return (
       <div className="relative pb-32 space-y-4">
-        <div className="rounded-xl bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <button
-              onClick={() => setDetalle(null)}
-              className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-gray-700 hover:bg-gray-200"
-              aria-label="Volver atrás"
-            >
-              <ArrowLeftIcon className="h-5 w-5" />
-              <span className="text-sm font-medium">Volver atrás</span>
-            </button>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-gray-900">{detalle.cliente.nombre}</h1>
+        <div className="rounded-xl bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setDetalle(null)}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800 active:bg-teal-100"
+                aria-label="Volver atrás"
+              >
+                <ArrowLeftIcon className="h-4 w-4 shrink-0" />
+                <span>Volver</span>
+              </button>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                Ficha operativa
+              </p>
+            </div>
+
+            <div className="min-w-0 border-t border-gray-100 pt-3">
+              <h1 className="text-xl font-bold leading-snug text-gray-900 sm:text-2xl">
+                {detalle.cliente.nombre}
+              </h1>
+              {detalle.cliente.telefono ? (
+                <p className="mt-0.5 text-sm text-gray-500">{detalle.cliente.telefono}</p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {!clienteEstaActivo(detalle.cliente) && (
-                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
                     Inactivo
                   </span>
                 )}
                 {detalle.cliente.repartidor?.trim() ? (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-700">
+                  <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
                     {detalle.cliente.repartidor}
                   </span>
                 ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
                     Sin repartidor
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-500">Ficha operativa del cliente</p>
             </div>
           </div>
 

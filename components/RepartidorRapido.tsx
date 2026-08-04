@@ -1055,52 +1055,66 @@ export default function RepartidorRapido() {
     >
       {/* Header */}
       <div className="sticky top-0 z-10 mt-3 rounded-xl bg-white shadow-sm">
-        <div className="px-4 py-4">
+        <div className="px-4 py-3.5">
           {clienteSeleccionado ? (
-            <div className="flex justify-between items-center">
-              <button
-                onClick={volverAtras}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-2 -ml-2 text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-                aria-label="Volver atrás"
-              >
-                <ArrowLeftIcon className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium">Volver atrás</span>
-              </button>
-              <div className="flex-1 ml-2 min-w-0">
-                <div className="flex gap-2 items-center flex-wrap">
-                  <h1 className="text-lg font-semibold text-gray-800">{clienteSeleccionado.nombre}</h1>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={volverAtras}
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800 active:bg-teal-100"
+                  aria-label="Volver atrás"
+                >
+                  <ArrowLeftIcon className="h-4 w-4 shrink-0" />
+                  <span>Volver</span>
+                </button>
+                {puedeEditarClienteSeleccionado ? (
+                  <button
+                    type="button"
+                    onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    title="Editar cliente"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </button>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-300"
+                    title="Cliente asignado a otro repartidor"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="min-w-0 border-t border-gray-100 pt-3">
+                <h1 className="truncate text-lg font-bold leading-snug text-gray-900 sm:text-xl">
+                  {clienteSeleccionado.nombre}
+                </h1>
+                {clienteSeleccionado.telefono ? (
+                  <p className="mt-0.5 truncate text-sm text-gray-500">
+                    {clienteSeleccionado.telefono}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {!clienteEstaActivo(clienteSeleccionado) && (
-                    <span className="px-2 py-0.5 text-xs font-semibold text-red-700 bg-red-100 rounded-full">
+                    <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
                       Inactivo
                     </span>
                   )}
                   {clienteSeleccionado.repartidor?.trim() ? (
-                    <span className="px-2 py-0.5 text-xs font-semibold text-teal-700 bg-teal-100 rounded-full">
+                    <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
                       {clienteSeleccionado.repartidor}
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-full">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
                       Sin repartidor
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600">{clienteSeleccionado.telefono}</p>
               </div>
-              {puedeEditarClienteSeleccionado ? (
-                <button
-                  onClick={() => abrirModalEditarCliente(clienteSeleccionado)}
-                  className="p-2 text-blue-600 hover:text-blue-800"
-                >
-                  <PencilIcon className="w-6 h-6" />
-                </button>
-              ) : (
-                <span
-                  className="p-2 text-gray-300"
-                  title="Cliente asignado a otro repartidor"
-                >
-                  <PencilIcon className="w-6 h-6" />
-                </span>
-              )}
             </div>
           ) : (
             <h1 className="text-xl font-bold text-gray-800">Búsqueda Rápida</h1>
