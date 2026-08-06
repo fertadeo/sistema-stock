@@ -197,7 +197,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     });
   };
 
-  const handlePriceEdit = async (productId: number, field: PriceField, newValue: string, options?: { keepEditing?: boolean }) => {
+  const handlePriceEdit = async (productId: number, field: PriceField, newValue: string) => {
     try {
       const numericValue = Math.round(parseFloat(newValue || '0'));
       if (isNaN(numericValue) || numericValue < 0) {
@@ -206,10 +206,8 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
 
       const current = products.find((p) => p.id === productId);
       if (current && Math.round(current[field]) === numericValue) {
-        if (!options?.keepEditing) {
-          setEditingCell(null);
-          setEditValue("");
-        }
+        setEditingCell(null);
+        setEditValue("");
         return true;
       }
 
@@ -237,62 +235,14 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       );
 
       showNotification({ type: 'success', message: 'Precio actualizado correctamente' });
-      if (!options?.keepEditing) {
-        setEditingCell(null);
-        setEditValue("");
-      }
+      setEditingCell(null);
+      setEditValue("");
       return true;
     } catch (error) {
       showNotification({ type: 'error', message: (error as Error).message });
       fetchProducts();
       return false;
     }
-  };
-
-  const moveEditing = async (direction: 'up' | 'down' | 'left' | 'right') => {
-    if (!editingCell) return;
-
-    const currentIndex = paginatedProducts.findIndex((p) => p.id === editingCell.id);
-    if (currentIndex < 0) return;
-
-    skipBlurSaveRef.current = true;
-    const saved = await handlePriceEdit(editingCell.id, editingCell.field, editValueRef.current, { keepEditing: true });
-    if (!saved) {
-      skipBlurSaveRef.current = false;
-      return;
-    }
-
-    let nextProduct = paginatedProducts[currentIndex];
-    let nextField = editingCell.field;
-
-    if (direction === 'up' || direction === 'down') {
-      const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      if (nextIndex < 0 || nextIndex >= paginatedProducts.length) {
-        skipBlurSaveRef.current = false;
-        setEditingCell(null);
-        setEditValue("");
-        editValueRef.current = "";
-        return;
-      }
-      nextProduct = paginatedProducts[nextIndex];
-    } else if (direction === 'left') {
-      if (editingCell.field === 'precioPublico') {
-        skipBlurSaveRef.current = false;
-        return;
-      }
-      nextField = 'precioPublico';
-    } else {
-      if (editingCell.field === 'precioRevendedor') {
-        skipBlurSaveRef.current = false;
-        return;
-      }
-      nextField = 'precioRevendedor';
-    }
-
-    startEditing(nextProduct, nextField);
-    requestAnimationFrame(() => {
-      skipBlurSaveRef.current = false;
-    });
   };
 
   const handleTipoChange = async (productId: number, tipoProducto: TipoProducto) => {
@@ -326,24 +276,27 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
   const handleKeyPress = async (e: React.KeyboardEvent) => {
     if (!editingCell) return;
 
+    // Las flechas deben mover el cursor en el input, no navegar la tabla ni otras celdas
+    if (
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Home' ||
+      e.key === 'End'
+    ) {
+      e.stopPropagation();
+      return;
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       await handlePriceEdit(editingCell.id, editingCell.field, editValueRef.current);
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       cancelEditing();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      await moveEditing('up');
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      await moveEditing('down');
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      await moveEditing('left');
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      await moveEditing('right');
     }
   };
 
@@ -362,28 +315,45 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         }}
       >
         {isEditing ? (
-          <Input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={editValue}
-            startContent={<span className="text-default-400 text-small">$</span>}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^\d]/g, '');
-              editValueRef.current = raw;
-              setEditValue(raw);
+          <div
+            className="flex items-center gap-1 rounded-lg border border-default-200 bg-default-50 px-2 py-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDownCapture={(e) => {
+              // Evita que la Table (React Aria) robe las flechas al input
+              if (
+                e.key === 'ArrowLeft' ||
+                e.key === 'ArrowRight' ||
+                e.key === 'ArrowUp' ||
+                e.key === 'ArrowDown' ||
+                e.key === 'Home' ||
+                e.key === 'End'
+              ) {
+                e.stopPropagation();
+              }
             }}
-            onKeyDown={handleKeyPress}
-            onFocus={(e) => e.target.select()}
-            onBlur={() => {
-              if (skipBlurSaveRef.current) return;
-              handlePriceEdit(product.id, field, editValueRef.current);
-            }}
-            onWheel={handleWheel}
-            aria-label={field === 'precioPublico' ? 'Precio público' : 'Precio revendedor'}
-            classNames={{ input: "text-right" }}
-            size="sm"
-          />
+          >
+            <span className="text-default-400 text-small select-none">$</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={editValue}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, '');
+                editValueRef.current = raw;
+                setEditValue(raw);
+              }}
+              onKeyDown={handleKeyPress}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => {
+                if (skipBlurSaveRef.current) return;
+                handlePriceEdit(product.id, field, editValueRef.current);
+              }}
+              onWheel={handleWheel}
+              aria-label={field === 'precioPublico' ? 'Precio público' : 'Precio revendedor'}
+              className="w-full min-w-0 bg-transparent text-right text-sm outline-none"
+            />
+          </div>
         ) : (
           formatMonto(product[field])
         )}
@@ -473,7 +443,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
           </TableBody>
         </Table>
         <p className="mt-2 text-xs text-default-400">
-          Enter guarda · Esc cancela · ↑↓ cambia de fila · ←→ cambia de columna
+          Enter guarda · Esc cancela · las flechas mueven el cursor dentro del precio
         </p>
       </Card>
 

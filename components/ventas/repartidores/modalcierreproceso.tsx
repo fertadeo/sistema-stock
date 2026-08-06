@@ -224,6 +224,19 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
 
   // Modificar el manejador de teclas para usar la nueva función
   const handleKeyDown = async (e: React.KeyboardEvent, index: number) => {
+    // No dejar que la tabla robe las flechas; quedan para el cursor del input
+    if (
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Home' ||
+      e.key === 'End'
+    ) {
+      e.stopPropagation();
+      return;
+    }
+
     if (e.key === 'Enter' && proceso?.estado_cuenta !== 'finalizado') {
       e.preventDefault();
       await guardarPreciosModificados();
@@ -231,20 +244,6 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setEditandoPrecioIndex(null);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (index > 0) {
-        const prev = (e.target as HTMLElement).closest('tr')?.previousElementSibling?.querySelector('input');
-        prev?.focus();
-        setEditandoPrecioIndex(index - 1);
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (index < productosDetalle.length - 1) {
-        const next = (e.target as HTMLElement).closest('tr')?.nextElementSibling?.querySelector('input');
-        next?.focus();
-        setEditandoPrecioIndex(index + 1);
-      }
     }
   };
 
@@ -534,7 +533,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             )}
                           </div>
                           {editandoPrecioIndex === index && (
-                            <span className="mt-1 text-xs text-blue-600">Enter guarda · ↑↓ cambia de fila</span>
+                            <span className="mt-1 text-xs text-blue-600">Enter guarda · Esc cancela</span>
                           )}
                           {resultadoGuardado[index] && (
                             <Alert
