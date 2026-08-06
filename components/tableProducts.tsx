@@ -315,33 +315,31 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         }}
       >
         {isEditing ? (
-          <div
-            className="flex items-center gap-1 rounded-lg border border-default-200 bg-default-50 px-2 py-1"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDownCapture={(e) => {
-              // Evita que la Table (React Aria) robe las flechas al input
-              if (
-                e.key === 'ArrowLeft' ||
-                e.key === 'ArrowRight' ||
-                e.key === 'ArrowUp' ||
-                e.key === 'ArrowDown' ||
-                e.key === 'Home' ||
-                e.key === 'End'
-              ) {
-                e.stopPropagation();
-              }
-            }}
-          >
-            <span className="text-default-400 text-small select-none">$</span>
+          <div className="flex items-center gap-1 rounded-lg border border-default-200 bg-default-50 px-2 py-1">
+            <span className="text-default-400 text-small select-none" aria-hidden="true">$</span>
             <input
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
               value={editValue}
+              onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '');
                 editValueRef.current = raw;
                 setEditValue(raw);
+              }}
+              onKeyDownCapture={(e) => {
+                // Evita que la Table (React Aria) robe las flechas al input
+                if (
+                  e.key === 'ArrowLeft' ||
+                  e.key === 'ArrowRight' ||
+                  e.key === 'ArrowUp' ||
+                  e.key === 'ArrowDown' ||
+                  e.key === 'Home' ||
+                  e.key === 'End'
+                ) {
+                  e.stopPropagation();
+                }
               }}
               onKeyDown={handleKeyPress}
               onFocus={(e) => e.target.select()}
