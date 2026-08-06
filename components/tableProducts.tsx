@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from "react";
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card, Alert, Select, SelectItem, Chip } from "@heroui/react";
+import { Input, Pagination, Card, Alert, Select, SelectItem, Chip } from "@heroui/react";
 import { SearchIcon } from "@heroui/shared-icons";
 import ProductModal from "./productModal";
 import { Product } from './productModal';
@@ -72,7 +72,9 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
       if (input) {
         input.focus();
-        input.select();
+        // Cursor al final para poder editar dígitos sin borrar todo
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -276,28 +278,14 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
   const handleKeyPress = async (e: React.KeyboardEvent) => {
     if (!editingCell) return;
 
-    // Las flechas deben mover el cursor en el input, no navegar la tabla ni otras celdas
-    if (
-      e.key === 'ArrowLeft' ||
-      e.key === 'ArrowRight' ||
-      e.key === 'ArrowUp' ||
-      e.key === 'ArrowDown' ||
-      e.key === 'Home' ||
-      e.key === 'End'
-    ) {
-      e.stopPropagation();
-      return;
-    }
-
     if (e.key === 'Enter') {
       e.preventDefault();
-      e.stopPropagation();
       await handlePriceEdit(editingCell.id, editingCell.field, editValueRef.current);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopPropagation();
       cancelEditing();
     }
+    // Flechas / Home / End: comportamiento nativo del input (mover cursor)
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
@@ -308,14 +296,14 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     const isEditing = editingCell?.id === product.id && editingCell?.field === field;
 
     return (
-      <TableCell
-        className="cursor-pointer"
+      <td
+        className="cursor-pointer px-3 py-2 align-middle"
         onClick={() => {
           if (!isEditing) startEditing(product, field);
         }}
       >
         {isEditing ? (
-          <div className="flex items-center gap-1 rounded-lg border border-default-200 bg-default-50 px-2 py-1">
+          <div className="flex items-center gap-1 rounded-lg border border-primary-300 bg-white px-2 py-1 shadow-sm">
             <span className="text-default-400 text-small select-none" aria-hidden="true">$</span>
             <input
               type="text"
@@ -328,34 +316,20 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
                 editValueRef.current = raw;
                 setEditValue(raw);
               }}
-              onKeyDownCapture={(e) => {
-                // Evita que la Table (React Aria) robe las flechas al input
-                if (
-                  e.key === 'ArrowLeft' ||
-                  e.key === 'ArrowRight' ||
-                  e.key === 'ArrowUp' ||
-                  e.key === 'ArrowDown' ||
-                  e.key === 'Home' ||
-                  e.key === 'End'
-                ) {
-                  e.stopPropagation();
-                }
-              }}
               onKeyDown={handleKeyPress}
-              onFocus={(e) => e.target.select()}
               onBlur={() => {
                 if (skipBlurSaveRef.current) return;
                 handlePriceEdit(product.id, field, editValueRef.current);
               }}
               onWheel={handleWheel}
               aria-label={field === 'precioPublico' ? 'Precio público' : 'Precio revendedor'}
-              className="w-full min-w-0 bg-transparent text-right text-sm outline-none"
+              className="w-full min-w-[4.5rem] bg-transparent text-right text-sm outline-none"
             />
           </div>
         ) : (
           formatMonto(product[field])
         )}
-      </TableCell>
+      </td>
     );
   };
 
@@ -383,65 +357,74 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
           />
         </div>
 
-        <Table aria-label="Tabla de productos">
-          <TableHeader>
-            {columns.map((column) => (
-              <TableColumn key={column.uid}>{column.name}</TableColumn>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {paginatedProducts.length > 0 ? (
-              paginatedProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>{product.id}</TableCell>
-                  <TableCell>{product.nombreProducto}</TableCell>
-                  <TableCell>
-                    <Select
-                      aria-label={`Tipo de ${product.nombreProducto}`}
-                      selectedKeys={new Set([product.tipoProducto])}
-                      onSelectionChange={(keys) => {
-                        const selected = Array.from(keys)[0];
-                        if (typeof selected === 'string') {
-                          handleTipoChange(product.id, normalizarTipoProducto(selected));
-                        }
-                      }}
-                      size="sm"
-                      className="min-w-[160px]"
-                      classNames={{
-                        trigger: "h-8 min-h-8",
-                      }}
-                      renderValue={() => (
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={product.tipoProducto === 'insumo' ? 'warning' : 'primary'}
-                        >
-                          {etiquetaTipoProducto(product.tipoProducto)}
-                        </Chip>
-                      )}
-                    >
-                      {TIPOS_PRODUCTO.map((tipo) => (
-                        <SelectItem key={tipo.value} textValue={tipo.label}>
-                          {tipo.label}
-                        </SelectItem>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  {renderPriceCell(product, 'precioPublico')}
-                  {renderPriceCell(product, 'precioRevendedor')}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} style={{ textAlign: "center" }}>
-                  No hay productos disponibles.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+        <div className="overflow-x-auto rounded-lg border border-default-200">
+          <table className="min-w-full text-sm" aria-label="Tabla de productos">
+            <thead className="bg-default-100">
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.uid}
+                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-default-600"
+                  >
+                    {column.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedProducts.length > 0 ? (
+                paginatedProducts.map((product) => (
+                  <tr key={product.id} className="border-t border-default-200 hover:bg-default-50">
+                    <td className="px-3 py-2 align-middle">{product.id}</td>
+                    <td className="px-3 py-2 align-middle">{product.nombreProducto}</td>
+                    <td className="px-3 py-2 align-middle">
+                      <Select
+                        aria-label={`Tipo de ${product.nombreProducto}`}
+                        selectedKeys={new Set([product.tipoProducto])}
+                        onSelectionChange={(keys) => {
+                          const selected = Array.from(keys)[0];
+                          if (typeof selected === 'string') {
+                            handleTipoChange(product.id, normalizarTipoProducto(selected));
+                          }
+                        }}
+                        size="sm"
+                        className="min-w-[160px]"
+                        classNames={{
+                          trigger: "h-8 min-h-8",
+                        }}
+                        renderValue={() => (
+                          <Chip
+                            size="sm"
+                            variant="flat"
+                            color={product.tipoProducto === 'insumo' ? 'warning' : 'primary'}
+                          >
+                            {etiquetaTipoProducto(product.tipoProducto)}
+                          </Chip>
+                        )}
+                      >
+                        {TIPOS_PRODUCTO.map((tipo) => (
+                          <SelectItem key={tipo.value} textValue={tipo.label}>
+                            {tipo.label}
+                          </SelectItem>
+                        ))}
+                      </Select>
+                    </td>
+                    {renderPriceCell(product, 'precioPublico')}
+                    {renderPriceCell(product, 'precioRevendedor')}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-default-500">
+                    No hay productos disponibles.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
         <p className="mt-2 text-xs text-default-400">
-          Enter guarda · Esc cancela · las flechas mueven el cursor dentro del precio
+          Enter guarda · Esc cancela · usá las flechas para mover el cursor dentro del precio
         </p>
       </Card>
 
