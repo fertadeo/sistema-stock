@@ -7,6 +7,7 @@ import { UserOptions } from 'jspdf-autotable';
 import { PencilSquareIcon } from '@heroicons/react/24/outline';
 import Notification from "@/components/notification";
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { formatMonto } from '@/lib/formatMonto';
 
 // Agregar la declaración de tipos para autoTable
 declare module 'jspdf' {
@@ -137,8 +138,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     const nuevosProductos = [...productosDetalle];
     const cantidad = nuevosProductos[index].cantidad_vendida;
     
-    // Calcular el nuevo subtotal con precisión de 2 decimales
-    const subtotal = Number((nuevoPrecio * cantidad).toFixed(2));
+    // Calcular el nuevo subtotal en enteros
+    const subtotal = Math.round(nuevoPrecio * cantidad);
     
     nuevosProductos[index] = {
       ...nuevosProductos[index],
@@ -224,10 +225,26 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   // Modificar el manejador de teclas para usar la nueva función
   const handleKeyDown = async (e: React.KeyboardEvent, index: number) => {
     if (e.key === 'Enter' && proceso?.estado_cuenta !== 'finalizado') {
+      e.preventDefault();
       await guardarPreciosModificados();
       setEditandoPrecioIndex(null);
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       setEditandoPrecioIndex(null);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (index > 0) {
+        const prev = (e.target as HTMLElement).closest('tr')?.previousElementSibling?.querySelector('input');
+        prev?.focus();
+        setEditandoPrecioIndex(index - 1);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (index < productosDetalle.length - 1) {
+        const next = (e.target as HTMLElement).closest('tr')?.nextElementSibling?.querySelector('input');
+        next?.focus();
+        setEditandoPrecioIndex(index + 1);
+      }
     }
   };
 
@@ -385,8 +402,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     const productosData = proceso.productos_detalle?.map(item => [
       item.nombre,
       item.cantidad_vendida.toString(),
-      `$${item.precio_unitario.toFixed(2)}`,
-      `$${item.subtotal.toFixed(2)}`
+      formatMonto(item.precio_unitario),
+      formatMonto(item.subtotal)
     ]) || [];
 
     autoTable(doc, {
@@ -399,12 +416,12 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     
     doc.text('Resumen de Pagos:', 15, finalY);
-    doc.text(`Total Venta: $${totalVenta.toFixed(2)}`, pageWidth - 15, finalY, { align: 'right' });
-    doc.text(`Efectivo Recaudado: $${montoEfectivoRecaudado.toFixed(2)}`, pageWidth - 15, finalY + 7, { align: 'right' });
-    doc.text(`Transferencia: $${montoTransferencia.toFixed(2)}`, pageWidth - 15, finalY + 14, { align: 'right' });
-    doc.text(`Total Recaudado: $${totalRecaudado.toFixed(2)}`, pageWidth - 15, finalY + 21, { align: 'right' });
+    doc.text(`Total Venta: ${formatMonto(totalVenta)}`, pageWidth - 15, finalY, { align: 'right' });
+    doc.text(`Efectivo Recaudado: ${formatMonto(montoEfectivoRecaudado)}`, pageWidth - 15, finalY + 7, { align: 'right' });
+    doc.text(`Transferencia: ${formatMonto(montoTransferencia)}`, pageWidth - 15, finalY + 14, { align: 'right' });
+    doc.text(`Total Recaudado: ${formatMonto(totalRecaudado)}`, pageWidth - 15, finalY + 21, { align: 'right' });
     
-    const balanceText = `Balance Fiado: $${balanceFiado.toFixed(2)} ${balanceFiado < 0 ? '(Faltante)' : '(A favor)'}`;
+    const balanceText = `Balance Fiado: ${formatMonto(balanceFiado)} ${balanceFiado < 0 ? '(Faltante)' : '(A favor)'}`;
     doc.setTextColor(balanceFiado >= 0 ? 0x00 : 0xFF, 0x00, 0x00);
     doc.text(balanceText, pageWidth - 15, finalY + 28, { align: 'right' });
 
@@ -467,15 +484,19 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                           <div className="flex gap-2 items-center">
                             <span>$</span>
                             <input
-                              type="number"
-                              value={item.precio_unitario === 0 ? "" : item.precio_unitario}
+                              type="text"
+                              inputMode="numeric"
+                              value={item.precio_unitario === 0 ? "" : String(Math.round(item.precio_unitario))}
                               onChange={(e) => {
                                 if (proceso?.estado_cuenta !== 'finalizado') {
-                                  const nuevoPrecio = parseFloat(e.target.value) || 0;
+                                  const nuevoPrecio = Math.round(parseFloat(e.target.value.replace(/[^\d]/g, '')) || 0);
                                   handlePrecioUnitarioChange(index, nuevoPrecio);
                                 }
                               }}
-                              onFocus={() => setEditandoPrecioIndex(index)}
+                              onFocus={(e) => {
+                                setEditandoPrecioIndex(index);
+                                e.target.select();
+                              }}
                               onBlur={() => setEditandoPrecioIndex(null)}
                               onKeyDown={(e) => handleKeyDown(e, index)}
                               onWheel={handleWheel}
@@ -488,8 +509,6 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                                     : 'bg-white'
                               }`}
                               disabled={proceso?.estado_cuenta === 'finalizado'}
-                              min="0"
-                              step="0.01"
                             />
                             {proceso?.estado_cuenta !== 'finalizado' && (
                               <>
@@ -515,7 +534,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                             )}
                           </div>
                           {editandoPrecioIndex === index && (
-                            <span className="mt-1 text-xs text-blue-600">Presione enter para guardar cambios</span>
+                            <span className="mt-1 text-xs text-blue-600">Enter guarda · ↑↓ cambia de fila</span>
                           )}
                           {resultadoGuardado[index] && (
                             <Alert
@@ -528,7 +547,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>${item.subtotal.toFixed(2)}</TableCell>
+                      <TableCell>{formatMonto(item.subtotal)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -539,7 +558,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                 <div className="flex gap-4 justify-end items-center">
                   <span className="font-bold">Total Venta:</span>
                   <span className="w-32 text-xl font-bold text-right">
-                    ${totalVenta.toFixed(2)}
+                    {formatMonto(totalVenta)}
                   </span>
                 </div>
 
@@ -600,10 +619,10 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
 
                       <div className="p-4 mt-2 space-y-2 bg-gray-50 rounded-lg">
                         <p className="text-gray-700">
-                          Total recaudado: <span className="font-medium">${totalRecaudado.toFixed(2)}</span>
+                          Total recaudado: <span className="font-medium">{formatMonto(totalRecaudado)}</span>
                         </p>
                         <p className={`font-medium ${balanceFiado >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          Balance Fiado: ${balanceFiado.toFixed(2)}
+                          Balance Fiado: {formatMonto(balanceFiado)}
                           {balanceFiado < 0 ? ' (Faltante)' : ' (A favor)'}
                         </p>
                       </div>
@@ -675,11 +694,10 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                       <TableCell>{item.cantidad_vendida}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span>$</span>
-                          <span className="font-medium">{item.precio_unitario.toFixed(2)}</span>
+                          <span className="font-medium">{formatMonto(item.precio_unitario)}</span>
                         </div>
                       </TableCell>
-                      <TableCell>${item.subtotal.toFixed(2)}</TableCell>
+                      <TableCell>{formatMonto(item.subtotal)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -688,7 +706,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
               <div className="p-4 mt-4 bg-gray-50 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Total Venta:</span>
-                  <span className="text-xl font-bold">${totalVenta.toFixed(2)}</span>
+                  <span className="text-xl font-bold">{formatMonto(totalVenta)}</span>
                 </div>
               </div>
             </div>

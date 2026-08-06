@@ -61,9 +61,7 @@ export async function fetchReporte(
   return data as ReporteCompleto;
 }
 
-export function formatMonto(n: number): string {
-  return `$${Math.abs(Math.round(n)).toLocaleString('es-AR')}`;
-}
+export { formatMonto } from '@/lib/formatMonto';
 
 export function toDateInputValue(d: Date): string {
   const y = d.getFullYear();

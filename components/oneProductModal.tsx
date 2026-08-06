@@ -92,18 +92,23 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    const sanitized =
+      name === "PrecioPublico" || name === "PrecioRevendedor"
+        ? value.replace(/[^\d]/g, "")
+        : value;
+
     setProductData((prevState) => ({
       ...prevState,
-      [name]: value,
+      [name]: sanitized,
     }));
 
     let isValid = true;
     if (name === "ProductoNombre") {
-      isValid = value.trim() !== "";
+      isValid = sanitized.trim() !== "";
     } else if (name === "PrecioPublico" || name === "CantidadStock") {
-      isValid = value.trim() !== "" && !Number.isNaN(Number(value)) && Number(value) >= 0;
+      isValid = sanitized.trim() !== "" && !Number.isNaN(Number(sanitized)) && Number(sanitized) >= 0;
     } else if (name === "PrecioRevendedor") {
-      isValid = value.trim() === "" || (!Number.isNaN(Number(value)) && Number(value) >= 0);
+      isValid = sanitized.trim() === "" || (!Number.isNaN(Number(sanitized)) && Number(sanitized) >= 0);
     }
 
     if (name in inputValidity) {
@@ -267,13 +272,18 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
               <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
 
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min={0}
                   label="Precio de Venta al publico"
-                  placeholder="0.00"
+                  placeholder="0"
                   name="PrecioPublico"
                   value={productData.PrecioPublico}
                   onChange={handleInputChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+                  }}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   isInvalid={!inputValidity.PrecioPublico}
                   errorMessage={!inputValidity.PrecioPublico ? "Ingresá un precio válido" : undefined}
                   labelPlacement="inside"
@@ -287,13 +297,18 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
 
               <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min={0}
                   label="Precio Revendedor"
-                  placeholder="0.00"
+                  placeholder="0"
                   name="PrecioRevendedor"
                   value={productData.PrecioRevendedor}
                   onChange={handleInputChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+                  }}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   isInvalid={!inputValidity.PrecioRevendedor}
                   errorMessage={!inputValidity.PrecioRevendedor ? "Ingresá un precio válido" : undefined}
                   labelPlacement="inside"

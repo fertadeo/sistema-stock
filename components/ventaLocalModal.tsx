@@ -3,6 +3,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
+import { formatMonto } from '@/lib/formatMonto';
 
 interface Producto {
   id: string;
@@ -258,13 +259,13 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
       body: ventaData.productos.map((p: any) => [
         p.nombre,
         p.cantidad,
-        `$${p.precio_unitario}`,
-        `$${(p.cantidad * p.precio_unitario).toFixed(2)}`
+        formatMonto(p.precio_unitario),
+        formatMonto(p.cantidad * p.precio_unitario)
       ]),
     });
 
     doc.text(
-      `Total: $${ventaData.monto_total.toFixed(2)}`,
+      `Total: ${formatMonto(ventaData.monto_total)}`,
       14,
       ((doc as any).lastAutoTable?.finalY || 75) + 10
     );
@@ -353,7 +354,7 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
                       <option value="">Seleccione un producto</option>
                       {productosDisponibles.map(p => (
                         <option key={p.id} value={String(p.id)}>
-                          {p.nombreProducto} - ${p.precioPublico}
+                          {p.nombreProducto} - {formatMonto(p.precioPublico)}
                         </option>
                       ))}
                     </select>
@@ -373,11 +374,24 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
                     <label className="block mb-1 text-sm font-medium" htmlFor={`precio-${index}`}>Precio Unitario</label>
                     <input
                       id={`precio-${index}`}
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       className={`w-full rounded-lg border px-3 py-2 text-sm transition focus:border-primary-500 focus:ring-2 focus:ring-primary-200 ${editandoPrecio[index] ? 'bg-yellow-100 border-yellow-500' : 'bg-gray-50 border-gray-300'}`}
-                      value={producto.precio_unitario}
-                      min={0}
-                      onChange={e => actualizarProducto(index, 'precio_unitario', parseFloat(e.target.value))}
+                      value={producto.precio_unitario === 0 ? '' : String(Math.round(producto.precio_unitario))}
+                      onChange={e => actualizarProducto(index, 'precio_unitario', Math.round(parseFloat(e.target.value.replace(/[^\d]/g, '')) || 0))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setEditandoPrecio(prev => ({ ...prev, [index]: false }));
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setEditandoPrecio(prev => ({ ...prev, [index]: false }));
+                        }
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       readOnly={!editandoPrecio[index]}
                     />
                     <button
@@ -442,11 +456,11 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
               <div className="space-y-2">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal:</span>
-                  <span>${productos.reduce((total, prod) => total + (prod.cantidad * prod.precio_unitario), 0).toFixed(2)}</span>
+                  <span>{formatMonto(productos.reduce((total, prod) => total + (prod.cantidad * prod.precio_unitario), 0))}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total:</span>
-                  <span>${productos.reduce((total, prod) => total + (prod.cantidad * prod.precio_unitario), 0).toFixed(2)}</span>
+                  <span>{formatMonto(productos.reduce((total, prod) => total + (prod.cantidad * prod.precio_unitario), 0))}</span>
                 </div>
               </div>
             </div>
@@ -488,17 +502,27 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
               />
               <Input
                 label="Precio Público"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={nuevoProducto.precioPublico}
-                onChange={e => setNuevoProducto({...nuevoProducto, precioPublico: e.target.value})}
-                placeholder="Ingrese el precio público"
+                onChange={e => setNuevoProducto({...nuevoProducto, precioPublico: e.target.value.replace(/[^\d]/g, '')})}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+                }}
+                startContent={<span className="text-default-400 text-small">$</span>}
+                placeholder="0"
               />
               <Input
                 label="Precio Revendedor"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={nuevoProducto.precioRevendedor}
-                onChange={e => setNuevoProducto({...nuevoProducto, precioRevendedor: e.target.value})}
-                placeholder="Ingrese el precio revendedor"
+                onChange={e => setNuevoProducto({...nuevoProducto, precioRevendedor: e.target.value.replace(/[^\d]/g, '')})}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+                }}
+                startContent={<span className="text-default-400 text-small">$</span>}
+                placeholder="0"
               />
               <Input
                 label="Cantidad en Stock"

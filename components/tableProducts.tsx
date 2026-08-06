@@ -1,18 +1,24 @@
 "use client";
 
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from "react";
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card, Alert } from "@heroui/react";
-import { FaEye } from "react-icons/fa";
-import ProductModal from "./productModal";
 import { SearchIcon } from "@heroui/shared-icons";
+import ProductModal from "./productModal";
 import { Product } from './productModal';
-import { uid } from "chart.js/dist/helpers/helpers.core";
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { formatMonto, precioInputValue } from '@/lib/formatMonto';
 
-
+type PriceField = 'precioPublico' | 'precioRevendedor';
 
 type TableProductsProps = {
-  userLevel: number; // Nivel del usuario (1: empleado, 2: dueño, 3: programador)
+  userLevel: number;
+};
+
+type ProductRow = {
+  id: number;
+  nombreProducto: string;
+  precioPublico: number;
+  precioRevendedor: number;
 };
 
 const Notification = ({ type, message, onClose }: { 
@@ -32,24 +38,25 @@ const Notification = ({ type, message, onClose }: {
 };
 
 const TableProducts = forwardRef((props: TableProductsProps, ref) => {
-  const { userLevel } = props;
-  const [products, setProducts] = useState<Product[]>([]);
+  const { userLevel: _userLevel } = props;
+  const [products, setProducts] = useState<ProductRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const itemsPerPage = 13;
-  const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingCell, setEditingCell] = useState<{id: number, field: string} | null>(null);
+  const [editingCell, setEditingCell] = useState<{ id: number; field: PriceField } | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const skipBlurSaveRef = useRef(false);
+  const editValueRef = useRef("");
   const [notification, setNotification] = useState<{
     type: 'success' | 'error';
     message: string;
   } | null>(null);
 
-  // Configuración de columnas según nivel de usuario
   const columns = [
     { name: "ID/SKU", uid: "id" },
     { name: "Producto", uid: "nombreProducto" },
@@ -57,35 +64,31 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     { name: "Precio Revendedor", uid: "precioRevendedor" }
   ];
 
+  const toNumber = (value: unknown): number => {
+    const num = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    return Number.isFinite(num) ? num : 0;
+  };
+
   const fetchProducts = async () => {
     try {
       const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
       if (!response.ok) {
-        const errorMessage = await response.text(); // Get the error message from the response
+        const errorMessage = await response.text();
         throw new Error(`Error al obtener productos: ${errorMessage}`);
       }
       const data = await response.json();
-      // console.log('API Response:', data); // Log the response to check its structure
 
-      const updatedData = data.map((product: Product) => {
-        const precioPublico = product.precioPublico;
-        const precioRevendedor = product.precioRevendedor;
-
-
-        return {
-          id: product.id,
-          nombreProducto: product.nombreProducto,
-          precioPublico: !isNaN(precioPublico) ? precioPublico.toFixed(2) : "0.00", // Handle null or invalid values
-          precioRevendedor: !isNaN(precioRevendedor) ? precioRevendedor.toFixed(2) : "0.00" // Handle null or invalid values
-        };
-      });
-
+      const updatedData: ProductRow[] = data.map((product: Product) => ({
+        id: product.id,
+        nombreProducto: product.nombreProducto,
+        precioPublico: toNumber(product.precioPublico),
+        precioRevendedor: toNumber(product.precioRevendedor),
+      }));
 
       setProducts(updatedData);
       setFilteredProducts(updatedData);
       setError(null);
-    } catch (error) {
-      // console.error("Error fetching products:", error);
+    } catch {
       setError('Error al cargar los productos. Por favor, intente más tarde.');
     } finally {
       setLoading(false);
@@ -106,12 +109,11 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         product.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredProducts(filtered);
-      setCurrentPage(1); // Nuevo: reset a página 1
+      setCurrentPage(1);
     } else {
       setFilteredProducts(products);
     }
   }, [searchTerm, products]);
-
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -120,60 +122,76 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
 
-  const getCantidadStyle = (cantidad: number) => {
-    if (cantidad > 5) return { color: "green" };
-    if (cantidad >= 1 && cantidad <= 5) return { color: "orange" };
-    return { color: "red" };
-  };
-
-  const handleViewProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setIsModalOpen(true);
-  };
-
-
   const handleSave = (updatedProduct: Product) => {
-    // Lógica para guardar un producto actualizado
     setProducts((prevProducts) =>
       prevProducts.map((product) =>
-        product.id === updatedProduct.id ? updatedProduct : product
+        product.id === updatedProduct.id
+          ? {
+              id: updatedProduct.id,
+              nombreProducto: updatedProduct.nombreProducto,
+              precioPublico: toNumber(updatedProduct.precioPublico),
+              precioRevendedor: toNumber(updatedProduct.precioRevendedor),
+            }
+          : product
       )
     );
   };
   
   const handleDelete = (productId: number) => {
-    // Lógica para eliminar un producto
     setProducts((prevProducts) =>
       prevProducts.filter((product) => product.id !== productId)
     );
   };
   
   const handleToggle = (productId: number, enabled: boolean) => {
-    // Lógica para habilitar/deshabilitar un producto
     setProducts((prevProducts) =>
       prevProducts.map((product) =>
-        product.id === productId ? { ...product, habilitado: enabled } : product
+        product.id === productId ? { ...product, habilitado: enabled } as ProductRow : product
       )
     );
   };
 
-  const handlePriceEdit = async (productId: number, field: string, newValue: string) => {
+  const showNotification = ({ type, message }: { type: 'success' | 'error'; message: string }) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3500);
+  };
+
+  const startEditing = (product: ProductRow, field: PriceField) => {
+    const value = precioInputValue(product[field]);
+    editValueRef.current = value;
+    setEditingCell({ id: product.id, field });
+    setEditValue(value);
+  };
+
+  const cancelEditing = () => {
+    skipBlurSaveRef.current = true;
+    setEditingCell(null);
+    setEditValue("");
+    editValueRef.current = "";
+    requestAnimationFrame(() => {
+      skipBlurSaveRef.current = false;
+    });
+  };
+
+  const handlePriceEdit = async (productId: number, field: PriceField, newValue: string, options?: { keepEditing?: boolean }) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      // Validar que el valor sea un número válido
-      const numericValue = parseFloat(newValue);
+      const numericValue = Math.round(parseFloat(newValue || '0'));
       if (isNaN(numericValue) || numericValue < 0) {
         throw new Error('El precio debe ser un número válido mayor o igual a 0');
       }
 
-      // Preparar los datos en el formato requerido
-      const updateData = {
-        [field]: numericValue  // Ejemplo: { "precioPublico": 100 }
-      };
+      const current = products.find((p) => p.id === productId);
+      if (current && Math.round(current[field]) === numericValue) {
+        if (!options?.keepEditing) {
+          setEditingCell(null);
+          setEditValue("");
+        }
+        return true;
+      }
 
-      // Realizar la petición PUT
-      const response = await authFetch(`${apiUrl}/api/productos/${productId}`, {
+      const updateData = { [field]: numericValue };
+
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -186,34 +204,140 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         throw new Error(`Error al actualizar el precio: ${errorData}`);
       }
 
-      // Actualizar el estado local
-      setProducts(products.map(product => 
-        product.id === productId 
-          ? { ...product, [field]: numericValue.toFixed(2) }
-          : product
-      ));
+      setProducts((prev) =>
+        prev.map((product) =>
+          product.id === productId
+            ? { ...product, [field]: numericValue }
+            : product
+        )
+      );
 
       showNotification({ type: 'success', message: 'Precio actualizado correctamente' });
-      setEditingCell(null);
-
+      if (!options?.keepEditing) {
+        setEditingCell(null);
+        setEditValue("");
+      }
+      return true;
     } catch (error) {
-      // console.error('Error updating price:', error);
       showNotification({ type: 'error', message: (error as Error).message });
       fetchProducts();
+      return false;
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent, productId: number, field: string, value: string) => {
+  const moveEditing = async (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!editingCell) return;
+
+    const currentIndex = paginatedProducts.findIndex((p) => p.id === editingCell.id);
+    if (currentIndex < 0) return;
+
+    skipBlurSaveRef.current = true;
+    const saved = await handlePriceEdit(editingCell.id, editingCell.field, editValueRef.current, { keepEditing: true });
+    if (!saved) {
+      skipBlurSaveRef.current = false;
+      return;
+    }
+
+    let nextProduct = paginatedProducts[currentIndex];
+    let nextField = editingCell.field;
+
+    if (direction === 'up' || direction === 'down') {
+      const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (nextIndex < 0 || nextIndex >= paginatedProducts.length) {
+        skipBlurSaveRef.current = false;
+        setEditingCell(null);
+        setEditValue("");
+        editValueRef.current = "";
+        return;
+      }
+      nextProduct = paginatedProducts[nextIndex];
+    } else if (direction === 'left') {
+      if (editingCell.field === 'precioPublico') {
+        skipBlurSaveRef.current = false;
+        return;
+      }
+      nextField = 'precioPublico';
+    } else {
+      if (editingCell.field === 'precioRevendedor') {
+        skipBlurSaveRef.current = false;
+        return;
+      }
+      nextField = 'precioRevendedor';
+    }
+
+    startEditing(nextProduct, nextField);
+    requestAnimationFrame(() => {
+      skipBlurSaveRef.current = false;
+    });
+  };
+
+  const handleKeyPress = async (e: React.KeyboardEvent) => {
+    if (!editingCell) return;
+
     if (e.key === 'Enter') {
-      handlePriceEdit(productId, field, value);
+      e.preventDefault();
+      await handlePriceEdit(editingCell.id, editingCell.field, editValueRef.current);
     } else if (e.key === 'Escape') {
-      setEditingCell(null);
+      e.preventDefault();
+      cancelEditing();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      await moveEditing('up');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      await moveEditing('down');
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      await moveEditing('left');
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      await moveEditing('right');
     }
   };
 
-  const showNotification = ({ type, message }: { type: 'success' | 'error'; message: string }) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3500); // Auto-cierre después de 3 segundos
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
+  const renderPriceCell = (product: ProductRow, field: PriceField) => {
+    const isEditing = editingCell?.id === product.id && editingCell?.field === field;
+
+    return (
+      <TableCell
+        className="cursor-pointer"
+        onClick={() => {
+          if (!isEditing) startEditing(product, field);
+        }}
+      >
+        {isEditing ? (
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={editValue}
+            startContent={<span className="text-default-400 text-small">$</span>}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^\d]/g, '');
+              editValueRef.current = raw;
+              setEditValue(raw);
+            }}
+            onKeyDown={handleKeyPress}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => {
+              if (skipBlurSaveRef.current) return;
+              handlePriceEdit(product.id, field, editValueRef.current);
+            }}
+            onWheel={handleWheel}
+            aria-label={field === 'precioPublico' ? 'Precio público' : 'Precio revendedor'}
+            classNames={{ input: "text-right" }}
+            size="sm"
+            autoFocus
+          />
+        ) : (
+          formatMonto(product[field])
+        )}
+      </TableCell>
+    );
   };
 
   if (loading) return <div>Cargando productos...</div>;
@@ -252,54 +376,8 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
                 <TableRow key={product.id}>
                   <TableCell>{product.id}</TableCell>
                   <TableCell>{product.nombreProducto}</TableCell>
-                  <TableCell
-                    className="cursor-pointer"
-                    onClick={() => setEditingCell({ id: product.id, field: 'precioPublico' })}
-                  >
-                    {editingCell?.id === product.id && editingCell?.field === 'precioPublico' ? (
-                      <Input
-                        type="number"
-                        value={product.precioPublico.toString()}
-                        onChange={(e) => {
-                          const newProducts = products.map(p => 
-                            p.id === product.id 
-                              ? { ...p, precioPublico: parseFloat(e.target.value) }
-                              : p
-                          );
-                          setProducts(newProducts);
-                        }}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'precioPublico', product.precioPublico.toString())}
-                        onBlur={() => handlePriceEdit(product.id, 'precioPublico', product.precioPublico.toString())}
-                      />
-
-                    ) : (
-                      product.precioPublico
-                    )}
-                  </TableCell>
-                  <TableCell
-                    className="cursor-pointer"
-                    onClick={() => setEditingCell({ id: product.id, field: 'precioRevendedor' })}
-                  >
-                    {editingCell?.id === product.id && editingCell?.field === 'precioRevendedor' ? (
-                      <Input
-                        type="number"
-                        value={product.precioRevendedor}
-                        onChange={(e) => {
-                          const newProducts = products.map(p => 
-                            p.id === product.id 
-                              ? { ...p, precioRevendedor: e.target.value }
-                              : p
-                          );
-                          setProducts(newProducts);
-                        }}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'precioRevendedor', product.precioRevendedor.toString())}
-                        onBlur={() => handlePriceEdit(product.id, 'precioRevendedor', product.precioRevendedor.toString())}
-                      />
-
-                    ) : (
-                      product.precioRevendedor
-                    )}
-                  </TableCell>
+                  {renderPriceCell(product, 'precioPublico')}
+                  {renderPriceCell(product, 'precioRevendedor')}
                 </TableRow>
               ))
             ) : (
@@ -311,6 +389,9 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
             )}
           </TableBody>
         </Table>
+        <p className="mt-2 text-xs text-default-400">
+          Enter guarda · Esc cancela · ↑↓ cambia de fila · ←→ cambia de columna
+        </p>
       </Card>
 
       <Pagination
