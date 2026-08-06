@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Spinner,} from "@heroui/react";
+import { Modal,ModalContent,ModalHeader,ModalFooter,Button,Input,Checkbox,Spinner,Select,SelectItem,} from "@heroui/react";
 import Notification from "./notification";
 import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
+import { TIPOS_PRODUCTO, TipoProducto } from '@/types/productos';
 
 
 
@@ -22,8 +23,7 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
     PrecioPublico: "",
     PrecioRevendedor: "",
     Descuento: "",
-
-
+    TipoProducto: "venta_publico" as TipoProducto,
   });
   const [inputValidity, setInputValidity] = useState({
     ProductoNombre: true,
@@ -51,6 +51,7 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
       PrecioPublico: "",
       PrecioRevendedor: "",
       Descuento: "",
+      TipoProducto: "venta_publico",
     });
     setInputValidity({
       ProductoNombre: true,
@@ -163,6 +164,7 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
         precioRevendedor: productData.PrecioRevendedor.trim() === ""
           ? 0
           : Number(productData.PrecioRevendedor),
+        tipoProducto: productData.TipoProducto,
       };
 
       const response = await authFetch(createApiUrl('/api/productos/crear-producto'), {
@@ -256,6 +258,29 @@ const OneProductModal: React.FC<OneProductModalProps> = ({ isOpen, onClose, onPr
                   errorMessage={!inputValidity.ProductoNombre ? "El nombre es obligatorio" : undefined}
                   labelPlacement="inside"
                 />
+</div>
+<div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
+                <Select
+                  label="Tipo de producto"
+                  selectedKeys={new Set([productData.TipoProducto])}
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0];
+                    if (typeof selected === 'string') {
+                      setProductData((prev) => ({
+                        ...prev,
+                        TipoProducto: selected as TipoProducto,
+                      }));
+                    }
+                  }}
+                  labelPlacement="inside"
+                  description="Los insumos no se ofrecen en ventas a clientes"
+                >
+                  {TIPOS_PRODUCTO.map((tipo) => (
+                    <SelectItem key={tipo.value} textValue={tipo.label}>
+                      {tipo.label}
+                    </SelectItem>
+                  ))}
+                </Select>
 </div>
 <div className="flex flex-wrap w-full gap-4 mb-6 md:flex-nowrap md:mb-0">
                  <Input

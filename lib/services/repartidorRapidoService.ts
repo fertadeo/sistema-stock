@@ -793,9 +793,10 @@ class RepartidorRapidoService {
     }
   }
 
-  async obtenerProductos(): Promise<any[]> {
+  async obtenerProductos(tipo?: 'venta_publico' | 'insumo'): Promise<any[]> {
     try {
-      const response = await authFetch(this.buildApiUrl('/api/productos'));
+      const query = tipo ? `?tipo=${encodeURIComponent(tipo)}` : '';
+      const response = await authFetch(this.buildApiUrl(`/api/productos${query}`));
       
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);

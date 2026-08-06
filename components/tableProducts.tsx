@@ -1,12 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from "react";
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card, Alert } from "@heroui/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Input, Pagination, Card, Alert, Select, SelectItem, Chip } from "@heroui/react";
 import { SearchIcon } from "@heroui/shared-icons";
 import ProductModal from "./productModal";
 import { Product } from './productModal';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { formatMonto, precioInputValue } from '@/lib/formatMonto';
+import {
+  TipoProducto,
+  TIPOS_PRODUCTO,
+  etiquetaTipoProducto,
+  normalizarTipoProducto,
+} from '@/types/productos';
 
 type PriceField = 'precioPublico' | 'precioRevendedor';
 
@@ -19,6 +25,7 @@ type ProductRow = {
   nombreProducto: string;
   precioPublico: number;
   precioRevendedor: number;
+  tipoProducto: TipoProducto;
 };
 
 const Notification = ({ type, message, onClose }: { 
@@ -57,9 +64,24 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     message: string;
   } | null>(null);
 
+  useEffect(() => {
+    if (!editingCell) return;
+    const frame = requestAnimationFrame(() => {
+      const label =
+        editingCell.field === 'precioPublico' ? 'Precio público' : 'Precio revendedor';
+      const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editingCell]);
+
   const columns = [
     { name: "ID/SKU", uid: "id" },
     { name: "Producto", uid: "nombreProducto" },
+    { name: "Tipo", uid: "tipoProducto" },
     { name: "Precio Público", uid: "precioPublico" },
     { name: "Precio Revendedor", uid: "precioRevendedor" }
   ];
@@ -78,11 +100,12 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
       }
       const data = await response.json();
 
-      const updatedData: ProductRow[] = data.map((product: Product) => ({
+      const updatedData: ProductRow[] = data.map((product: Product & { tipoProducto?: string }) => ({
         id: product.id,
         nombreProducto: product.nombreProducto,
         precioPublico: toNumber(product.precioPublico),
         precioRevendedor: toNumber(product.precioRevendedor),
+        tipoProducto: normalizarTipoProducto(product.tipoProducto),
       }));
 
       setProducts(updatedData);
@@ -131,6 +154,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
               nombreProducto: updatedProduct.nombreProducto,
               precioPublico: toNumber(updatedProduct.precioPublico),
               precioRevendedor: toNumber(updatedProduct.precioRevendedor),
+              tipoProducto: normalizarTipoProducto(updatedProduct.tipoProducto),
             }
           : product
       )
@@ -271,6 +295,34 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     });
   };
 
+  const handleTipoChange = async (productId: number, tipoProducto: TipoProducto) => {
+    const current = products.find((p) => p.id === productId);
+    if (!current || current.tipoProducto === tipoProducto) return;
+
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, tipoProducto } : p))
+    );
+
+    try {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipoProducto }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Error al actualizar el tipo: ${errorData}`);
+      }
+
+      showNotification({ type: 'success', message: 'Tipo de producto actualizado' });
+    } catch (error) {
+      showNotification({ type: 'error', message: (error as Error).message });
+      fetchProducts();
+    }
+  };
+
   const handleKeyPress = async (e: React.KeyboardEvent) => {
     if (!editingCell) return;
 
@@ -331,7 +383,6 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
             aria-label={field === 'precioPublico' ? 'Precio público' : 'Precio revendedor'}
             classNames={{ input: "text-right" }}
             size="sm"
-            autoFocus
           />
         ) : (
           formatMonto(product[field])
@@ -376,13 +427,45 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
                 <TableRow key={product.id}>
                   <TableCell>{product.id}</TableCell>
                   <TableCell>{product.nombreProducto}</TableCell>
+                  <TableCell>
+                    <Select
+                      aria-label={`Tipo de ${product.nombreProducto}`}
+                      selectedKeys={new Set([product.tipoProducto])}
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0];
+                        if (typeof selected === 'string') {
+                          handleTipoChange(product.id, normalizarTipoProducto(selected));
+                        }
+                      }}
+                      size="sm"
+                      className="min-w-[160px]"
+                      classNames={{
+                        trigger: "h-8 min-h-8",
+                      }}
+                      renderValue={() => (
+                        <Chip
+                          size="sm"
+                          variant="flat"
+                          color={product.tipoProducto === 'insumo' ? 'warning' : 'primary'}
+                        >
+                          {etiquetaTipoProducto(product.tipoProducto)}
+                        </Chip>
+                      )}
+                    >
+                      {TIPOS_PRODUCTO.map((tipo) => (
+                        <SelectItem key={tipo.value} textValue={tipo.label}>
+                          {tipo.label}
+                        </SelectItem>
+                      ))}
+                    </Select>
+                  </TableCell>
                   {renderPriceCell(product, 'precioPublico')}
                   {renderPriceCell(product, 'precioRevendedor')}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} style={{ textAlign: "center" }}>
+                <TableCell colSpan={5} style={{ textAlign: "center" }}>
                   No hay productos disponibles.
                 </TableCell>
               </TableRow>

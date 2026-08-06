@@ -135,6 +135,7 @@ interface Producto {
   precioPublico: number;
   precioRevendedor?: number;
   cantidadStock?: number;
+  tipoProducto?: 'venta_publico' | 'insumo' | string;
 }
 
 type MedioPago = 'efectivo' | 'transferencia' | 'debito' | 'credito';
@@ -1871,7 +1872,12 @@ function ModalVenta({
       (cliente?.envases_prestados || []).map((e: { producto_id: number }) => e.producto_id)
     );
 
-    return [...productos].sort((a: Producto, b: Producto) => {
+    // Solo productos de venta al público (excluye insumos)
+    const vendibles = productos.filter(
+      (p: Producto) => !p.tipoProducto || p.tipoProducto === 'venta_publico'
+    );
+
+    return [...vendibles].sort((a: Producto, b: Producto) => {
       const aTiene = idsConEnvase.has(a.id) ? 1 : 0;
       const bTiene = idsConEnvase.has(b.id) ? 1 : 0;
       if (bTiene !== aTiene) return bTiene - aTiene;
@@ -2353,7 +2359,12 @@ function ModalEnvases({
   const productosEnvases = useMemo(() => {
     const idsConSaldo = new Set((resumenEnvases?.saldo_actual || []).map((item) => item.producto_id));
 
-    return [...productos].sort((a, b) => {
+    // Envases solo aplican a productos de venta al público
+    const vendibles = productos.filter(
+      (p) => !p.tipoProducto || p.tipoProducto === 'venta_publico'
+    );
+
+    return [...vendibles].sort((a, b) => {
       const aSaldo = idsConSaldo.has(a.id) ? 1 : 0;
       const bSaldo = idsConSaldo.has(b.id) ? 1 : 0;
 

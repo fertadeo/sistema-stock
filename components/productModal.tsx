@@ -15,6 +15,7 @@ import {
 import { FaTrash, FaToggleOn, FaToggleOff } from "react-icons/fa";
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import EditableField from "./EditableField";
+import { TIPOS_PRODUCTO, TipoProducto, normalizarTipoProducto } from '@/types/productos';
 
 
 export type Product = {
@@ -22,6 +23,7 @@ export type Product = {
   precioRevendedor: any;
   precioPublico: number;
   nombreProducto: string;
+  tipoProducto?: TipoProducto | string;
 };
 
 type Proveedor = {
@@ -157,9 +159,26 @@ useEffect(() => {
                   })
                 }
               />
-             
-
-
+              <Select
+                label="Tipo de producto"
+                selectedKeys={new Set([normalizarTipoProducto(editedProduct.tipoProducto)])}
+                onSelectionChange={(keys) => {
+                  const selected = Array.from(keys)[0];
+                  if (typeof selected === 'string') {
+                    setEditedProduct({
+                      ...editedProduct,
+                      tipoProducto: selected as TipoProducto,
+                    });
+                  }
+                }}
+                className="mb-[15px]"
+              >
+                {TIPOS_PRODUCTO.map((tipo) => (
+                  <SelectItem key={tipo.value} textValue={tipo.label}>
+                    {tipo.label}
+                  </SelectItem>
+                ))}
+              </Select>
              
               <EditableField
                 label="Precio"
