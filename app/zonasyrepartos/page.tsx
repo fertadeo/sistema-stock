@@ -1090,13 +1090,21 @@ const PageZonasyRepartos = () => {
                     ))}
                   </select>
 
-                  <label className="block text-xs font-semibold">Color</label>
-                  <div className="flex flex-wrap gap-1.5">
+                  <p id="zonaColorLabel" className="block text-xs font-semibold">
+                    Color
+                  </p>
+                  <div
+                    className="flex flex-wrap gap-1.5"
+                    role="group"
+                    aria-labelledby="zonaColorLabel"
+                  >
                     {COLORES_ZONA.map((color) => (
                       <button
                         key={color}
                         type="button"
                         title={color}
+                        aria-label={`Color ${color}`}
+                        aria-pressed={formZonaColor === color}
                         className={`h-6 w-6 rounded-full border-2 ${
                           formZonaColor === color ? 'border-gray-800' : 'border-transparent'
                         }`}
