@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { GoogleMap, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, Polyline, InfoWindow, Circle } from '@react-google-maps/api';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { EMPRESA_COORDENADAS, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
 import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
@@ -12,6 +12,8 @@ import {
   FiltrosCliente,
   hayFiltrosActivos,
 } from '@/lib/map/clienteFiltros';
+import type { ZonaRadio } from '@/lib/services/zonaRadioService';
+import { contarClientesEnZona, formatearRadio } from '@/lib/map/zonaRadio';
 
 interface Cliente {
   id: number;
@@ -55,6 +57,20 @@ interface MapComponentProps {
   } | null;
   /** En mobile, false cuando el panel de filtros está activo (mapa con display:none). */
   mapaVisible?: boolean;
+  /** Zonas circulares guardadas (alcance del repartidor). */
+  zonasRadio?: ZonaRadio[];
+  zonaSeleccionadaId?: number | null;
+  onSeleccionarZona?: (zonaId: number | null) => void;
+  /** Modo: click en el mapa define el centro de una nueva zona. */
+  modoCrearZona?: boolean;
+  borradorZona?: {
+    latitud: number;
+    longitud: number;
+    radio_metros: number;
+    color: string;
+  } | null;
+  onMapClickCrearZona?: (lat: number, lng: number) => void;
+  onMoverCentroZona?: (lat: number, lng: number) => void;
 }
 
 const mapContainerStyle: React.CSSProperties = {
@@ -214,6 +230,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   seguirRecorrido = false,
   repartidorUbicacion = null,
   mapaVisible = true,
+  zonasRadio = [],
+  zonaSeleccionadaId = null,
+  onSeleccionarZona,
+  modoCrearZona = false,
+  borradorZona = null,
+  onMapClickCrearZona,
+  onMoverCentroZona,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -428,14 +451,90 @@ const MapComponent: React.FC<MapComponentProps> = ({
           // En móvil permite pan/zoom con un dedo (sin exigir dos dedos).
           gestureHandling: 'greedy',
           clickableIcons: false,
+          draggableCursor: modoCrearZona ? 'crosshair' : undefined,
         }}
-        onClick={() => {
+        onClick={(e) => {
+          if (modoCrearZona && e.latLng && onMapClickCrearZona) {
+            onMapClickCrearZona(e.latLng.lat(), e.latLng.lng());
+            return;
+          }
           if (!pendingConfirm) {
             setSelectedCliente(null);
             setEditingClienteId(null);
+            onSeleccionarZona?.(null);
           }
         }}
       >
+        {zonasRadio.map((zona) => {
+          const seleccionada = zonaSeleccionadaId === zona.id;
+          const clientesEnZona = contarClientesEnZona(clientesConCoords, zona);
+          return (
+            <React.Fragment key={`zona-${zona.id}`}>
+              <Circle
+                center={{ lat: Number(zona.latitud), lng: Number(zona.longitud) }}
+                radius={Number(zona.radio_metros)}
+                options={{
+                  fillColor: zona.color || '#0d9488',
+                  fillOpacity: seleccionada ? 0.28 : 0.14,
+                  strokeColor: zona.color || '#0d9488',
+                  strokeOpacity: seleccionada ? 1 : 0.7,
+                  strokeWeight: seleccionada ? 3 : 2,
+                  clickable: !modoCrearZona,
+                  zIndex: seleccionada ? 20 : 10,
+                }}
+                onClick={() => {
+                  if (modoCrearZona) return;
+                  setSelectedCliente(null);
+                  onSeleccionarZona?.(zona.id);
+                }}
+              />
+              {seleccionada && (
+                <Marker
+                  position={{ lat: Number(zona.latitud), lng: Number(zona.longitud) }}
+                  draggable={!modoCrearZona}
+                  title={`${zona.nombre} — ${clientesEnZona} clientes · ${formatearRadio(zona.radio_metros)}`}
+                  zIndex={30}
+                  onDragEnd={(e) => {
+                    if (e.latLng && onMoverCentroZona) {
+                      onMoverCentroZona(e.latLng.lat(), e.latLng.lng());
+                    }
+                  }}
+                  onClick={() => onSeleccionarZona?.(zona.id)}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+
+        {borradorZona && (
+          <>
+            <Circle
+              center={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
+              radius={borradorZona.radio_metros}
+              options={{
+                fillColor: borradorZona.color,
+                fillOpacity: 0.22,
+                strokeColor: borradorZona.color,
+                strokeOpacity: 1,
+                strokeWeight: 2,
+                clickable: false,
+                zIndex: 25,
+              }}
+            />
+            <Marker
+              position={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
+              draggable
+              title="Centro de la nueva zona"
+              zIndex={40}
+              onDragEnd={(e) => {
+                if (e.latLng && onMapClickCrearZona) {
+                  onMapClickCrearZona(e.latLng.lat(), e.latLng.lng());
+                }
+              }}
+            />
+          </>
+        )}
+
         {mostrarRuta && rutaPath.length > 1 && (
           <Polyline
             path={rutaPath}
@@ -481,7 +580,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
               position={position}
               icon={toGoogleMarkerIcon(markerIcon)}
               draggable={isEditing}
-              onClick={() => setSelectedCliente(cliente)}
+              onClick={() => {
+                if (modoCrearZona && onMapClickCrearZona) {
+                  onMapClickCrearZona(cliente.latitud, cliente.longitud);
+                  return;
+                }
+                setSelectedCliente(cliente);
+              }}
               onDragEnd={(e) => {
                 if (e.latLng) {
                   handleDragEnd(cliente, e.latLng.lat(), e.latLng.lng());
@@ -668,6 +773,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </InfoWindow>
         )}
       </GoogleMap>
+
+      {modoCrearZona && !borradorZona && (
+        <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white shadow-lg pointer-events-none max-w-[90%] text-center">
+          Hacé click en el mapa para ubicar el centro de la zona
+        </div>
+      )}
 
       <div className="absolute bottom-2 left-2 z-10 p-2 text-xs bg-white rounded shadow opacity-90">
         Datos del mapa © Google
