@@ -1185,9 +1185,9 @@ const PageZonasyRepartos = () => {
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row items-stretch min-h-[calc(100dvh-8rem)] w-full bg-gray-100 rounded-xl p-2 sm:p-4 pb-24 lg:pb-4">
+      <div className="flex flex-col lg:flex-row lg:items-stretch w-full bg-gray-100 rounded-xl p-2 sm:p-4 pb-24 lg:pb-4 min-h-[calc(100dvh-8rem)] lg:h-[calc(100dvh-8rem)] lg:min-h-0 lg:overflow-hidden">
         {/* Tabs solo mobile: filtros vs mapa a pantalla usable */}
-        <div className="lg:hidden mb-2 flex gap-2 rounded-xl bg-white p-1 shadow-sm">
+        <div className="lg:hidden mb-2 flex gap-2 rounded-xl bg-white p-1 shadow-sm shrink-0">
           <button
             type="button"
             onClick={() => setVistaMovil('filtros')}
@@ -1214,7 +1214,7 @@ const PageZonasyRepartos = () => {
 
         {/* Panel izquierdo */}
         <div
-          className={`flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 w-full lg:max-w-md bg-white rounded-xl lg:rounded-r-none shadow-lg shrink-0 ${
+          className={`flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 w-full lg:max-w-md bg-white rounded-xl lg:rounded-r-none shadow-lg shrink-0 lg:overflow-y-auto lg:h-full ${
             vistaMovil === 'mapa' ? 'hidden lg:flex' : 'flex'
           }`}
         >
@@ -1443,44 +1443,42 @@ const PageZonasyRepartos = () => {
           )}
         </div>
 
-        {/* Mapa libre: el editor vive en el panel (desktop) o dock compacto (mobile) */}
+        {/* Mapa: llena la columna; sin bloquear en blanco debajo */}
         <div
-          className={`overflow-hidden relative flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg ${
+          className={`overflow-hidden relative flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg lg:h-full lg:min-h-0 ${
             vistaMovil === 'filtros' ? 'hidden lg:block' : 'block'
-          } ${
-            editandoZona
-              ? 'h-[calc(100dvh-7rem)] lg:h-auto lg:min-h-[70vh]'
-              : 'h-[calc(100dvh-11rem)] lg:h-auto lg:min-h-[70vh]'
-          }`}
+          } h-[calc(100dvh-11rem)]`}
         >
-          <MapComponent
-            clientes={clientes}
-            mostrarRuta={mostrarRuta}
-            rutaOptimizada={rutaOptimizada}
-            clientesOmitidos={clientesOmitidos}
-            onToggleOmitirCliente={toggleOmitirCliente}
-            onGenerarRuta={generarRutaEnMapa}
-            onLimpiarRuta={limpiarRuta}
-            filtrosMapa={filtrosMapa}
-            clientesIncluidos={clientesIncluidos}
-            rutaDetallada={rutaDetallada}
-            onClienteActualizado={actualizarClienteEnMapa}
-            clientesAtendidos={clientesAtendidos}
-            repartidorPalette={repartidorPalette}
-            repartidores={repartidores}
-            seguirRecorrido={seguirRecorrido}
-            repartidorUbicacion={repartidorUbicacion}
-            mapaVisible={vistaMovil === 'mapa' || esDesktop}
-            zonasRadio={zonasParaMapa}
-            zonaSeleccionadaId={zonaSeleccionadaId}
-            onSeleccionarZona={seleccionarZona}
-            modoDibujoZona={modoCrearZona ? tipoCreacion : null}
-            borradorZona={borradorZona}
-            onMapClickZona={handleMapClickZona}
-            onMoverCentroZona={(lat, lng) => void moverCentroZonaSeleccionada(lat, lng)}
-            onActualizarPoligonoZona={actualizarPoligonoZona}
-            ocultarBannerDibujo
-          />
+          <div className="absolute inset-0">
+            <MapComponent
+              clientes={clientes}
+              mostrarRuta={mostrarRuta}
+              rutaOptimizada={rutaOptimizada}
+              clientesOmitidos={clientesOmitidos}
+              onToggleOmitirCliente={toggleOmitirCliente}
+              onGenerarRuta={generarRutaEnMapa}
+              onLimpiarRuta={limpiarRuta}
+              filtrosMapa={filtrosMapa}
+              clientesIncluidos={clientesIncluidos}
+              rutaDetallada={rutaDetallada}
+              onClienteActualizado={actualizarClienteEnMapa}
+              clientesAtendidos={clientesAtendidos}
+              repartidorPalette={repartidorPalette}
+              repartidores={repartidores}
+              seguirRecorrido={seguirRecorrido}
+              repartidorUbicacion={repartidorUbicacion}
+              mapaVisible={vistaMovil === 'mapa' || esDesktop}
+              zonasRadio={zonasParaMapa}
+              zonaSeleccionadaId={zonaSeleccionadaId}
+              onSeleccionarZona={seleccionarZona}
+              modoDibujoZona={modoCrearZona ? tipoCreacion : null}
+              borradorZona={borradorZona}
+              onMapClickZona={handleMapClickZona}
+              onMoverCentroZona={(lat, lng) => void moverCentroZonaSeleccionada(lat, lng)}
+              onActualizarPoligonoZona={actualizarPoligonoZona}
+              ocultarBannerDibujo
+            />
+          </div>
 
           {editandoZona && (
             <>
@@ -1498,7 +1496,7 @@ const PageZonasyRepartos = () => {
               type="button"
               onClick={iniciarCrearZona}
               disabled={cargandoRuta || guardandoZona}
-              className="absolute bottom-4 right-3 z-20 rounded-full bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-700 disabled:opacity-50"
+              className="absolute bottom-5 right-4 z-30 rounded-full bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-xl ring-2 ring-white/80 hover:bg-teal-700 disabled:opacity-50"
             >
               + Zona
             </button>

@@ -479,7 +479,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[calc(100dvh-11rem)] lg:min-h-[70vh] lg:h-[70vh]">
+    <div className="relative w-full h-full">
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={EMPRESA_COORDENADAS}
