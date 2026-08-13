@@ -25,7 +25,7 @@ import {
   contarClientesEnZona,
 } from '@/lib/map/zonaRadio';
 import ZonasLista from '@/components/ZonasLista';
-import ZonaComposer from '@/components/ZonaComposer';
+import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
 
 interface Cliente {
@@ -563,7 +563,13 @@ const PageZonasyRepartos = () => {
     setFormZonaRadio(RADIO_DEFAULT_METROS);
     setFormZonaRepartidor(filtroRepartidor !== 'todos' ? filtroRepartidor : '');
     setFormZonaColor(COLORES_ZONA[zonasRadio.length % COLORES_ZONA.length]);
-    setVistaMovil('mapa');
+    // Desktop: el editor queda en el panel izquierdo y el mapa libre.
+    // Mobile: priorizamos el mapa con dock compacto.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
+      setVistaMovil('mapa');
+    } else {
+      setVistaMovil('filtros');
+    }
   };
 
   const cancelarCrearZona = () => {
@@ -1114,6 +1120,69 @@ const PageZonasyRepartos = () => {
     setClientesAtendidos([]);
   };
 
+  const editandoZona = modoCrearZona || zonaSeleccionadaId != null;
+
+  const composerSharedProps = {
+    modoCrear: modoCrearZona,
+    tipoCreacion,
+    tipoActivo,
+    formNombre: formZonaNombre,
+    formRadio: formZonaRadio,
+    formRepartidor: formZonaRepartidor,
+    formColor: formZonaColor,
+    formBarrio: formZonaBarrio,
+    puntosPoligono: poligonoActivo.length,
+    clientesEnZona: clientesEnZonaActiva,
+    guardando: guardandoZona,
+    cargandoLimites,
+    mensajeLimites,
+    puedeGuardar: puedeGuardarZona,
+    barrios: barriosCatalogo,
+    repartidores,
+    onCancelar: cerrarEditorZona,
+    onSeleccionarTipo: seleccionarTipoCreacion,
+    onNombreChange: setFormZonaNombre,
+    onRadioChange: setFormZonaRadio,
+    onRepartidorChange: setFormZonaRepartidor,
+    onColorChange: setFormZonaColor,
+    onBarrioChange: (nombre: string) => {
+      setFormZonaBarrio(nombre);
+      if (nombre) setFormZonaNombre(nombre);
+      setBorradorPoligono([]);
+      setMensajeLimites(null);
+      setOrigenLimites(null);
+    },
+    onDetectarBarrio: () => void detectarLimitesBarrio(),
+    onDeshacerPunto: () => {
+      setBorradorPoligono((prev) => {
+        const next = prev.slice(0, -1);
+        if (!modoCrearZona && zonaSeleccionadaId != null) {
+          setZonasRadio((zonas) =>
+            zonas.map((z) =>
+              z.id === zonaSeleccionadaId ? { ...z, poligono: next } : z
+            )
+          );
+        }
+        return next;
+      });
+    },
+    onLimpiarPoligono: () => {
+      setBorradorPoligono([]);
+      if (!modoCrearZona && zonaSeleccionadaId != null) {
+        setZonasRadio((zonas) =>
+          zonas.map((z) =>
+            z.id === zonaSeleccionadaId ? { ...z, poligono: [] } : z
+          )
+        );
+      }
+    },
+    onGuardar: () => void guardarZona(),
+    onEliminar:
+      !modoCrearZona && zonaSeleccionadaId != null
+        ? () => void eliminarZonaSeleccionada()
+        : undefined,
+  };
+
   return (
     <>
       <div className="flex flex-col lg:flex-row items-stretch min-h-[calc(100dvh-8rem)] w-full bg-gray-100 rounded-xl p-2 sm:p-4 pb-24 lg:pb-4">
@@ -1273,7 +1342,14 @@ const PageZonasyRepartos = () => {
                 </p>
               </div>
             )}
-            <div className="mt-4">
+            <div className="mt-4 space-y-3">
+              {editandoZona && (
+                <ZonaComposer
+                  layout="sidebar"
+                  {...composerSharedProps}
+                  onIrAlMapa={() => setVistaMovil('mapa')}
+                />
+              )}
               <ZonasLista
                 zonas={zonasRadio}
                 contadores={contadoresPorZona}
@@ -1367,12 +1443,12 @@ const PageZonasyRepartos = () => {
           )}
         </div>
 
-        {/* Mapa: altura explícita (no solo min-h) para que height:100% del canvas de Google Maps resuelva en mobile */}
+        {/* Mapa libre: el editor vive en el panel (desktop) o dock compacto (mobile) */}
         <div
           className={`overflow-hidden relative flex-1 bg-white rounded-xl lg:rounded-l-none shadow-lg ${
             vistaMovil === 'filtros' ? 'hidden lg:block' : 'block'
           } ${
-            modoCrearZona || zonaSeleccionadaId != null
+            editandoZona
               ? 'h-[calc(100dvh-7rem)] lg:h-auto lg:min-h-[70vh]'
               : 'h-[calc(100dvh-11rem)] lg:h-auto lg:min-h-[70vh]'
           }`}
@@ -1406,86 +1482,33 @@ const PageZonasyRepartos = () => {
             ocultarBannerDibujo
           />
 
-          {(modoCrearZona || zonaSeleccionadaId != null) && (
-            <ZonaComposer
-              modoCrear={modoCrearZona}
-              tipoCreacion={tipoCreacion}
-              tipoActivo={tipoActivo}
-              formNombre={formZonaNombre}
-              formRadio={formZonaRadio}
-              formRepartidor={formZonaRepartidor}
-              formColor={formZonaColor}
-              formBarrio={formZonaBarrio}
-              puntosPoligono={poligonoActivo.length}
-              clientesEnZona={clientesEnZonaActiva}
-              guardando={guardandoZona}
-              cargandoLimites={cargandoLimites}
-              mensajeLimites={mensajeLimites}
-              puedeGuardar={puedeGuardarZona}
-              barrios={barriosCatalogo}
-              repartidores={repartidores}
-              onCancelar={cerrarEditorZona}
-              onSeleccionarTipo={seleccionarTipoCreacion}
-              onNombreChange={setFormZonaNombre}
-              onRadioChange={setFormZonaRadio}
-              onRepartidorChange={setFormZonaRepartidor}
-              onColorChange={setFormZonaColor}
-              onBarrioChange={(nombre) => {
-                setFormZonaBarrio(nombre);
-                if (nombre) setFormZonaNombre(nombre);
-                setBorradorPoligono([]);
-                setMensajeLimites(null);
-                setOrigenLimites(null);
-              }}
-              onDetectarBarrio={() => void detectarLimitesBarrio()}
-              onDeshacerPunto={() => {
-                setBorradorPoligono((prev) => {
-                  const next = prev.slice(0, -1);
-                  if (!modoCrearZona && zonaSeleccionadaId != null) {
-                    setZonasRadio((zonas) =>
-                      zonas.map((z) =>
-                        z.id === zonaSeleccionadaId ? { ...z, poligono: next } : z
-                      )
-                    );
-                  }
-                  return next;
-                });
-              }}
-              onLimpiarPoligono={() => {
-                setBorradorPoligono([]);
-                if (!modoCrearZona && zonaSeleccionadaId != null) {
-                  setZonasRadio((zonas) =>
-                    zonas.map((z) =>
-                      z.id === zonaSeleccionadaId ? { ...z, poligono: [] } : z
-                    )
-                  );
-                }
-              }}
-              onGuardar={() => void guardarZona()}
-              onEliminar={
-                !modoCrearZona && zonaSeleccionadaId != null
-                  ? () => void eliminarZonaSeleccionada()
-                  : undefined
-              }
-            />
+          {editandoZona && (
+            <>
+              <div className="hidden lg:block">
+                <ZonaMapHint tipo={tipoActivo} />
+              </div>
+              <div className="lg:hidden">
+                <ZonaComposer layout="dock" {...composerSharedProps} />
+              </div>
+            </>
           )}
 
-          {!modoCrearZona && zonaSeleccionadaId == null && (
+          {!editandoZona && (
             <button
               type="button"
               onClick={iniciarCrearZona}
               disabled={cargandoRuta || guardandoZona}
-              className="absolute bottom-4 right-3 z-20 rounded-full bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-700 disabled:opacity-50 lg:bottom-4"
+              className="absolute bottom-4 right-3 z-20 rounded-full bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-teal-700 disabled:opacity-50"
             >
               + Zona
             </button>
           )}
         </div>
       </div>
-      {/* Footer fijo con datos de la ruta — se oculta al editar zona en mobile para no tapar el composer */}
+      {/* Footer fijo con datos de la ruta — se oculta al editar zona en mobile */}
       <footer
         className={`flex flex-col sm:flex-row fixed bottom-0 left-0 md:left-60 gap-1 sm:gap-8 justify-center items-center px-3 sm:px-6 py-2 sm:py-3 w-full md:w-[calc(100%-15rem)] text-xs sm:text-base bg-white border-t border-gray-200 shadow-lg safe-bottom z-[999] ${
-          (modoCrearZona || zonaSeleccionadaId != null) && !esDesktop ? 'hidden' : ''
+          editandoZona && !esDesktop ? 'hidden' : ''
         }`}
       >
         <span className="font-semibold text-gray-700">
