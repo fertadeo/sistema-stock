@@ -80,6 +80,8 @@ interface MapComponentProps {
   onMapClickZona?: (lat: number, lng: number) => void;
   onMoverCentroZona?: (lat: number, lng: number) => void;
   onActualizarPoligonoZona?: (puntos: PuntoMapa[]) => void;
+  /** Oculta el banner de instrucción (cuando hay composer externo). */
+  ocultarBannerDibujo?: boolean;
 }
 
 const mapContainerStyle: React.CSSProperties = {
@@ -247,6 +249,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onMapClickZona,
   onMoverCentroZona,
   onActualizarPoligonoZona,
+  ocultarBannerDibujo = false,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -476,7 +479,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[calc(100dvh-11rem)] lg:h-[70vh]">
+    <div className="relative w-full h-full min-h-[calc(100dvh-11rem)] lg:min-h-[70vh] lg:h-[70vh]">
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={EMPRESA_COORDENADAS}
@@ -898,7 +901,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         )}
       </GoogleMap>
 
-      {bannerDibujo && (
+      {!ocultarBannerDibujo && bannerDibujo && (
         <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white shadow-lg pointer-events-none max-w-[90%] text-center">
           {bannerDibujo}
         </div>
