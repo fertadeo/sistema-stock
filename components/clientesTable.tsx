@@ -58,6 +58,11 @@ interface Props {
 
 const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isEnvasesModalOpen,
+    onOpen: onOpenEnvasesModal,
+    onClose: onCloseEnvasesModal,
+  } = useDisclosure();
   const [isNuevoClienteModalOpen, setIsNuevoClienteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -706,37 +711,35 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         </div>
         
         {/* Total y limpiar filtros */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-2">
           <p className="text-sm font-semibold text-gray-700">
             Total clientes: {filteredUsers.length}
           </p>
-          <Button 
-            color="success" 
-            variant="flat" 
-            size="sm"
-            onClick={() => {
-              setFiltroDiaReparto("");
-              setFiltroRepartidor("");
-              setFiltroZona("");
-              setFiltroDatos("");
-              setSearchTerm("");
-            }}
-          >
-            Limpiar filtros
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              color="primary"
+              variant="flat"
+              size="sm"
+              onPress={onOpenEnvasesModal}
+            >
+              Ver envases prestados
+            </Button>
+            <Button
+              color="success"
+              variant="flat"
+              size="sm"
+              onClick={() => {
+                setFiltroDiaReparto("");
+                setFiltroRepartidor("");
+                setFiltroZona("");
+                setFiltroDatos("");
+                setSearchTerm("");
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
         </div>
-
-        <EnvasesFiltroResumen
-          resumen={resumenEnvasesFiltro}
-          totalClientesFiltrados={filteredUsers.length}
-          filtroDia={filtroDiaReparto || 'todos'}
-          filtroRepartidor={filtroRepartidor || 'todos'}
-          filtroZona={
-            filtroZona
-              ? zonas[parseInt(filtroZona, 10)]?.nombre || `Zona ${filtroZona}`
-              : 'todos'
-          }
-        />
       </div>
 
       {/* Mensaje de no resultados */}
@@ -816,6 +819,41 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           mensaje: "¿Está seguro que desea borrar este cliente? Todos los datos asociados a él como información de ventas y envases también se perderán"
         }}
       />
+      <Modal
+        isOpen={isEnvasesModalOpen}
+        onClose={onCloseEnvasesModal}
+        size="lg"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          {(close) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                Envases prestados
+              </ModalHeader>
+              <ModalBody className="pb-4">
+                <EnvasesFiltroResumen
+                  resumen={resumenEnvasesFiltro}
+                  totalClientesFiltrados={filteredUsers.length}
+                  filtroDia={filtroDiaReparto || 'todos'}
+                  filtroRepartidor={filtroRepartidor || 'todos'}
+                  filtroZona={
+                    filtroZona
+                      ? zonas[parseInt(filtroZona, 10)]?.nombre || `Zona ${filtroZona}`
+                      : 'todos'
+                  }
+                  showTitle={false}
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button color="primary" variant="light" onPress={close}>
+                  Cerrar
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
