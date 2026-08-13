@@ -1,6 +1,8 @@
 export type EnvasePrestadoItem = {
   producto_id?: number;
   producto_nombre?: string;
+  /** Alias usado en algunos responses del listado de clientes. */
+  nombre_producto?: string;
   capacidad?: number | null;
   cantidad: number;
 };
@@ -55,6 +57,7 @@ export function resumirEnvasesClientes<
 
       const nombre =
         (typeof envase.producto_nombre === 'string' && envase.producto_nombre.trim()) ||
+        (typeof envase.nombre_producto === 'string' && envase.nombre_producto.trim()) ||
         'Producto';
       const productoId =
         envase.producto_id != null && Number.isFinite(Number(envase.producto_id))
@@ -100,14 +103,15 @@ export function etiquetaFiltroEnvases(filtros: {
   zona?: string;
 }): string {
   const partes: string[] = [];
-  if (filtros.repartidor && filtros.repartidor !== 'todos') {
+  if (filtros.repartidor && filtros.repartidor !== 'todos' && filtros.repartidor.trim()) {
     partes.push(`Repartidor: ${filtros.repartidor}`);
   }
-  if (filtros.dia && filtros.dia !== 'todos') {
+  if (filtros.dia && filtros.dia !== 'todos' && filtros.dia.trim()) {
     partes.push(`Día: ${filtros.dia}`);
   }
-  if (filtros.zona && filtros.zona !== 'todos') {
+  if (filtros.zona && filtros.zona !== 'todos' && filtros.zona.trim()) {
+    // En clientes el filtro de zona suele ser el id numérico
     partes.push(`Zona: ${filtros.zona}`);
   }
-  return partes.length > 0 ? partes.join(' · ') : 'Todos los filtros';
+  return partes.length > 0 ? partes.join(' · ') : 'Todos los clientes (sin filtro)';
 }

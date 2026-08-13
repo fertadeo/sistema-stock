@@ -1,5 +1,5 @@
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tooltip, useDisclosure, Pagination, Button, User, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from "@heroui/react";
 import ModalToTable from "@/components/modalToTable";
 import NuevoClienteModal from "@/components/nuevoClienteModal";
@@ -17,6 +17,8 @@ import {
   ETIQUETAS_CAMPO,
   type CampoCompletitud,
 } from "@/lib/clientes/completitudDatos";
+import { resumirEnvasesClientes } from "@/lib/map/envasesResumen";
+import EnvasesFiltroResumen from "@/components/EnvasesFiltroResumen";
 
 type Repartidor = {
   id: number;
@@ -508,6 +510,22 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     return cumpleBusquedaGeneral && cumpleFiltroDiaReparto && cumpleFiltroRepartidor && cumpleFiltroZona && cumpleFiltroDatos(user);
   });
 
+  const resumenEnvasesFiltro = useMemo(
+    () =>
+      resumirEnvasesClientes(
+        filteredUsers.map((user) => ({
+          id: user.id,
+          envases_prestados: (user.envases_prestados || []).map((envase) => ({
+            producto_id: envase.producto_id,
+            producto_nombre: envase.producto_nombre || envase.nombre_producto,
+            nombre_producto: envase.nombre_producto,
+            cantidad: Number(envase.cantidad) || 0,
+          })),
+        }))
+      ),
+    [filteredUsers]
+  );
+
   const startIdx = (currentPage - 1) * itemsPerPage;
   const endIdx = startIdx + itemsPerPage;
   const currentItems = filteredUsers.slice(startIdx, endIdx);
@@ -707,6 +725,18 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             Limpiar filtros
           </Button>
         </div>
+
+        <EnvasesFiltroResumen
+          resumen={resumenEnvasesFiltro}
+          totalClientesFiltrados={filteredUsers.length}
+          filtroDia={filtroDiaReparto || 'todos'}
+          filtroRepartidor={filtroRepartidor || 'todos'}
+          filtroZona={
+            filtroZona
+              ? zonas[parseInt(filtroZona, 10)]?.nombre || `Zona ${filtroZona}`
+              : 'todos'
+          }
+        />
       </div>
 
       {/* Mensaje de no resultados */}

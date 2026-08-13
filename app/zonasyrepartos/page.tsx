@@ -24,13 +24,8 @@ import {
   PuntoMapa,
   contarClientesEnZona,
 } from '@/lib/map/zonaRadio';
-import {
-  EnvasePrestadoItem,
-  resumirEnvasesClientes,
-} from '@/lib/map/envasesResumen';
 import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
-import EnvasesFiltroResumen from '@/components/EnvasesFiltroResumen';
 import zonasJson from '@/components/soderia-data/zonas.json';
 
 interface Cliente {
@@ -43,7 +38,6 @@ interface Cliente {
   dia_reparto: string | null;
   latitud: number | null;
   longitud: number | null;
-  envases_prestados?: EnvasePrestadoItem[];
 }
 
 type ClienteConCoords = Cliente & { latitud: number; longitud: number };
@@ -278,10 +272,6 @@ const PageZonasyRepartos = () => {
             ? { latitud: lat, longitud: lng }
             : { latitud: null, longitud: null };
 
-        const envasesRaw = Array.isArray(raw.envases_prestados)
-          ? (raw.envases_prestados as EnvasePrestadoItem[])
-          : [];
-
         return {
           id: Number(raw.id),
           nombre: String(raw.nombre ?? ''),
@@ -292,13 +282,6 @@ const PageZonasyRepartos = () => {
           dia_reparto: typeof raw.dia_reparto === 'string' ? raw.dia_reparto : null,
           latitud: coordsValidas.latitud,
           longitud: coordsValidas.longitud,
-          envases_prestados: envasesRaw.map((e) => ({
-            producto_id: e.producto_id != null ? Number(e.producto_id) : undefined,
-            producto_nombre:
-              typeof e.producto_nombre === 'string' ? e.producto_nombre : undefined,
-            capacidad: e.capacidad != null ? Number(e.capacidad) : null,
-            cantidad: Number(e.cantidad) || 0,
-          })),
         };
       });
 
@@ -324,11 +307,6 @@ const PageZonasyRepartos = () => {
   const clientesFiltrados = useMemo(
     () => filtrarClientes(clientes, filtrosMapa),
     [clientes, filtrosMapa]
-  );
-
-  const resumenEnvasesFiltro = useMemo(
-    () => resumirEnvasesClientes(clientesFiltrados),
-    [clientesFiltrados]
   );
 
   /** Solo clientes con coords para mapa/ruta. */
@@ -1379,13 +1357,6 @@ const PageZonasyRepartos = () => {
 
           <div className="mt-8 space-y-3">
             <h2 className="font-semibold">Total de clientes: {clientesFiltrados.length}</h2>
-            <EnvasesFiltroResumen
-              resumen={resumenEnvasesFiltro}
-              totalClientesFiltrados={clientesFiltrados.length}
-              filtroDia={filtroDia}
-              filtroRepartidor={filtroRepartidor}
-              filtroZona={filtroZona}
-            />
             {seguirRecorrido && (
               <div className="p-3 text-sm rounded-lg border border-teal-200 bg-teal-50">
                 <p className="font-semibold text-teal-900">Seguimiento activo — {filtroRepartidor}</p>
