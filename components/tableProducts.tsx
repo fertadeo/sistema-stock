@@ -296,12 +296,7 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
     const isEditing = editingCell?.id === product.id && editingCell?.field === field;
 
     return (
-      <td
-        className="cursor-pointer px-3 py-2 align-middle"
-        onClick={() => {
-          if (!isEditing) startEditing(product, field);
-        }}
-      >
+      <td className="px-3 py-2 align-middle">
         {isEditing ? (
           <div className="flex items-center gap-1 rounded-lg border border-primary-300 bg-white px-2 py-1 shadow-sm">
             <span className="text-default-400 text-small select-none" aria-hidden="true">$</span>
@@ -310,7 +305,6 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
               inputMode="numeric"
               pattern="[0-9]*"
               value={editValue}
-              onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '');
                 editValueRef.current = raw;
@@ -327,7 +321,14 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
             />
           </div>
         ) : (
-          formatMonto(product[field])
+          <button
+            type="button"
+            className="w-full rounded px-1 py-0.5 text-left hover:bg-default-100"
+            onClick={() => startEditing(product, field)}
+            aria-label={`Editar ${field === 'precioPublico' ? 'precio público' : 'precio revendedor'} de ${product.nombreProducto}`}
+          >
+            {formatMonto(product[field])}
+          </button>
         )}
       </td>
     );
