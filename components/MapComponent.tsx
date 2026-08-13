@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { GoogleMap, Marker, Polyline, InfoWindow, Circle } from '@react-google-maps/api';
+import { GoogleMap, Marker, Polyline, InfoWindow, Circle, Polygon } from '@react-google-maps/api';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { EMPRESA_COORDENADAS, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
 import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
@@ -13,7 +13,13 @@ import {
   hayFiltrosActivos,
 } from '@/lib/map/clienteFiltros';
 import type { ZonaRadio } from '@/lib/services/zonaRadioService';
-import { contarClientesEnZona, formatearRadio } from '@/lib/map/zonaRadio';
+import {
+  contarClientesEnZona,
+  formatearRadio,
+  resumenZona,
+  TipoZona,
+  PuntoMapa,
+} from '@/lib/map/zonaRadio';
 
 interface Cliente {
   id: number;
@@ -57,20 +63,23 @@ interface MapComponentProps {
   } | null;
   /** En mobile, false cuando el panel de filtros está activo (mapa con display:none). */
   mapaVisible?: boolean;
-  /** Zonas circulares guardadas (alcance del repartidor). */
+  /** Zonas geográficas (radio / barrio / polígono). */
   zonasRadio?: ZonaRadio[];
   zonaSeleccionadaId?: number | null;
   onSeleccionarZona?: (zonaId: number | null) => void;
-  /** Modo: click en el mapa define el centro de una nueva zona. */
-  modoCrearZona?: boolean;
+  /** Modo de dibujo activo al crear/editar. */
+  modoDibujoZona?: TipoZona | null;
   borradorZona?: {
-    latitud: number;
-    longitud: number;
-    radio_metros: number;
+    tipo: TipoZona;
+    latitud?: number;
+    longitud?: number;
+    radio_metros?: number;
+    poligono?: PuntoMapa[];
     color: string;
   } | null;
-  onMapClickCrearZona?: (lat: number, lng: number) => void;
+  onMapClickZona?: (lat: number, lng: number) => void;
   onMoverCentroZona?: (lat: number, lng: number) => void;
+  onActualizarPoligonoZona?: (puntos: PuntoMapa[]) => void;
 }
 
 const mapContainerStyle: React.CSSProperties = {
@@ -233,10 +242,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
   zonasRadio = [],
   zonaSeleccionadaId = null,
   onSeleccionarZona,
-  modoCrearZona = false,
+  modoDibujoZona = null,
   borradorZona = null,
-  onMapClickCrearZona,
+  onMapClickZona,
   onMoverCentroZona,
+  onActualizarPoligonoZona,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -437,6 +447,34 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const repartidorModificado =
     selectedCliente != null && repartidorEditado !== (selectedCliente.repartidor ?? '');
 
+  const dibujandoZona = Boolean(modoDibujoZona);
+  const cursorDibujo =
+    modoDibujoZona === 'radio' || modoDibujoZona === 'poligono' ? 'crosshair' : undefined;
+
+  const bannerDibujo = (() => {
+    if (!modoDibujoZona) return null;
+    if (modoDibujoZona === 'radio' && !borradorZona?.latitud) {
+      return 'Hacé click en el mapa para ubicar el centro del radio';
+    }
+    if (modoDibujoZona === 'poligono') {
+      return 'Hacé click para agregar puntos del polígono (mínimo 3)';
+    }
+    if (modoDibujoZona === 'barrio' && !(borradorZona?.poligono?.length)) {
+      return 'Elegí un barrio y detectá sus límites desde el panel';
+    }
+    return null;
+  })();
+
+  const leerPathPoligono = (polygon: google.maps.Polygon): PuntoMapa[] => {
+    const path = polygon.getPath();
+    const puntos: PuntoMapa[] = [];
+    for (let i = 0; i < path.getLength(); i++) {
+      const p = path.getAt(i);
+      puntos.push({ lat: p.lat(), lng: p.lng() });
+    }
+    return puntos;
+  };
+
   return (
     <div className="relative w-full h-[calc(100dvh-11rem)] lg:h-[70vh]">
       <GoogleMap
@@ -448,42 +486,77 @@ const MapComponent: React.FC<MapComponentProps> = ({
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: true,
-          // En móvil permite pan/zoom con un dedo (sin exigir dos dedos).
           gestureHandling: 'greedy',
           clickableIcons: false,
-          draggableCursor: modoCrearZona ? 'crosshair' : undefined,
+          draggableCursor: cursorDibujo,
         }}
         onClick={(e) => {
-          if (modoCrearZona && e.latLng && onMapClickCrearZona) {
-            onMapClickCrearZona(e.latLng.lat(), e.latLng.lng());
-            return;
+          if (dibujandoZona && e.latLng && onMapClickZona) {
+            if (modoDibujoZona === 'radio' || modoDibujoZona === 'poligono') {
+              onMapClickZona(e.latLng.lat(), e.latLng.lng());
+              return;
+            }
           }
           if (!pendingConfirm) {
             setSelectedCliente(null);
             setEditingClienteId(null);
-            onSeleccionarZona?.(null);
+            if (!dibujandoZona) onSeleccionarZona?.(null);
           }
         }}
       >
         {zonasRadio.map((zona) => {
-          const seleccionada = zonaSeleccionadaId === zona.id;
+          const seleccionada = zonaSeleccionadaId === zona.id && !dibujandoZona;
           const clientesEnZona = contarClientesEnZona(clientesConCoords, zona);
+          const tipo = zona.tipo || 'radio';
+          const commonOpts = {
+            fillColor: zona.color || '#0d9488',
+            fillOpacity: seleccionada ? 0.3 : 0.14,
+            strokeColor: zona.color || '#0d9488',
+            strokeOpacity: seleccionada ? 1 : 0.7,
+            strokeWeight: seleccionada ? 3 : 2,
+            clickable: !dibujandoZona,
+            zIndex: seleccionada ? 20 : 10,
+          };
+
+          if (tipo === 'barrio' || tipo === 'poligono') {
+            const paths = zona.poligono || [];
+            if (paths.length < 3) return null;
+            return (
+              <Polygon
+                key={`zona-poly-${zona.id}-${seleccionada ? 'sel' : 'off'}`}
+                paths={paths}
+                options={commonOpts}
+                editable={seleccionada}
+                draggable={seleccionada}
+                onClick={() => {
+                  if (dibujandoZona) return;
+                  setSelectedCliente(null);
+                  onSeleccionarZona?.(zona.id);
+                }}
+                onLoad={(polygon) => {
+                  if (!seleccionada || !onActualizarPoligonoZona) return;
+                  const path = polygon.getPath();
+                  const emit = () => onActualizarPoligonoZona(leerPathPoligono(polygon));
+                  path.addListener('set_at', emit);
+                  path.addListener('insert_at', emit);
+                  path.addListener('remove_at', emit);
+                  polygon.addListener('dragend', emit);
+                }}
+              />
+            );
+          }
+
+          const radio = Number(zona.radio_metros);
+          if (!Number.isFinite(radio) || radio <= 0) return null;
+
           return (
-            <React.Fragment key={`zona-${zona.id}`}>
+            <React.Fragment key={`zona-radio-${zona.id}`}>
               <Circle
                 center={{ lat: Number(zona.latitud), lng: Number(zona.longitud) }}
-                radius={Number(zona.radio_metros)}
-                options={{
-                  fillColor: zona.color || '#0d9488',
-                  fillOpacity: seleccionada ? 0.28 : 0.14,
-                  strokeColor: zona.color || '#0d9488',
-                  strokeOpacity: seleccionada ? 1 : 0.7,
-                  strokeWeight: seleccionada ? 3 : 2,
-                  clickable: !modoCrearZona,
-                  zIndex: seleccionada ? 20 : 10,
-                }}
+                radius={radio}
+                options={commonOpts}
                 onClick={() => {
-                  if (modoCrearZona) return;
+                  if (dibujandoZona) return;
                   setSelectedCliente(null);
                   onSeleccionarZona?.(zona.id);
                 }}
@@ -491,8 +564,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
               {seleccionada && (
                 <Marker
                   position={{ lat: Number(zona.latitud), lng: Number(zona.longitud) }}
-                  draggable={!modoCrearZona}
-                  title={`${zona.nombre} — ${clientesEnZona} clientes · ${formatearRadio(zona.radio_metros)}`}
+                  draggable
+                  title={`${zona.nombre} — ${clientesEnZona} clientes · ${formatearRadio(radio)}`}
                   zIndex={30}
                   onDragEnd={(e) => {
                     if (e.latLng && onMoverCentroZona) {
@@ -506,34 +579,82 @@ const MapComponent: React.FC<MapComponentProps> = ({
           );
         })}
 
-        {borradorZona && (
-          <>
-            <Circle
-              center={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
-              radius={borradorZona.radio_metros}
-              options={{
-                fillColor: borradorZona.color,
-                fillOpacity: 0.22,
-                strokeColor: borradorZona.color,
-                strokeOpacity: 1,
-                strokeWeight: 2,
-                clickable: false,
-                zIndex: 25,
-              }}
-            />
-            <Marker
-              position={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
-              draggable
-              title="Centro de la nueva zona"
-              zIndex={40}
-              onDragEnd={(e) => {
-                if (e.latLng && onMapClickCrearZona) {
-                  onMapClickCrearZona(e.latLng.lat(), e.latLng.lng());
-                }
-              }}
-            />
-          </>
-        )}
+        {borradorZona?.tipo === 'radio' &&
+          borradorZona.latitud != null &&
+          borradorZona.longitud != null &&
+          borradorZona.radio_metros != null && (
+            <>
+              <Circle
+                center={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
+                radius={borradorZona.radio_metros}
+                options={{
+                  fillColor: borradorZona.color,
+                  fillOpacity: 0.22,
+                  strokeColor: borradorZona.color,
+                  strokeOpacity: 1,
+                  strokeWeight: 2,
+                  clickable: false,
+                  zIndex: 25,
+                }}
+              />
+              <Marker
+                position={{ lat: borradorZona.latitud, lng: borradorZona.longitud }}
+                draggable
+                title="Centro de la nueva zona"
+                zIndex={40}
+                onDragEnd={(e) => {
+                  if (e.latLng && onMapClickZona) {
+                    onMapClickZona(e.latLng.lat(), e.latLng.lng());
+                  }
+                }}
+              />
+            </>
+          )}
+
+        {borradorZona &&
+          (borradorZona.tipo === 'barrio' || borradorZona.tipo === 'poligono') &&
+          (borradorZona.poligono?.length ?? 0) >= 2 && (
+            <>
+              {(borradorZona.poligono?.length ?? 0) >= 3 ? (
+                <Polygon
+                  paths={borradorZona.poligono}
+                  options={{
+                    fillColor: borradorZona.color,
+                    fillOpacity: 0.22,
+                    strokeColor: borradorZona.color,
+                    strokeOpacity: 1,
+                    strokeWeight: 2,
+                    clickable: false,
+                    zIndex: 25,
+                  }}
+                />
+              ) : (
+                <Polyline
+                  path={borradorZona.poligono}
+                  options={{
+                    strokeColor: borradorZona.color,
+                    strokeOpacity: 1,
+                    strokeWeight: 2,
+                    clickable: false,
+                    zIndex: 25,
+                  }}
+                />
+              )}
+              {borradorZona.poligono?.map((p, idx) => (
+                <Marker
+                  key={`vertice-${idx}`}
+                  position={p}
+                  label={{
+                    text: String(idx + 1),
+                    color: '#fff',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                  }}
+                  zIndex={40}
+                />
+              ))}
+            </>
+          )}
 
         {mostrarRuta && rutaPath.length > 1 && (
           <Polyline
@@ -581,8 +702,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
               icon={toGoogleMarkerIcon(markerIcon)}
               draggable={isEditing}
               onClick={() => {
-                if (modoCrearZona && onMapClickCrearZona) {
-                  onMapClickCrearZona(cliente.latitud, cliente.longitud);
+                if (
+                  (modoDibujoZona === 'radio' || modoDibujoZona === 'poligono') &&
+                  onMapClickZona
+                ) {
+                  onMapClickZona(cliente.latitud, cliente.longitud);
                   return;
                 }
                 setSelectedCliente(cliente);
@@ -774,9 +898,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
         )}
       </GoogleMap>
 
-      {modoCrearZona && !borradorZona && (
+      {bannerDibujo && (
         <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white shadow-lg pointer-events-none max-w-[90%] text-center">
-          Hacé click en el mapa para ubicar el centro de la zona
+          {bannerDibujo}
         </div>
       )}
 

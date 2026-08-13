@@ -18,42 +18,87 @@ export function distanciaMetros(
   return R * c;
 }
 
+export type TipoZona = 'radio' | 'barrio' | 'poligono';
+
+export interface PuntoMapa {
+  lat: number;
+  lng: number;
+}
+
 export interface PuntoConCoords {
   id: number;
   latitud: number;
   longitud: number;
 }
 
-export interface ZonaRadioLike {
+export interface ZonaGeometria {
+  tipo?: TipoZona | string | null;
   latitud: number;
   longitud: number;
-  radio_metros: number;
+  radio_metros?: number | null;
+  poligono?: PuntoMapa[] | null;
+}
+
+export function puntoEnPoligono(punto: PuntoMapa, poligono: PuntoMapa[]): boolean {
+  if (!poligono || poligono.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const xi = poligono[i].lng;
+    const yi = poligono[i].lat;
+    const xj = poligono[j].lng;
+    const yj = poligono[j].lat;
+    const intersect =
+      yi > punto.lat !== yj > punto.lat &&
+      punto.lng < ((xj - xi) * (punto.lat - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+export function centroide(puntos: PuntoMapa[]): PuntoMapa {
+  if (puntos.length === 0) return { lat: 0, lng: 0 };
+  const sum = puntos.reduce(
+    (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
+    { lat: 0, lng: 0 }
+  );
+  return { lat: sum.lat / puntos.length, lng: sum.lng / puntos.length };
 }
 
 export function clienteDentroDeZona(
   cliente: PuntoConCoords,
-  zona: ZonaRadioLike
+  zona: ZonaGeometria
 ): boolean {
+  const tipo = (zona.tipo || 'radio') as TipoZona;
+  if (tipo === 'barrio' || tipo === 'poligono') {
+    const poly = zona.poligono;
+    if (!poly || poly.length < 3) return false;
+    return puntoEnPoligono(
+      { lat: cliente.latitud, lng: cliente.longitud },
+      poly
+    );
+  }
+  const radio = Number(zona.radio_metros);
+  if (!Number.isFinite(radio) || radio <= 0) return false;
   return (
     distanciaMetros(
-      zona.latitud,
-      zona.longitud,
+      Number(zona.latitud),
+      Number(zona.longitud),
       cliente.latitud,
       cliente.longitud
-    ) <= zona.radio_metros
+    ) <= radio
   );
 }
 
 export function clientesDentroDeZona<T extends PuntoConCoords>(
   clientes: T[],
-  zona: ZonaRadioLike
+  zona: ZonaGeometria
 ): T[] {
   return clientes.filter((cliente) => clienteDentroDeZona(cliente, zona));
 }
 
 export function contarClientesEnZona(
   clientes: PuntoConCoords[],
-  zona: ZonaRadioLike
+  zona: ZonaGeometria
 ): number {
   return clientesDentroDeZona(clientes, zona).length;
 }
@@ -64,6 +109,21 @@ export function formatearRadio(metros: number): string {
     return `${km % 1 === 0 ? km.toFixed(0) : km.toFixed(1)} km`;
   }
   return `${Math.round(metros)} m`;
+}
+
+export function etiquetaTipoZona(tipo?: string | null): string {
+  if (tipo === 'barrio') return 'Barrio';
+  if (tipo === 'poligono') return 'Manual';
+  return 'Radio';
+}
+
+export function resumenZona(zona: ZonaGeometria & { nombre?: string }): string {
+  const tipo = (zona.tipo || 'radio') as TipoZona;
+  if (tipo === 'radio') {
+    return formatearRadio(Number(zona.radio_metros) || 0);
+  }
+  const n = zona.poligono?.length ?? 0;
+  return `${n} pts`;
 }
 
 export const COLORES_ZONA = [
@@ -79,3 +139,25 @@ export const COLORES_ZONA = [
 export const RADIO_MIN_METROS = 100;
 export const RADIO_MAX_METROS = 15000;
 export const RADIO_DEFAULT_METROS = 1500;
+
+export const TIPOS_ZONA_UI: Array<{
+  id: TipoZona;
+  titulo: string;
+  descripcion: string;
+}> = [
+  {
+    id: 'radio',
+    titulo: 'Radio',
+    descripcion: 'Círculo desde un centro. Ideal para alcance del repartidor.',
+  },
+  {
+    id: 'barrio',
+    titulo: 'Barrio',
+    descripcion: 'Detecta límites del barrio (OSM o clientes del barrio).',
+  },
+  {
+    id: 'poligono',
+    titulo: 'Manual',
+    descripcion: 'Trazá los puntos a mano sobre el mapa.',
+  },
+];

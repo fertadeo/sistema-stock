@@ -20,11 +20,12 @@ import {
 import {
   COLORES_ZONA,
   RADIO_DEFAULT_METROS,
-  RADIO_MAX_METROS,
-  RADIO_MIN_METROS,
+  TipoZona,
+  PuntoMapa,
   contarClientesEnZona,
-  formatearRadio,
 } from '@/lib/map/zonaRadio';
+import ZonasPanel from '@/components/ZonasPanel';
+import zonasJson from '@/components/soderia-data/zonas.json';
 
 interface Cliente {
   id: number;
@@ -144,16 +145,23 @@ const PageZonasyRepartos = () => {
     actualizado_at: string;
   } | null>(null);
 
-  // Zonas circulares (alcance del repartidor)
+  // Zonas geográficas (radio / barrio / polígono)
   const [zonasRadio, setZonasRadio] = useState<ZonaRadio[]>([]);
+  const [barriosCatalogo, setBarriosCatalogo] = useState<Array<{ id: number; nombre: string }>>([]);
   const [zonaSeleccionadaId, setZonaSeleccionadaId] = useState<number | null>(null);
   const [modoCrearZona, setModoCrearZona] = useState(false);
+  const [tipoCreacion, setTipoCreacion] = useState<TipoZona>('radio');
   const [guardandoZona, setGuardandoZona] = useState(false);
+  const [cargandoLimites, setCargandoLimites] = useState(false);
+  const [mensajeLimites, setMensajeLimites] = useState<string | null>(null);
   const [formZonaNombre, setFormZonaNombre] = useState('');
   const [formZonaRadio, setFormZonaRadio] = useState(RADIO_DEFAULT_METROS);
   const [formZonaRepartidor, setFormZonaRepartidor] = useState('');
   const [formZonaColor, setFormZonaColor] = useState<string>(COLORES_ZONA[0]);
+  const [formZonaBarrio, setFormZonaBarrio] = useState('');
   const [borradorCentro, setBorradorCentro] = useState<{ lat: number; lng: number } | null>(null);
+  const [borradorPoligono, setBorradorPoligono] = useState<PuntoMapa[]>([]);
+  const [origenLimites, setOrigenLimites] = useState<string | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
@@ -207,6 +215,37 @@ const PageZonasyRepartos = () => {
     } catch (error) {
       console.error('Error al cargar zonas de radio:', error);
     }
+  }, []);
+
+  const fetchBarriosCatalogo = useCallback(async () => {
+    try {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/zonas`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setBarriosCatalogo(
+            data
+              .filter((z: { id?: number; nombre?: string }) => z?.nombre)
+              .map((z: { id: number; nombre: string }) => ({
+                id: Number(z.id),
+                nombre: String(z.nombre),
+              }))
+              .sort((a: { nombre: string }, b: { nombre: string }) =>
+                a.nombre.localeCompare(b.nombre)
+              )
+          );
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar barrios:', error);
+    }
+    setBarriosCatalogo(
+      (zonasJson as Array<{ nombre: string }>).map((z, idx) => ({
+        id: idx + 1,
+        nombre: z.nombre,
+      }))
+    );
   }, []);
 
   // Función para obtener los clientes
@@ -288,7 +327,8 @@ const PageZonasyRepartos = () => {
     void fetchClientes();
     void fetchRepartidores();
     void fetchZonasRadio();
-  }, [fetchZonasRadio]);
+    void fetchBarriosCatalogo();
+  }, [fetchZonasRadio, fetchBarriosCatalogo]);
 
   const repartidorPalette = useMemo(
     () => buildRepartidorPalette(repartidores.map((r) => r.nombre)),
@@ -365,20 +405,34 @@ const PageZonasyRepartos = () => {
     [zonasRadio, zonaSeleccionadaId]
   );
 
-  /** Zonas dibujadas en el mapa; la seleccionada refleja el formulario en vivo. */
+  const tipoActivo: TipoZona = modoCrearZona
+    ? tipoCreacion
+    : (zonaSeleccionada?.tipo as TipoZona) || 'radio';
+
+  const poligonoActivo = borradorPoligono;
+
+  /** Zonas dibujadas; la seleccionada refleja el formulario en vivo. */
   const zonasParaMapa = useMemo(() => {
     if (!zonaSeleccionada || modoCrearZona) return zonasRadio;
-    return zonasRadio.map((z) =>
-      z.id === zonaSeleccionada.id
-        ? {
-            ...z,
-            nombre: formZonaNombre || z.nombre,
-            radio_metros: formZonaRadio,
-            color: formZonaColor,
-            repartidor: formZonaRepartidor.trim() || null,
-          }
-        : z
-    );
+    return zonasRadio.map((z) => {
+      if (z.id !== zonaSeleccionada.id) return z;
+      if (z.tipo === 'radio') {
+        return {
+          ...z,
+          nombre: formZonaNombre || z.nombre,
+          radio_metros: formZonaRadio,
+          color: formZonaColor,
+          repartidor: formZonaRepartidor.trim() || null,
+        };
+      }
+      return {
+        ...z,
+        nombre: formZonaNombre || z.nombre,
+        color: formZonaColor,
+        repartidor: formZonaRepartidor.trim() || null,
+        poligono: poligonoActivo.length >= 3 ? poligonoActivo : z.poligono,
+      };
+    });
   }, [
     zonasRadio,
     zonaSeleccionada,
@@ -387,31 +441,85 @@ const PageZonasyRepartos = () => {
     formZonaRadio,
     formZonaColor,
     formZonaRepartidor,
+    poligonoActivo,
   ]);
 
   const borradorZona = useMemo(() => {
-    if (!modoCrearZona || !borradorCentro) return null;
+    if (!modoCrearZona) return null;
+    if (tipoCreacion === 'radio') {
+      if (!borradorCentro) return { tipo: 'radio' as const, color: formZonaColor };
+      return {
+        tipo: 'radio' as const,
+        latitud: borradorCentro.lat,
+        longitud: borradorCentro.lng,
+        radio_metros: formZonaRadio,
+        color: formZonaColor,
+      };
+    }
     return {
-      latitud: borradorCentro.lat,
-      longitud: borradorCentro.lng,
-      radio_metros: formZonaRadio,
+      tipo: tipoCreacion,
+      poligono: borradorPoligono,
       color: formZonaColor,
+      latitud: borradorCentro?.lat,
+      longitud: borradorCentro?.lng,
     };
-  }, [modoCrearZona, borradorCentro, formZonaRadio, formZonaColor]);
+  }, [
+    modoCrearZona,
+    tipoCreacion,
+    borradorCentro,
+    formZonaRadio,
+    formZonaColor,
+    borradorPoligono,
+  ]);
 
   const clientesEnZonaActiva = useMemo(() => {
-    if (modoCrearZona && borradorZona) {
-      return contarClientesEnZona(clientes, borradorZona);
+    if (modoCrearZona) {
+      if (tipoCreacion === 'radio' && borradorCentro) {
+        return contarClientesEnZona(clientes, {
+          tipo: 'radio',
+          latitud: borradorCentro.lat,
+          longitud: borradorCentro.lng,
+          radio_metros: formZonaRadio,
+        });
+      }
+      if (
+        (tipoCreacion === 'barrio' || tipoCreacion === 'poligono') &&
+        borradorPoligono.length >= 3
+      ) {
+        return contarClientesEnZona(clientes, {
+          tipo: tipoCreacion,
+          latitud: borradorPoligono[0].lat,
+          longitud: borradorPoligono[0].lng,
+          poligono: borradorPoligono,
+        });
+      }
+      return null;
     }
     if (zonaSeleccionada) {
+      if (zonaSeleccionada.tipo === 'radio') {
+        return contarClientesEnZona(clientes, {
+          tipo: 'radio',
+          latitud: Number(zonaSeleccionada.latitud),
+          longitud: Number(zonaSeleccionada.longitud),
+          radio_metros: formZonaRadio,
+        });
+      }
       return contarClientesEnZona(clientes, {
-        latitud: Number(zonaSeleccionada.latitud),
-        longitud: Number(zonaSeleccionada.longitud),
-        radio_metros: formZonaRadio,
+        ...zonaSeleccionada,
+        poligono: poligonoActivo.length >= 3 ? poligonoActivo : zonaSeleccionada.poligono,
       });
     }
     return null;
-  }, [modoCrearZona, borradorZona, zonaSeleccionada, clientes, formZonaRadio]);
+  }, [
+    modoCrearZona,
+    tipoCreacion,
+    borradorCentro,
+    formZonaRadio,
+    borradorPoligono,
+    zonaSeleccionada,
+    clientes,
+    poligonoActivo,
+  ]);
 
   const contadoresPorZona = useMemo(() => {
     const map = new Map<number, number>();
@@ -421,10 +529,35 @@ const PageZonasyRepartos = () => {
     return map;
   }, [zonasRadio, clientes]);
 
+  const puedeGuardarZona = useMemo(() => {
+    if (!formZonaNombre.trim()) return false;
+    if (tipoActivo === 'radio') {
+      return Boolean(modoCrearZona ? borradorCentro : zonaSeleccionada);
+    }
+    return poligonoActivo.length >= 3;
+  }, [
+    formZonaNombre,
+    tipoActivo,
+    modoCrearZona,
+    borradorCentro,
+    zonaSeleccionada,
+    poligonoActivo,
+  ]);
+
+  const resetFormZona = () => {
+    setBorradorCentro(null);
+    setBorradorPoligono([]);
+    setMensajeLimites(null);
+    setOrigenLimites(null);
+    setFormZonaBarrio('');
+    setCargandoLimites(false);
+  };
+
   const iniciarCrearZona = () => {
     setModoCrearZona(true);
     setZonaSeleccionadaId(null);
-    setBorradorCentro(null);
+    setTipoCreacion('radio');
+    resetFormZona();
     setFormZonaNombre(`Zona ${zonasRadio.length + 1}`);
     setFormZonaRadio(RADIO_DEFAULT_METROS);
     setFormZonaRepartidor(filtroRepartidor !== 'todos' ? filtroRepartidor : '');
@@ -434,46 +567,166 @@ const PageZonasyRepartos = () => {
 
   const cancelarCrearZona = () => {
     setModoCrearZona(false);
+    resetFormZona();
+  };
+
+  const seleccionarTipoCreacion = (tipo: TipoZona) => {
+    setTipoCreacion(tipo);
     setBorradorCentro(null);
+    setBorradorPoligono([]);
+    setMensajeLimites(null);
+    setOrigenLimites(null);
+    if (tipo === 'barrio' && formZonaBarrio) {
+      setFormZonaNombre(formZonaBarrio);
+    } else if (!formZonaNombre.trim()) {
+      setFormZonaNombre(`Zona ${zonasRadio.length + 1}`);
+    }
   };
 
   const seleccionarZona = (zonaId: number | null) => {
     if (modoCrearZona) return;
     setZonaSeleccionadaId(zonaId);
+    setMensajeLimites(null);
     if (zonaId != null) {
       const zona = zonasRadio.find((z) => z.id === zonaId);
       if (zona) {
         setFormZonaNombre(zona.nombre);
-        setFormZonaRadio(Number(zona.radio_metros));
+        setFormZonaRadio(Number(zona.radio_metros) || RADIO_DEFAULT_METROS);
         setFormZonaRepartidor(zona.repartidor ?? '');
         setFormZonaColor(zona.color || COLORES_ZONA[0]);
+        setFormZonaBarrio(zona.barrio_nombre || '');
+        setBorradorPoligono(zona.poligono || []);
+        setOrigenLimites(zona.origen_limites);
+        if (zona.origen_limites === 'osm') {
+          setMensajeLimites('Límites desde OpenStreetMap.');
+        } else if (zona.origen_limites === 'clientes') {
+          setMensajeLimites('Límites estimados a partir de clientes del barrio.');
+        } else if (zona.tipo === 'poligono') {
+          setMensajeLimites('Trazado manual.');
+        }
       }
+    } else {
+      setBorradorPoligono([]);
     }
   };
 
-  const guardarZonaNueva = async () => {
-    if (!borradorCentro) {
-      alert('Hacé click en el mapa para ubicar el centro de la zona.');
+  const handleMapClickZona = (lat: number, lng: number) => {
+    if (!modoCrearZona) return;
+    if (tipoCreacion === 'radio') {
+      setBorradorCentro({ lat, lng });
       return;
     }
+    if (tipoCreacion === 'poligono') {
+      setBorradorPoligono((prev) => [...prev, { lat, lng }]);
+    }
+  };
+
+  const detectarLimitesBarrio = async () => {
+    if (!formZonaBarrio.trim()) return;
+    setCargandoLimites(true);
+    setMensajeLimites(null);
+    try {
+      const result = await zonaRadioService.limitesBarrio(formZonaBarrio.trim());
+      setBorradorPoligono(result.poligono);
+      setBorradorCentro({ lat: result.centro.lat, lng: result.centro.lng });
+      setOrigenLimites(result.fuente);
+      setFormZonaNombre((prev) => prev.trim() || result.barrio);
+      setMensajeLimites(result.mensaje);
+      setVistaMovil('mapa');
+    } catch (error) {
+      setBorradorPoligono([]);
+      setMensajeLimites(
+        error instanceof Error ? error.message : 'No se pudieron detectar los límites'
+      );
+    } finally {
+      setCargandoLimites(false);
+    }
+  };
+
+  const guardarZona = async () => {
     if (!formZonaNombre.trim()) {
       alert('Ingresá un nombre para la zona.');
       return;
     }
+    if (!puedeGuardarZona) {
+      alert(
+        tipoActivo === 'radio'
+          ? 'Hacé click en el mapa para ubicar el centro.'
+          : 'La zona necesita al menos 3 puntos.'
+      );
+      return;
+    }
+
     setGuardandoZona(true);
     try {
-      const creada = await zonaRadioService.crear({
-        nombre: formZonaNombre.trim(),
-        latitud: borradorCentro.lat,
-        longitud: borradorCentro.lng,
-        radio_metros: formZonaRadio,
-        color: formZonaColor,
-        repartidor: formZonaRepartidor.trim() || null,
-      });
-      setZonasRadio((prev) => [...prev, creada].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      setModoCrearZona(false);
-      setBorradorCentro(null);
-      setZonaSeleccionadaId(creada.id);
+      if (modoCrearZona) {
+        const payload =
+          tipoCreacion === 'radio'
+            ? {
+                nombre: formZonaNombre.trim(),
+                tipo: 'radio' as const,
+                latitud: borradorCentro!.lat,
+                longitud: borradorCentro!.lng,
+                radio_metros: formZonaRadio,
+                color: formZonaColor,
+                repartidor: formZonaRepartidor.trim() || null,
+              }
+            : {
+                nombre: formZonaNombre.trim(),
+                tipo: tipoCreacion,
+                poligono: borradorPoligono,
+                barrio_nombre:
+                  tipoCreacion === 'barrio' ? formZonaBarrio.trim() || formZonaNombre.trim() : null,
+                origen_limites:
+                  tipoCreacion === 'barrio' ? origenLimites || 'manual' : 'manual',
+                color: formZonaColor,
+                repartidor: formZonaRepartidor.trim() || null,
+              };
+
+        const creada = await zonaRadioService.crear(payload);
+        setZonasRadio((prev) =>
+          [...prev, creada].sort((a, b) => a.nombre.localeCompare(b.nombre))
+        );
+        setModoCrearZona(false);
+        setBorradorCentro(null);
+        setBorradorPoligono(creada.poligono || []);
+        setMensajeLimites(null);
+        setOrigenLimites(creada.origen_limites);
+        setFormZonaBarrio(creada.barrio_nombre || '');
+        setFormZonaNombre(creada.nombre);
+        setFormZonaRadio(Number(creada.radio_metros) || RADIO_DEFAULT_METROS);
+        setFormZonaRepartidor(creada.repartidor ?? '');
+        setFormZonaColor(creada.color || COLORES_ZONA[0]);
+        setZonaSeleccionadaId(creada.id);
+      } else if (zonaSeleccionada) {
+        const payload =
+          zonaSeleccionada.tipo === 'radio'
+            ? {
+                nombre: formZonaNombre.trim(),
+                tipo: 'radio' as const,
+                latitud: Number(zonaSeleccionada.latitud),
+                longitud: Number(zonaSeleccionada.longitud),
+                radio_metros: formZonaRadio,
+                color: formZonaColor,
+                repartidor: formZonaRepartidor.trim() || null,
+              }
+            : {
+                nombre: formZonaNombre.trim(),
+                tipo: zonaSeleccionada.tipo,
+                poligono: poligonoActivo,
+                barrio_nombre: zonaSeleccionada.barrio_nombre,
+                origen_limites: zonaSeleccionada.origen_limites,
+                color: formZonaColor,
+                repartidor: formZonaRepartidor.trim() || null,
+              };
+
+        const actualizada = await zonaRadioService.actualizar(zonaSeleccionada.id, payload);
+        setZonasRadio((prev) =>
+          prev
+            .map((z) => (z.id === actualizada.id ? actualizada : z))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+        );
+      }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error al guardar la zona');
     } finally {
@@ -481,36 +734,8 @@ const PageZonasyRepartos = () => {
     }
   };
 
-  const guardarCambiosZona = async () => {
-    if (!zonaSeleccionada) return;
-    if (!formZonaNombre.trim()) {
-      alert('Ingresá un nombre para la zona.');
-      return;
-    }
-    setGuardandoZona(true);
-    try {
-      const actualizada = await zonaRadioService.actualizar(zonaSeleccionada.id, {
-        nombre: formZonaNombre.trim(),
-        radio_metros: formZonaRadio,
-        color: formZonaColor,
-        repartidor: formZonaRepartidor.trim() || null,
-        latitud: Number(zonaSeleccionada.latitud),
-        longitud: Number(zonaSeleccionada.longitud),
-      });
-      setZonasRadio((prev) =>
-        prev
-          .map((z) => (z.id === actualizada.id ? actualizada : z))
-          .sort((a, b) => a.nombre.localeCompare(b.nombre))
-      );
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Error al actualizar la zona');
-    } finally {
-      setGuardandoZona(false);
-    }
-  };
-
   const moverCentroZonaSeleccionada = async (lat: number, lng: number) => {
-    if (!zonaSeleccionada || modoCrearZona) return;
+    if (!zonaSeleccionada || modoCrearZona || zonaSeleccionada.tipo !== 'radio') return;
     setZonasRadio((prev) =>
       prev.map((z) =>
         z.id === zonaSeleccionada.id ? { ...z, latitud: lat, longitud: lng } : z
@@ -518,8 +743,10 @@ const PageZonasyRepartos = () => {
     );
     try {
       const actualizada = await zonaRadioService.actualizar(zonaSeleccionada.id, {
+        tipo: 'radio',
         latitud: lat,
         longitud: lng,
+        radio_metros: Number(zonaSeleccionada.radio_metros) || formZonaRadio,
       });
       setZonasRadio((prev) =>
         prev.map((z) => (z.id === actualizada.id ? actualizada : z))
@@ -530,6 +757,20 @@ const PageZonasyRepartos = () => {
     }
   };
 
+  const actualizarPoligonoZona = (puntos: PuntoMapa[]) => {
+    if (modoCrearZona) {
+      setBorradorPoligono(puntos);
+      return;
+    }
+    if (!zonaSeleccionada) return;
+    setZonasRadio((prev) =>
+      prev.map((z) =>
+        z.id === zonaSeleccionada.id ? { ...z, poligono: puntos } : z
+      )
+    );
+    setBorradorPoligono(puntos);
+  };
+
   const eliminarZonaSeleccionada = async () => {
     if (!zonaSeleccionada) return;
     if (!window.confirm(`¿Eliminar la zona "${zonaSeleccionada.nombre}"?`)) return;
@@ -538,6 +779,7 @@ const PageZonasyRepartos = () => {
       await zonaRadioService.eliminar(zonaSeleccionada.id);
       setZonasRadio((prev) => prev.filter((z) => z.id !== zonaSeleccionada.id));
       setZonaSeleccionadaId(null);
+      resetFormZona();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error al eliminar la zona');
     } finally {
@@ -1016,188 +1258,69 @@ const PageZonasyRepartos = () => {
                 </p>
               </div>
             )}
-            <div className="p-3 mt-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <h3 className="text-sm font-semibold">Zonas de radio</h3>
-                {!modoCrearZona ? (
-                  <button
-                    type="button"
-                    className="px-2.5 py-1 text-xs font-semibold text-white bg-teal-600 rounded hover:bg-teal-700"
-                    onClick={iniciarCrearZona}
-                    disabled={cargandoRuta || guardandoZona}
-                  >
-                    + Nueva zona
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-                    onClick={cancelarCrearZona}
-                    disabled={guardandoZona}
-                  >
-                    Cancelar
-                  </button>
-                )}
-              </div>
-              <p className="mb-3 text-xs text-gray-600">
-                Delimitá el alcance de distancia de un repartidor y mirá cuántos clientes quedan dentro.
-              </p>
-
-              {(modoCrearZona || zonaSeleccionada) && (
-                <div className="p-3 mb-3 space-y-2 bg-white border border-teal-100 rounded-lg">
-                  <label className="block text-xs font-semibold" htmlFor="zonaNombre">
-                    Nombre
-                  </label>
-                  <input
-                    id="zonaNombre"
-                    type="text"
-                    className="w-full px-2 py-1.5 text-sm rounded-md border"
-                    value={formZonaNombre}
-                    onChange={(e) => setFormZonaNombre(e.target.value)}
-                    disabled={guardandoZona}
-                  />
-
-                  <label className="block text-xs font-semibold" htmlFor="zonaRadio">
-                    Radio: {formatearRadio(formZonaRadio)}
-                  </label>
-                  <input
-                    id="zonaRadio"
-                    type="range"
-                    min={RADIO_MIN_METROS}
-                    max={RADIO_MAX_METROS}
-                    step={50}
-                    className="w-full"
-                    value={formZonaRadio}
-                    onChange={(e) => setFormZonaRadio(Number(e.target.value))}
-                    disabled={guardandoZona}
-                  />
-
-                  <label className="block text-xs font-semibold" htmlFor="zonaRepartidor">
-                    Repartidor
-                  </label>
-                  <select
-                    id="zonaRepartidor"
-                    className="w-full px-2 py-1.5 text-sm rounded-md border"
-                    value={formZonaRepartidor}
-                    onChange={(e) => setFormZonaRepartidor(e.target.value)}
-                    disabled={guardandoZona}
-                  >
-                    <option value="">Sin asignar</option>
-                    {repartidores.map((rep) => (
-                      <option key={rep.id} value={rep.nombre}>
-                        {rep.nombre}
-                      </option>
-                    ))}
-                  </select>
-
-                  <p id="zonaColorLabel" className="block text-xs font-semibold">
-                    Color
-                  </p>
-                  <div
-                    className="flex flex-wrap gap-1.5"
-                    role="group"
-                    aria-labelledby="zonaColorLabel"
-                  >
-                    {COLORES_ZONA.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        title={color}
-                        aria-label={`Color ${color}`}
-                        aria-pressed={formZonaColor === color}
-                        className={`h-6 w-6 rounded-full border-2 ${
-                          formZonaColor === color ? 'border-gray-800' : 'border-transparent'
-                        }`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => setFormZonaColor(color)}
-                        disabled={guardandoZona}
-                      />
-                    ))}
-                  </div>
-
-                  {clientesEnZonaActiva != null && (
-                    <p className="pt-1 text-sm font-semibold text-teal-800">
-                      {clientesEnZonaActiva} cliente{clientesEnZonaActiva === 1 ? '' : 's'} dentro del radio
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {modoCrearZona ? (
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded hover:bg-teal-700 disabled:opacity-60"
-                        onClick={() => void guardarZonaNueva()}
-                        disabled={guardandoZona || !borradorCentro}
-                      >
-                        {guardandoZona ? 'Guardando...' : 'Guardar zona'}
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded hover:bg-teal-700 disabled:opacity-60"
-                          onClick={() => void guardarCambiosZona()}
-                          disabled={guardandoZona}
-                        >
-                          {guardandoZona ? 'Guardando...' : 'Guardar cambios'}
-                        </button>
-                        <button
-                          type="button"
-                          className="px-3 py-1.5 text-xs font-semibold text-white bg-red-500 rounded hover:bg-red-600 disabled:opacity-60"
-                          onClick={() => void eliminarZonaSeleccionada()}
-                          disabled={guardandoZona}
-                        >
-                          Eliminar
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {modoCrearZona && !borradorCentro && (
-                    <p className="text-xs text-amber-700">
-                      Tocá el mapa para ubicar el centro.
-                    </p>
-                  )}
-                  {zonaSeleccionada && !modoCrearZona && (
-                    <p className="text-xs text-gray-500">
-                      Arrastrá el marcador del centro en el mapa para reposicionar la zona.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <ul className="space-y-1.5 max-h-40 overflow-y-auto text-sm">
-                {zonasRadio.length === 0 && (
-                  <li className="text-gray-500">Todavía no hay zonas cargadas.</li>
-                )}
-                {zonasRadio.map((zona) => {
-                  const count = contadoresPorZona.get(zona.id) ?? 0;
-                  const activa = zonaSeleccionadaId === zona.id;
-                  return (
-                    <li key={zona.id}>
-                      <button
-                        type="button"
-                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
-                          activa
-                            ? 'bg-teal-100 ring-1 ring-teal-300'
-                            : 'hover:bg-gray-100'
-                        }`}
-                        onClick={() => seleccionarZona(activa ? null : zona.id)}
-                        disabled={modoCrearZona}
-                      >
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: zona.color }}
-                          aria-hidden
-                        />
-                        <span className="flex-1 truncate font-medium">{zona.nombre}</span>
-                        <span className="shrink-0 text-xs text-gray-600">
-                          {count} · {formatearRadio(zona.radio_metros)}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+            <div className="mt-4">
+              <ZonasPanel
+                zonas={zonasRadio}
+                contadores={contadoresPorZona}
+                repartidores={repartidores}
+                barrios={barriosCatalogo}
+                zonaSeleccionadaId={zonaSeleccionadaId}
+                modoCrear={modoCrearZona}
+                tipoCreacion={tipoCreacion}
+                formNombre={formZonaNombre}
+                formRadio={formZonaRadio}
+                formRepartidor={formZonaRepartidor}
+                formColor={formZonaColor}
+                formBarrio={formZonaBarrio}
+                puntosPoligono={poligonoActivo.length}
+                clientesEnZona={clientesEnZonaActiva}
+                guardando={guardandoZona}
+                cargandoLimites={cargandoLimites}
+                mensajeLimites={mensajeLimites}
+                puedeGuardar={puedeGuardarZona}
+                disabled={cargandoRuta}
+                onIniciarCrear={iniciarCrearZona}
+                onCancelar={cancelarCrearZona}
+                onSeleccionarTipo={seleccionarTipoCreacion}
+                onSeleccionarZona={seleccionarZona}
+                onNombreChange={setFormZonaNombre}
+                onRadioChange={setFormZonaRadio}
+                onRepartidorChange={setFormZonaRepartidor}
+                onColorChange={setFormZonaColor}
+                onBarrioChange={(nombre) => {
+                  setFormZonaBarrio(nombre);
+                  if (nombre) setFormZonaNombre(nombre);
+                  setBorradorPoligono([]);
+                  setMensajeLimites(null);
+                  setOrigenLimites(null);
+                }}
+                onDetectarBarrio={() => void detectarLimitesBarrio()}
+                onDeshacerPunto={() => {
+                  setBorradorPoligono((prev) => {
+                    const next = prev.slice(0, -1);
+                    if (!modoCrearZona && zonaSeleccionadaId != null) {
+                      setZonasRadio((zonas) =>
+                        zonas.map((z) =>
+                          z.id === zonaSeleccionadaId ? { ...z, poligono: next } : z
+                        )
+                      );
+                    }
+                    return next;
+                  });
+                }}
+                onLimpiarPoligono={() => {
+                  setBorradorPoligono([]);
+                  if (!modoCrearZona && zonaSeleccionadaId != null) {
+                    setZonasRadio((zonas) =>
+                      zonas.map((z) =>
+                        z.id === zonaSeleccionadaId ? { ...z, poligono: [] } : z
+                      )
+                    );
+                  }
+                }}
+                onGuardar={() => void guardarZona()}
+                onEliminar={() => void eliminarZonaSeleccionada()}
+              />
             </div>
 
             <div className="p-3 mt-4 bg-gray-50 rounded-lg">
@@ -1309,10 +1432,11 @@ const PageZonasyRepartos = () => {
             zonasRadio={zonasParaMapa}
             zonaSeleccionadaId={zonaSeleccionadaId}
             onSeleccionarZona={seleccionarZona}
-            modoCrearZona={modoCrearZona}
+            modoDibujoZona={modoCrearZona ? tipoCreacion : null}
             borradorZona={borradorZona}
-            onMapClickCrearZona={(lat, lng) => setBorradorCentro({ lat, lng })}
+            onMapClickZona={handleMapClickZona}
             onMoverCentroZona={(lat, lng) => void moverCentroZonaSeleccionada(lat, lng)}
+            onActualizarPoligonoZona={actualizarPoligonoZona}
           />
         </div>
       </div>
