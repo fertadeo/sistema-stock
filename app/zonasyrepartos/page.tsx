@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { buildRepartidorPalette, MARKER_ICONS } from '@/lib/map/repartidorMarkers';
-import { normalizarClienteConCoords } from '@/lib/map/clienteCoords';
+import { parseCoordenada } from '@/lib/map/clienteCoords';
 import { repartidorRapidoService } from '@/lib/services/repartidorRapidoService';
 import {
   clienteCoincideFiltros,
@@ -24,8 +24,13 @@ import {
   PuntoMapa,
   contarClientesEnZona,
 } from '@/lib/map/zonaRadio';
+import {
+  EnvasePrestadoItem,
+  resumirEnvasesClientes,
+} from '@/lib/map/envasesResumen';
 import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
+import EnvasesFiltroResumen from '@/components/EnvasesFiltroResumen';
 import zonasJson from '@/components/soderia-data/zonas.json';
 
 interface Cliente {
@@ -36,9 +41,12 @@ interface Cliente {
   zona: string | number | null;
   repartidor: string | null;
   dia_reparto: string | null;
-  latitud: number;
-  longitud: number;
+  latitud: number | null;
+  longitud: number | null;
+  envases_prestados?: EnvasePrestadoItem[];
 }
+
+type ClienteConCoords = Cliente & { latitud: number; longitud: number };
 
 interface Repartidor {
   id: number;
@@ -104,7 +112,7 @@ const PageZonasyRepartos = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mostrarRuta, setMostrarRuta] = useState(false);
-  const [rutaOptimizada, setRutaOptimizada] = useState<Cliente[]>([]);
+  const [rutaOptimizada, setRutaOptimizada] = useState<ClienteConCoords[]>([]);
   const [clientesOmitidos, setClientesOmitidos] = useState<number[]>([]);
   
   // Estados para los filtros
@@ -249,7 +257,7 @@ const PageZonasyRepartos = () => {
     );
   }, []);
 
-  // Función para obtener los clientes
+  // Función para obtener los clientes (incluye sin coords para totales de envases)
   const fetchClientes = async () => {
     try {
       setIsLoading(true);
@@ -260,13 +268,41 @@ const PageZonasyRepartos = () => {
       }
 
       const data = await response.json();
-      console.log('Clientes obtenidos:', data);
-      
-      const clientesConCoordenadas = data
-        .map((cliente: Cliente) => normalizarClienteConCoords(cliente))
-        .filter((cliente: Cliente | null): cliente is Cliente => cliente !== null);
-      
-      setClientes(clientesConCoordenadas);
+      const lista = Array.isArray(data) ? data : [];
+
+      const normalizados: Cliente[] = lista.map((raw: Record<string, unknown>) => {
+        const lat = parseCoordenada(raw.latitud);
+        const lng = parseCoordenada(raw.longitud);
+        const coordsValidas =
+          lat != null && lng != null && !(lat === 0 && lng === 0)
+            ? { latitud: lat, longitud: lng }
+            : { latitud: null, longitud: null };
+
+        const envasesRaw = Array.isArray(raw.envases_prestados)
+          ? (raw.envases_prestados as EnvasePrestadoItem[])
+          : [];
+
+        return {
+          id: Number(raw.id),
+          nombre: String(raw.nombre ?? ''),
+          direccion: String(raw.direccion ?? ''),
+          telefono: String(raw.telefono ?? ''),
+          zona: (raw.zona as string | number | null) ?? null,
+          repartidor: typeof raw.repartidor === 'string' ? raw.repartidor : null,
+          dia_reparto: typeof raw.dia_reparto === 'string' ? raw.dia_reparto : null,
+          latitud: coordsValidas.latitud,
+          longitud: coordsValidas.longitud,
+          envases_prestados: envasesRaw.map((e) => ({
+            producto_id: e.producto_id != null ? Number(e.producto_id) : undefined,
+            producto_nombre:
+              typeof e.producto_nombre === 'string' ? e.producto_nombre : undefined,
+            capacidad: e.capacidad != null ? Number(e.capacidad) : null,
+            cantidad: Number(e.cantidad) || 0,
+          })),
+        };
+      });
+
+      setClientes(normalizados);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
       setError('Error al cargar los clientes');
@@ -288,6 +324,20 @@ const PageZonasyRepartos = () => {
   const clientesFiltrados = useMemo(
     () => filtrarClientes(clientes, filtrosMapa),
     [clientes, filtrosMapa]
+  );
+
+  const resumenEnvasesFiltro = useMemo(
+    () => resumirEnvasesClientes(clientesFiltrados),
+    [clientesFiltrados]
+  );
+
+  /** Solo clientes con coords para mapa/ruta. */
+  const clientesParaMapa = useMemo(
+    () =>
+      clientes.filter(
+        (c): c is ClienteConCoords => c.latitud != null && c.longitud != null
+      ),
+    [clientes]
   );
 
   const clientesAtendidosFiltrados = useMemo(
@@ -315,12 +365,12 @@ const PageZonasyRepartos = () => {
 
   const clientesParaRuta = useCallback(
     () =>
-      clientes.filter(
+      clientesParaMapa.filter(
         (cliente) =>
           !clientesOmitidos.includes(cliente.id) &&
           clienteIncluidoEnRuta(cliente, filtrosMapa, clientesIncluidos)
       ),
-    [clientes, clientesOmitidos, filtrosMapa, clientesIncluidos]
+    [clientesParaMapa, clientesOmitidos, filtrosMapa, clientesIncluidos]
   );
 
   // Cargar clientes y repartidores al montar el componente
@@ -476,7 +526,7 @@ const PageZonasyRepartos = () => {
   const clientesEnZonaActiva = useMemo(() => {
     if (modoCrearZona) {
       if (tipoCreacion === 'radio' && borradorCentro) {
-        return contarClientesEnZona(clientes, {
+        return contarClientesEnZona(clientesParaMapa, {
           tipo: 'radio',
           latitud: borradorCentro.lat,
           longitud: borradorCentro.lng,
@@ -487,7 +537,7 @@ const PageZonasyRepartos = () => {
         (tipoCreacion === 'barrio' || tipoCreacion === 'poligono') &&
         borradorPoligono.length >= 3
       ) {
-        return contarClientesEnZona(clientes, {
+        return contarClientesEnZona(clientesParaMapa, {
           tipo: tipoCreacion,
           latitud: borradorPoligono[0].lat,
           longitud: borradorPoligono[0].lng,
@@ -498,14 +548,14 @@ const PageZonasyRepartos = () => {
     }
     if (zonaSeleccionada) {
       if (zonaSeleccionada.tipo === 'radio') {
-        return contarClientesEnZona(clientes, {
+        return contarClientesEnZona(clientesParaMapa, {
           tipo: 'radio',
           latitud: Number(zonaSeleccionada.latitud),
           longitud: Number(zonaSeleccionada.longitud),
           radio_metros: formZonaRadio,
         });
       }
-      return contarClientesEnZona(clientes, {
+      return contarClientesEnZona(clientesParaMapa, {
         ...zonaSeleccionada,
         poligono: poligonoActivo.length >= 3 ? poligonoActivo : zonaSeleccionada.poligono,
       });
@@ -518,17 +568,17 @@ const PageZonasyRepartos = () => {
     formZonaRadio,
     borradorPoligono,
     zonaSeleccionada,
-    clientes,
+    clientesParaMapa,
     poligonoActivo,
   ]);
 
   const contadoresPorZona = useMemo(() => {
     const map = new Map<number, number>();
     zonasRadio.forEach((zona) => {
-      map.set(zona.id, contarClientesEnZona(clientes, zona));
+      map.set(zona.id, contarClientesEnZona(clientesParaMapa, zona));
     });
     return map;
-  }, [zonasRadio, clientes]);
+  }, [zonasRadio, clientesParaMapa]);
 
   const puedeGuardarZona = useMemo(() => {
     if (!formZonaNombre.trim()) return false;
@@ -818,11 +868,11 @@ const PageZonasyRepartos = () => {
   };
 
   // Función para optimizar la ruta usando el algoritmo del vecino más cercano
-  const optimizarRuta = (clientes: Cliente[]) => {
-    if (clientes.length === 0) return [];
+  const optimizarRuta = (lista: ClienteConCoords[]) => {
+    if (lista.length === 0) return [] as ClienteConCoords[];
 
-    const ruta: Cliente[] = [];
-    const noVisitados = [...clientes].filter(cliente => !clientesOmitidos.includes(cliente.id));
+    const ruta: ClienteConCoords[] = [];
+    const noVisitados = [...lista].filter(cliente => !clientesOmitidos.includes(cliente.id));
     let puntoActual = { latitud: EMPRESA_COORDENADAS[0], longitud: EMPRESA_COORDENADAS[1] };
 
     while (noVisitados.length > 0) {
@@ -857,7 +907,7 @@ const PageZonasyRepartos = () => {
   };
 
   // Función auxiliar para encontrar la mejor posición para reinsertar un cliente
-  const encontrarPosicionMasCercana = (cliente: Cliente, rutaActual: Cliente[]): number => {
+  const encontrarPosicionMasCercana = (cliente: ClienteConCoords, rutaActual: ClienteConCoords[]): number => {
     if (rutaActual.length === 0) return 0;
     
     let mejorPosicion = 0;
@@ -956,15 +1006,15 @@ const PageZonasyRepartos = () => {
   };
 
   // Función para obtener la ruta completa optimizada
-  const obtenerRutaCompleta = async (clientes: Cliente[]) => {
-    if (clientes.length === 0) return { coordenadas: [], distancia: 0, tiempo: 0 };
+  const obtenerRutaCompleta = async (lista: ClienteConCoords[]) => {
+    if (lista.length === 0) return { coordenadas: [], distancia: 0, tiempo: 0 };
 
     let coordenadasCompletas: [number, number][] = [];
     let distanciaTotal = 0;
     let tiempoTotal = 0;
     let puntoActual = EMPRESA_COORDENADAS;
 
-    for (const cliente of clientes) {
+    for (const cliente of lista) {
       const ruta = await obtenerRutaDetallada(
         puntoActual,
         [cliente.latitud, cliente.longitud]
@@ -995,7 +1045,7 @@ const PageZonasyRepartos = () => {
   };
 
   // Nuevo método para solo generar la ruta en el mapa
-  const generarRutaEnMapa = async (clientesPersonalizados?: Cliente[]) => {
+  const generarRutaEnMapa = async (clientesPersonalizados?: ClienteConCoords[]) => {
     const seleccionados = clientesPersonalizados ?? clientesParaRuta();
 
     if (seleccionados.length === 0) {
@@ -1327,10 +1377,17 @@ const PageZonasyRepartos = () => {
             </div>
           </div>
 
-          <div className="mt-8">
-            <h2 className="mb-2 font-semibold">Total de clientes: {clientesFiltrados.length}</h2>
+          <div className="mt-8 space-y-3">
+            <h2 className="font-semibold">Total de clientes: {clientesFiltrados.length}</h2>
+            <EnvasesFiltroResumen
+              resumen={resumenEnvasesFiltro}
+              totalClientesFiltrados={clientesFiltrados.length}
+              filtroDia={filtroDia}
+              filtroRepartidor={filtroRepartidor}
+              filtroZona={filtroZona}
+            />
             {seguirRecorrido && (
-              <div className="p-3 mb-4 text-sm rounded-lg border border-teal-200 bg-teal-50">
+              <div className="p-3 text-sm rounded-lg border border-teal-200 bg-teal-50">
                 <p className="font-semibold text-teal-900">Seguimiento activo — {filtroRepartidor}</p>
                 <p className="text-teal-800">
                   Atendidos hoy: {clientesAtendidosFiltrados} / {clientesFiltrados.length}
@@ -1342,7 +1399,7 @@ const PageZonasyRepartos = () => {
                 </p>
               </div>
             )}
-            <div className="mt-4 space-y-3">
+            <div className="space-y-3">
               {editandoZona && (
                 <ZonaComposer
                   layout="sidebar"
@@ -1451,7 +1508,7 @@ const PageZonasyRepartos = () => {
         >
           <div className="absolute inset-0">
             <MapComponent
-              clientes={clientes}
+              clientes={clientesParaMapa}
               mostrarRuta={mostrarRuta}
               rutaOptimizada={rutaOptimizada}
               clientesOmitidos={clientesOmitidos}
