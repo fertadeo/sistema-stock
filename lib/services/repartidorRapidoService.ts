@@ -129,7 +129,7 @@ export interface CobroRapidoData {
 
 export interface FiadoRapidoData {
   cliente_id: number;
-  productos: ProductoVenta[];
+  productos?: ProductoVenta[];
   monto_total: number;
   repartidor_id?: number;
   envases_prestados?: EnvaseMovimiento[];

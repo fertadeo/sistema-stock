@@ -766,7 +766,9 @@ export default function RepartidorRapido() {
           productos: productosOperacion,
           monto_total: totalOperacion,
           envases_prestados: envasesPrestados.length > 0 ? envasesPrestados : undefined,
-          observaciones: observacionesOperacion || undefined,
+          observaciones:
+            observacionesOperacion ||
+            (productosOperacion.length === 0 ? 'Fiado por monto fijo' : undefined),
         });
         // mensaje de éxito en pie inferior
       }
@@ -2021,7 +2023,7 @@ function ModalVenta({
             <div className="p-4 space-y-3 bg-orange-50 rounded-lg border border-orange-100">
               <h3 className="font-semibold text-gray-800">Monto fijo</h3>
               <p className="text-xs text-gray-600">
-                Podés fiar un importe sin detallar productos, o sumarlo a los ítems de la lista.
+                El monto fijo alcanza para registrar el fiado. Los productos son opcionales.
               </p>
               <div>
                 <label htmlFor="montoFiadoFijo" className="block mb-1 text-sm font-medium text-gray-700">
