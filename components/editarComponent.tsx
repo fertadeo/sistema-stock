@@ -5,6 +5,7 @@ import zonas from "./soderia-data/zonas.json";
 import AddressAutocomplete from "./AddressAutocomplete";
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
+import { esProductoVentaPublico } from '@/types/productos';
 
 interface ClienteVinculado {
   id: number;
@@ -21,6 +22,7 @@ interface Producto {
   precioRevendedor: number;
   cantidadStock: number | null;
   descripcion: string | null;
+  tipoProducto?: string;
 }
 
 interface EnvasePrestado {
@@ -83,12 +85,13 @@ const ModalEditar: React.FC<ModalEditarProps> = ({ cliente, isOpen, onClose, onS
         const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
         if (!response.ok) throw new Error('Error al cargar productos');
         const data = await response.json();
-        setProductos(data);
+        const lista: Producto[] = Array.isArray(data) ? data : [];
+        setProductos(lista.filter(esProductoVentaPublico));
 
         // Si hay envases prestados, actualizar sus nombres
         if (cliente?.envases_prestados?.length > 0) {
           const envasesActualizados = cliente.envases_prestados.map((envase: EnvasePrestado) => {
-            const productoEncontrado = data.find((p: Producto) => p.id === envase.producto_id);
+            const productoEncontrado = lista.find((p: Producto) => p.id === envase.producto_id);
             return {
               producto_id: envase.producto_id,
               producto_nombre: productoEncontrado ? productoEncontrado.nombreProducto : 'Producto no encontrado',

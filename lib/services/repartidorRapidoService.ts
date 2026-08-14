@@ -795,15 +795,39 @@ class RepartidorRapidoService {
 
   async obtenerProductos(tipo?: 'venta_publico' | 'insumo'): Promise<any[]> {
     try {
-      const query = tipo ? `?tipo=${encodeURIComponent(tipo)}` : '';
-      const response = await authFetch(this.buildApiUrl(`/api/productos${query}`));
-      
+      const response = await authFetch(this.buildApiUrl('/api/productos'));
+
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
       }
 
       const data = await response.json();
-      return Array.isArray(data) ? data : [];
+      const lista = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.productos)
+            ? data.productos
+            : [];
+
+      const productos = lista.map((producto: Record<string, unknown>) => {
+        const tipoRaw = producto.tipoProducto ?? producto.tipo_producto;
+        const tipoNormalizado =
+          String(tipoRaw ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s-]+/g, '_') === 'insumo'
+            ? 'insumo'
+            : 'venta_publico';
+
+        return {
+          ...producto,
+          tipoProducto: tipoNormalizado,
+        };
+      });
+
+      if (!tipo) return productos;
+      return productos.filter((producto: { tipoProducto?: string }) => producto.tipoProducto === tipo);
     } catch (error) {
       console.error('Error al obtener productos:', error);
       return [];

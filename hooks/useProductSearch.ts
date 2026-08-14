@@ -1,4 +1,5 @@
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { extraerListaProductos } from '@/types/productos';
 import { useState } from 'react';
 import { Product } from '../types/budget';
 
@@ -14,8 +15,9 @@ export const useProductSearch = () => {
       
       if (!response.ok) throw new Error('Error al buscar productos');
       const data = await response.json();
+      const lista = extraerListaProductos<Product>(data);
       
-      const filteredData = data.filter((product: Product) => {
+      const filteredData = lista.filter((product: Product) => {
         const searchLower = searchTerm.toLowerCase();
         return (
           product.nombreProducto?.toLowerCase().includes(searchLower) ||

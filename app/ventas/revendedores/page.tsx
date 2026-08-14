@@ -14,6 +14,7 @@ import BudgetResume from '@/components/budgetResume';
 import PDFContent from '@/components/PDFContent';
 import CustomSelect from '@/components/shared/CustomSelect';
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { esProductoVentaPublico, extraerListaProductos, normalizarTipoProducto } from '@/types/productos';
 
 interface Product {
   nombreProducto: any;
@@ -90,40 +91,29 @@ export default function NuevaVenta() {
         }
 
         const data = await response.json();
-        // console.log('Respuesta recibida del servidor:', data);
+        const lista = extraerListaProductos<{
+          id: number;
+          nombreProducto?: string;
+          precioRevendedor?: number;
+          tipoProducto?: string;
+        }>(data)
+          .map((producto) => ({
+            ...producto,
+            tipoProducto: normalizarTipoProducto(producto.tipoProducto),
+          }))
+          .filter(esProductoVentaPublico);
 
-        const filteredProducts = data
-          .filter((producto: { id: number }) => [8, 9].includes(producto.id))
-          .map((producto: {
-            id: number;
-            nombreProducto: string;
-            precioPublico: number;
-            precioRevendedor: number;
-            cantidadStock: number | null;
-            descripcion: string | null;
-          }) => ({
+        const mapped = lista.map((producto) => ({
             id: producto.id,
             name: producto.nombreProducto || '',
             precioRevendedor: producto.precioRevendedor ?? 0,
-            quantity: 0
-          }));
-        
-        const allAvailableProducts = data.map((producto: {
-          id: number;
-          nombreProducto: string;
-          precioPublico: number;
-          precioRevendedor: number;
-          cantidadStock: number | null;
-          descripcion: string | null;
-        }) => ({
-          id: producto.id,
-          name: producto.nombreProducto || '',
-          precioRevendedor: producto.precioRevendedor ?? 0,
-          quantity: 0
+            quantity: 0,
+            nombreProducto: producto.nombreProducto,
         }));
 
-        setProducts(filteredProducts);
-        setAllProducts(allAvailableProducts);
+        const preseleccionados = mapped.filter((producto) => [8, 9].includes(producto.id));
+        setProducts(preseleccionados.length > 0 ? preseleccionados : mapped);
+        setAllProducts(mapped);
       } catch (error) {
         console.error('Error fetching products:', error);
       }
@@ -137,7 +127,8 @@ export default function NuevaVenta() {
     authFetch(`${API_URL}/api/revendedores`)
       .then(res => res.json())
       .then(data => {
-        if (data.success) setRevendedores(data.revendedores);
+        if (Array.isArray(data?.revendedores)) setRevendedores(data.revendedores);
+        else if (Array.isArray(data)) setRevendedores(data);
         else setRevendedores([]);
       })
       .catch(() => setRevendedores([]));

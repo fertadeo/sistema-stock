@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 import { formatMonto } from '@/lib/formatMonto';
+import { esProductoVentaPublico } from '@/types/productos';
 
 interface Producto {
   id: string;
@@ -12,6 +13,7 @@ interface Producto {
   precioRevendedor: number;
   cantidadStock: number;
   descripcion: string;
+  tipoProducto?: string;
 }
 
 interface Cliente {
@@ -80,7 +82,8 @@ const VentaLocalModal: React.FC<VentaLocalModalProps> = ({ isOpen, onClose, onVe
       const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
       if (!response.ok) throw new Error('Error al cargar productos');
       const data = await response.json();
-      setProductosDisponibles(data);
+      const lista = Array.isArray(data) ? data : [];
+      setProductosDisponibles(lista.filter(esProductoVentaPublico));
     } catch (error) {
       setError("Error al cargar los productos");
     }

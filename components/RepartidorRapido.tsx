@@ -45,6 +45,7 @@ import { buildGoogleMapsDirectionsUrl, openGoogleMapsNavigation } from '@/lib/ma
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 import { useRepartidorGeolocation } from '@/lib/hooks/useRepartidorGeolocation';
+import { esProductoVentaPublico, normalizarTipoProducto } from '@/types/productos';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -287,8 +288,14 @@ export default function RepartidorRapido() {
 
   const cargarProductos = async () => {
     try {
-      const productosData = await repartidorRapidoService.obtenerProductos();
-      setProductos(productosData);
+      const productosData = await repartidorRapidoService.obtenerProductos('venta_publico');
+      const vendibles = (Array.isArray(productosData) ? productosData : [])
+        .map((producto: Producto) => ({
+          ...producto,
+          tipoProducto: normalizarTipoProducto(producto.tipoProducto),
+        }))
+        .filter(esProductoVentaPublico);
+      setProductos(vendibles);
     } catch (error) {
       mostrarError('Error al cargar productos');
     }
@@ -581,6 +588,9 @@ export default function RepartidorRapido() {
     setObservaciones('');
     setMontoFiadoFijo(0);
     setMostrarModalVenta(true);
+    if (productos.length === 0) {
+      void cargarProductos();
+    }
   };
 
   const abrirModalCobro = () => {
@@ -1873,9 +1883,7 @@ function ModalVenta({
     );
 
     // Solo productos de venta al público (excluye insumos)
-    const vendibles = productos.filter(
-      (p: Producto) => !p.tipoProducto || p.tipoProducto === 'venta_publico'
-    );
+    const vendibles = productos.filter(esProductoVentaPublico);
 
     return [...vendibles].sort((a: Producto, b: Producto) => {
       const aTiene = idsConEnvase.has(a.id) ? 1 : 0;
@@ -1998,7 +2006,11 @@ function ModalVenta({
             </div>
             <div className="space-y-2">
               {productosVisibles.length === 0 ? (
-                <p className="py-2 text-sm text-gray-500">No hay productos que coincidan con la búsqueda.</p>
+                <p className="py-2 text-sm text-gray-500">
+                  {productos.length === 0
+                    ? 'No hay productos de venta al público cargados.'
+                    : 'No hay productos que coincidan con la búsqueda.'}
+                </p>
               ) : (
                 productosVisibles.map((producto: Producto) => renderFilaProducto(producto))
               )}
@@ -2360,9 +2372,7 @@ function ModalEnvases({
     const idsConSaldo = new Set((resumenEnvases?.saldo_actual || []).map((item) => item.producto_id));
 
     // Envases solo aplican a productos de venta al público
-    const vendibles = productos.filter(
-      (p) => !p.tipoProducto || p.tipoProducto === 'venta_publico'
-    );
+    const vendibles = productos.filter(esProductoVentaPublico);
 
     return [...vendibles].sort((a, b) => {
       const aSaldo = idsConSaldo.has(a.id) ? 1 : 0;

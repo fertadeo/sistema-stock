@@ -4,6 +4,7 @@ import "@/styles/globals.css"
 import {Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { extraerListaProductos } from '@/types/productos';
 
 interface Producto {
   id: number;
@@ -145,16 +146,17 @@ const ControlCargaPage = () => {
           throw new Error('Error al cargar los productos');
         }
         const data = await response.json();
-        setProductos(data);
+        const lista = extraerListaProductos<Producto>(data);
+        setProductos(lista);
         
         // Separar los productos adicionales (ID > 4)
-        const adicionales = data.filter((p: Producto) => p.id > 4);
+        const adicionales = lista.filter((p: Producto) => p.id > 4);
         setProductosAdicionales(adicionales);
         
         // Inicializar el formData con los productos principales
         setFormData(prev => ({
           ...prev,
-          productos: data.map((p: Producto) => ({
+          productos: lista.map((p: Producto) => ({
             id: p.id,
             cantidadCarga: 0,
             cajonesLlenos: 0,

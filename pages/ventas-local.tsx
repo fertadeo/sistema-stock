@@ -4,6 +4,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { extraerListaProductos } from '@/types/productos';
 
 interface ProductoVenta {
   producto_id: string;
@@ -57,7 +58,8 @@ const VentasLocalPage: React.FC = () => {
         const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos`);
         if (!response.ok) throw new Error('Error al obtener productos');
         const data = await response.json();
-        setCatalogoProductos(data.map((p: any) => ({
+        const lista = extraerListaProductos<any>(data);
+        setCatalogoProductos(lista.map((p: any) => ({
           id: p.id?.toString(),
           nombre: p.nombre || p.nombre_producto || p.producto || 'Sin nombre'
         })));

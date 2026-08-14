@@ -12,6 +12,7 @@ import {
 } from "@heroui/react";
 import Notification from "./notification"; // Importa el componente de notificación
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { esProductoVentaPublico } from '@/types/productos';
 import zonas from "./soderia-data/zonas.json";
 import diasRepartoData from "./soderia-data/diareparto.json";
 import AddressAutocomplete from "./AddressAutocomplete";
@@ -85,6 +86,7 @@ interface Producto {
   nombreProducto: string;
   tipo: string;
   capacidad: number;
+  tipoProducto?: string;
 }
 
 interface NuevoClienteModalProps {
@@ -135,7 +137,8 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
         throw new Error("Error al obtener productos");
       }
       const data = await response.json();
-      setProductos(data);
+      const lista: Producto[] = Array.isArray(data) ? data : [];
+      setProductos(lista.filter(esProductoVentaPublico));
     } catch (error) {
       console.error("Error al obtener productos:", error);
       setNotificationMessage("Error");

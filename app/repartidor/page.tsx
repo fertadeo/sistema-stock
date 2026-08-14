@@ -67,7 +67,7 @@ export default function RepartidorDashboard() {
         const [clientesData, deudoresData, productosData] = await Promise.all([
           repartidorRapidoService.obtenerTodosClientes(),
           repartidorRapidoService.obtenerClientesDeudores({ page: 1, limit: 10 }),
-          repartidorRapidoService.obtenerProductos(),
+          repartidorRapidoService.obtenerProductos('venta_publico'),
         ]);
 
         if (!mounted) return;

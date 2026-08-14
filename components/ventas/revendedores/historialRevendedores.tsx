@@ -29,6 +29,7 @@ import jsPDF from 'jspdf';
 import PDFContent from '@/components/PDFContent';
 import html2canvas from 'html2canvas';
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import { extraerListaProductos } from '@/types/productos';
 
 interface VentaRevendedor {
   venta_id: string;
@@ -88,13 +89,15 @@ export default function HistorialRevendedores() {
       .then(res => res.json())
       .then(data => {
         console.log('VENTAS:', data);
-        if (Array.isArray(data)) {
-          setVentas(data);
-        } else if (Array.isArray(data.ventas)) {
-          setVentas(data.ventas);
-        } else {
-          setVentas([]);
-        }
+        const lista = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.ventas)
+            ? data.ventas
+            : [];
+        const ventasRevendedor = lista.filter((venta: VentaRevendedor & { tipo?: string }) =>
+          venta.tipo === 'REVENDEDOR' || Boolean(venta.revendedor_nombre)
+        );
+        setVentas(ventasRevendedor);
       })
       .catch(() => {
         setVentas([]);
@@ -108,7 +111,8 @@ export default function HistorialRevendedores() {
       .then(res => res.json())
       .then(data => {
         console.log('REVENDEDORES:', data);
-        if (data.success) setRevendedores(data.revendedores);
+        if (Array.isArray(data?.revendedores)) setRevendedores(data.revendedores);
+        else if (Array.isArray(data)) setRevendedores(data);
         else setRevendedores([]);
       })
       .catch(() => setRevendedores([]));
@@ -120,7 +124,7 @@ export default function HistorialRevendedores() {
     authFetch(`${API_URL}/api/productos`)
       .then(res => res.json())
       .then(data => {
-        setProductos(data);
+        setProductos(extraerListaProductos<Producto>(data));
       })
       .catch(() => setProductos([]));
   }, []);
@@ -235,11 +239,16 @@ export default function HistorialRevendedores() {
         authFetch(`${API_URL}/api/ventas/resumen`)
           .then(res => res.json())
           .then(data => {
-            if (Array.isArray(data)) {
-              setVentas(data);
-            } else if (Array.isArray(data.ventas)) {
-              setVentas(data.ventas);
-            }
+            const lista = Array.isArray(data)
+              ? data
+              : Array.isArray(data?.ventas)
+                ? data.ventas
+                : [];
+            setVentas(
+              lista.filter((venta: VentaRevendedor & { tipo?: string }) =>
+                venta.tipo === 'REVENDEDOR' || Boolean(venta.revendedor_nombre)
+              )
+            );
           });
       } else {
         setMensajeAlerta(data.message || 'Error al eliminar la venta');
@@ -283,7 +292,8 @@ export default function HistorialRevendedores() {
         authFetch(`${API_URL}/api/revendedores`)
           .then(res => res.json())
           .then(data => {
-            if (data.success) setRevendedores(data.revendedores);
+            if (Array.isArray(data?.revendedores)) setRevendedores(data.revendedores);
+            else if (Array.isArray(data)) setRevendedores(data);
           });
         // Espera 3 segundos antes de cerrar el modal y quitar el spinner
         setTimeout(() => {
@@ -318,7 +328,7 @@ export default function HistorialRevendedores() {
 
   // Función para obtener el nombre del producto por ID
   const obtenerNombreProducto = (productoId: string) => {
-    const producto = productos.find(p => p.id.toString() === productoId);
+    const producto = productos.find((p) => String(p.id) === String(productoId));
     return producto ? producto.nombreProducto : `Producto ${productoId}`;
   };
 
@@ -703,7 +713,7 @@ export default function HistorialRevendedores() {
           <PDFContent
             selectedRevendedorName={ventaParaPDF.revendedor_nombre}
             selectedDate={ventaParaPDF.fecha_venta}
-            products={ventaParaPDF.productos.map(p => ({
+            products={(Array.isArray(ventaParaPDF.productos) ? ventaParaPDF.productos : []).map(p => ({
               id: p.producto_id,
               name: obtenerNombreProducto(p.producto_id),
               precioRevendedor: Number(p.precio_unitario),

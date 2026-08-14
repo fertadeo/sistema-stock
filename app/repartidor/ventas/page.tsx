@@ -47,7 +47,7 @@ function VentasPageContent() {
       try {
         const [clientesData, productosData] = await Promise.all([
           repartidorRapidoService.obtenerTodosClientes(),
-          repartidorRapidoService.obtenerProductos(),
+          repartidorRapidoService.obtenerProductos('venta_publico'),
         ]);
 
         if (!mounted) return;

@@ -101,8 +101,13 @@ const TableProducts = forwardRef((props: TableProductsProps, ref) => {
         throw new Error(`Error al obtener productos: ${errorMessage}`);
       }
       const data = await response.json();
+      const lista = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
 
-      const updatedData: ProductRow[] = data.map((product: Product & { tipoProducto?: string }) => ({
+      const updatedData: ProductRow[] = lista.map((product: Product & { tipoProducto?: string }) => ({
         id: product.id,
         nombreProducto: product.nombreProducto,
         precioPublico: toNumber(product.precioPublico),
