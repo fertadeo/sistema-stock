@@ -168,9 +168,21 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
               <p className="text-sm text-gray-600">{subtituloActual}</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-700">{fechaActual}</p>
-            <p className="text-xs text-gray-500">{horaActual}</p>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm text-gray-700">{fechaActual}</p>
+              <p className="text-xs text-gray-500">{horaActual}</p>
+            </div>
+            {/* Cerrar sesión siempre visible en escritorio */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="hidden lg:inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-medium transition-colors hover:bg-red-100 hover:text-red-800"
+              title="Cerrar sesión"
+            >
+              <ArrowRightOnRectangleIcon className="w-5 h-5 shrink-0" />
+              Cerrar sesión
+            </button>
           </div>
         </div>
       </header>
