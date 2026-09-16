@@ -19,6 +19,7 @@ import {
 } from "@/lib/clientes/completitudDatos";
 import { resumirEnvasesClientes } from "@/lib/map/envasesResumen";
 import EnvasesFiltroResumen from "@/components/EnvasesFiltroResumen";
+import { descargarClientesExcel } from "@/lib/export/excelClientes";
 
 type Repartidor = {
   id: number;
@@ -83,7 +84,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [filtroDatos, setFiltroDatos] = useState("");
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [clientesSeleccionados, setClientesSeleccionados] = useState<Set<number>>(new Set());
-  const [exportando, setExportando] = useState(false);
 
   const columns = [
     { uid: "checkbox", name: "" },
@@ -258,70 +258,6 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
       setClientesSeleccionados(new Set());
     } else {
       setClientesSeleccionados(new Set(currentItems.map(u => u.id)));
-    }
-  };
-
-  const exportarClientesSeleccionados = async () => {
-    if (clientesSeleccionados.size === 0) {
-      setAlertMessage("Seleccioná al menos un cliente para exportar");
-      setAlertType("error");
-      setAlertVisible(true);
-      return;
-    }
-
-    setExportando(true);
-    try {
-      const Papa = await import('papaparse');
-      const clientesExportar = users.filter(u => clientesSeleccionados.has(u.id));
-      
-      const datosExportar = clientesExportar.map(cliente => ({
-        ID: cliente.id,
-        Nombre: cliente.nombre,
-        Teléfono: cliente.telefono,
-        Email: cliente.email || '',
-        DNI: cliente.dni || '',
-        Dirección: cliente.direccion,
-        Piso: cliente.piso || '',
-        Departamento: cliente.departamento || '',
-        Zona: cliente.zona !== null && cliente.zona !== undefined 
-          ? zonas[parseInt(cliente.zona.toString())]?.nombre || `Zona ${cliente.zona}` 
-          : '',
-        Repartidor: cliente.repartidor || '',
-        'Día de Reparto': cliente.dia_reparto || '',
-        Estado: cliente.estado === false ? 'Inactivo' : 'Activo',
-        Latitud: cliente.latitud || '',
-        Longitud: cliente.longitud || '',
-        'Envases Prestados': (cliente.envases_prestados || [])
-          .map(e => `${e.cantidad}x ${e.nombre_producto || e.producto_nombre}`)
-          .join('; ') || 'Sin envases'
-      }));
-
-      const csv = Papa.unparse(datosExportar, {
-        delimiter: ',',
-        header: true
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      const fecha = new Date().toISOString().split('T')[0];
-      link.setAttribute('href', url);
-      link.setAttribute('download', `clientes_seleccionados_${fecha}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setAlertMessage(`${clientesSeleccionados.size} cliente(s) exportado(s) exitosamente`);
-      setAlertType("success");
-      setAlertVisible(true);
-    } catch (error) {
-      console.error('Error al exportar:', error);
-      setAlertMessage("Error al exportar los clientes");
-      setAlertType("error");
-      setAlertVisible(true);
-    } finally {
-      setExportando(false);
     }
   };
 
@@ -629,6 +565,29 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const endIdx = startIdx + itemsPerPage;
   const currentItems = filteredUsers.slice(startIdx, endIdx);
 
+  const handleExportarExcel = () => {
+    if (filteredUsers.length === 0) {
+      setAlertMessage("No hay clientes para exportar con los filtros actuales.");
+      setAlertType("error");
+      setAlertVisible(true);
+      return;
+    }
+
+    descargarClientesExcel(filteredUsers, {
+      nombreArchivo: "clientes",
+      resolverZona: (zona) => {
+        if (zona === null || zona === undefined || zona === "") return "Sin zona";
+        const idx = parseInt(zona.toString(), 10);
+        if (Number.isNaN(idx)) return String(zona);
+        return zonas[idx]?.nombre || `Zona ${zona}`;
+      },
+    });
+
+    setAlertMessage(`Se exportaron ${filteredUsers.length} clientes a Excel.`);
+    setAlertType("success");
+    setAlertVisible(true);
+  };
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filtroDiaReparto, filtroRepartidor, filtroZona, filtroDatos]);
@@ -814,15 +773,15 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               color="secondary"
               variant="flat"
               size="sm"
-              onPress={exportarClientesSeleccionados}
-              isDisabled={clientesSeleccionados.size === 0 || exportando}
+              onPress={handleExportarExcel}
+              isDisabled={filteredUsers.length === 0}
               startContent={
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
               }
             >
-              {exportando ? 'Exportando...' : `Exportar ${clientesSeleccionados.size > 0 ? `(${clientesSeleccionados.size})` : ''}`}
+              Exportar ({filteredUsers.length})
             </Button>
             <Button
               color="primary"
