@@ -82,8 +82,11 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [filtroZona, setFiltroZona] = useState("");
   const [filtroDatos, setFiltroDatos] = useState("");
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
+  const [clientesSeleccionados, setClientesSeleccionados] = useState<Set<number>>(new Set());
+  const [exportando, setExportando] = useState(false);
 
   const columns = [
+    { uid: "checkbox", name: "" },
     { uid: "name", name: "Nombre" },
     { uid: "telefono", name: "Teléfono" },
     { uid: "direccion", name: "Dirección" },
@@ -238,10 +241,101 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     }
   }, [editarModal]);
 
+  const toggleSeleccionCliente = (clienteId: number) => {
+    setClientesSeleccionados((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(clienteId)) {
+        newSet.delete(clienteId);
+      } else {
+        newSet.add(clienteId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSeleccionTodos = () => {
+    if (clientesSeleccionados.size === currentItems.length) {
+      setClientesSeleccionados(new Set());
+    } else {
+      setClientesSeleccionados(new Set(currentItems.map(u => u.id)));
+    }
+  };
+
+  const exportarClientesSeleccionados = async () => {
+    if (clientesSeleccionados.size === 0) {
+      setAlertMessage("Seleccioná al menos un cliente para exportar");
+      setAlertType("error");
+      setAlertVisible(true);
+      return;
+    }
+
+    setExportando(true);
+    try {
+      const Papa = await import('papaparse');
+      const clientesExportar = users.filter(u => clientesSeleccionados.has(u.id));
+      
+      const datosExportar = clientesExportar.map(cliente => ({
+        ID: cliente.id,
+        Nombre: cliente.nombre,
+        Teléfono: cliente.telefono,
+        Email: cliente.email || '',
+        DNI: cliente.dni || '',
+        Dirección: cliente.direccion,
+        Piso: cliente.piso || '',
+        Departamento: cliente.departamento || '',
+        Zona: cliente.zona !== null && cliente.zona !== undefined 
+          ? zonas[parseInt(cliente.zona.toString())]?.nombre || `Zona ${cliente.zona}` 
+          : '',
+        Repartidor: cliente.repartidor || '',
+        'Día de Reparto': cliente.dia_reparto || '',
+        Estado: cliente.estado === false ? 'Inactivo' : 'Activo',
+        Latitud: cliente.latitud || '',
+        Longitud: cliente.longitud || '',
+        'Envases Prestados': (cliente.envases_prestados || [])
+          .map(e => `${e.cantidad}x ${e.nombre_producto || e.producto_nombre}`)
+          .join('; ') || 'Sin envases'
+      }));
+
+      const csv = Papa.unparse(datosExportar, {
+        delimiter: ',',
+        header: true
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const fecha = new Date().toISOString().split('T')[0];
+      link.setAttribute('href', url);
+      link.setAttribute('download', `clientes_seleccionados_${fecha}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setAlertMessage(`${clientesSeleccionados.size} cliente(s) exportado(s) exitosamente`);
+      setAlertType("success");
+      setAlertVisible(true);
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      setAlertMessage("Error al exportar los clientes");
+      setAlertType("error");
+      setAlertVisible(true);
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const renderCell = useCallback((user: User, columnKey: React.Key) => {
-
-
     switch (columnKey) {
+      case "checkbox":
+        return (
+          <input
+            type="checkbox"
+            checked={clientesSeleccionados.has(user.id)}
+            onChange={() => toggleSeleccionCliente(user.id)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+          />
+        );
       case "name":
         return (
           <div className="flex items-start w-full">
@@ -477,7 +571,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
         const value = user[columnKey as keyof User];
         return typeof value === 'object' ? null : <span>{value}</span>;
     }
-  }, []);
+  }, [clientesSeleccionados]);
 
   const filteredColumns = columns;
 
@@ -717,6 +811,20 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              color="secondary"
+              variant="flat"
+              size="sm"
+              onPress={exportarClientesSeleccionados}
+              isDisabled={clientesSeleccionados.size === 0 || exportando}
+              startContent={
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+              }
+            >
+              {exportando ? 'Exportando...' : `Exportar ${clientesSeleccionados.size > 0 ? `(${clientesSeleccionados.size})` : ''}`}
+            </Button>
+            <Button
               color="primary"
               variant="flat"
               size="sm"
@@ -734,6 +842,7 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                 setFiltroZona("");
                 setFiltroDatos("");
                 setSearchTerm("");
+                setClientesSeleccionados(new Set());
               }}
             >
               Limpiar filtros
@@ -767,10 +876,19 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               {(column) => (
                 <TableColumn 
                   key={column.uid} 
-                  align={column.uid === "name" ? "start" : column.uid === "actions" ? "start" : "center"}
+                  align={column.uid === "name" ? "start" : column.uid === "actions" ? "start" : column.uid === "checkbox" ? "center" : "center"}
                   className="text-xs md:text-sm"
                 >
-                  {column.name}
+                  {column.uid === "checkbox" ? (
+                    <input
+                      type="checkbox"
+                      checked={clientesSeleccionados.size === currentItems.length && currentItems.length > 0}
+                      onChange={toggleSeleccionTodos}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                    />
+                  ) : (
+                    column.name
+                  )}
                 </TableColumn>
               )}
             </TableHeader>
