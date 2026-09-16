@@ -578,6 +578,8 @@ class RepartidorRapidoService {
     latitud?: string | number;
     longitud?: string | number;
     repartidor?: string | null;
+    bidon_propio?: boolean;
+    sifones_propios?: boolean;
   }): Promise<any> {
     try {
       const response = await authFetch(this.buildApiUrl(`/api/clientes/${clienteId}`), {

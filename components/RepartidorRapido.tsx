@@ -111,6 +111,8 @@ interface Cliente {
   envases_prestados?: EnvasePrestadoCliente[];
   estado?: boolean;
   repartidor?: string | null;
+  bidon_propio?: boolean;
+  sifones_propios?: boolean;
   cliente_vinculado?: {
     id: number;
     nombre: string;
@@ -198,6 +200,7 @@ export default function RepartidorRapido() {
     telefono: string;
     mensajeWhatsapp: string;
   } | null>(null);
+  const [actualizandoEnvases, setActualizandoEnvases] = useState(false);
 
   // Datos del cliente para crear/editar
   const [clienteForm, setClienteForm] = useState<ClienteFormData>(CLIENTE_FORM_VACIO);
@@ -430,6 +433,42 @@ export default function RepartidorRapido() {
       mostrarError(error instanceof Error ? error.message : `No se pudo ${accion} el cliente`);
     } finally {
       setCambiandoEstado(false);
+    }
+  };
+
+  const toggleBidonPropio = async () => {
+    if (!clienteSeleccionado || actualizandoEnvases) return;
+    
+    setActualizandoEnvases(true);
+    try {
+      const nuevoValor = !clienteSeleccionado.bidon_propio;
+      await repartidorRapidoService.actualizarCliente(clienteSeleccionado.id, {
+        bidon_propio: nuevoValor
+      });
+      
+      setClienteSeleccionado(prev => prev ? { ...prev, bidon_propio: nuevoValor } : prev);
+    } catch (error: any) {
+      mostrarError(error.message || 'Error al actualizar bidón propio');
+    } finally {
+      setActualizandoEnvases(false);
+    }
+  };
+
+  const toggleSifonesPropios = async () => {
+    if (!clienteSeleccionado || actualizandoEnvases) return;
+    
+    setActualizandoEnvases(true);
+    try {
+      const nuevoValor = !clienteSeleccionado.sifones_propios;
+      await repartidorRapidoService.actualizarCliente(clienteSeleccionado.id, {
+        sifones_propios: nuevoValor
+      });
+      
+      setClienteSeleccionado(prev => prev ? { ...prev, sifones_propios: nuevoValor } : prev);
+    } catch (error: any) {
+      mostrarError(error.message || 'Error al actualizar sifones propios');
+    } finally {
+      setActualizandoEnvases(false);
     }
   };
 
@@ -1360,6 +1399,41 @@ export default function RepartidorRapido() {
             </div>
             <p className="mt-2 text-xs text-gray-500">Toque para ver cuenta corriente</p>
           </button>
+
+          {/* Envases propios del cliente */}
+          <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <h3 className="mb-3 text-sm font-semibold text-gray-800">Envases propios del cliente</h3>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={clienteSeleccionado.bidon_propio || false}
+                  onChange={toggleBidonPropio}
+                  disabled={actualizandoEnvases}
+                  className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Tiene bidón propio
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={clienteSeleccionado.sifones_propios || false}
+                  onChange={toggleSifonesPropios}
+                  disabled={actualizandoEnvases}
+                  className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Tiene sifones propios
+                </span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Marcá si el cliente compró sus propios bidones o sifones al iniciar
+            </p>
+          </div>
 
           {clienteSeleccionado.cliente_vinculado && clienteSeleccionado.resumen_domicilio && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
