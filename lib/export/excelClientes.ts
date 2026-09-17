@@ -67,8 +67,10 @@ export function descargarClientesExcel(
 ): void {
   if (typeof window === "undefined") return;
 
-  const { nombreArchivo = "clientes", resolverZona } =
+  const opts: OpcionesExport =
     typeof opciones === "string" ? { nombreArchivo: opciones } : opciones;
+  const nombreArchivo = opts.nombreArchivo ?? "clientes";
+  const resolverZona = opts.resolverZona;
 
   const headers = [
     "Nombre",
