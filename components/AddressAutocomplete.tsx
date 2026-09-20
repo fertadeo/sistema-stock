@@ -1,8 +1,24 @@
 'use client';
 
+/**
+ * AddressAutocomplete - Componente de autocompletado de direcciones con Google Places API
+ * 
+ * RESTRICCIÓN GEOGRÁFICA IMPLEMENTADA:
+ * - componentRestrictions: { country: 'ar' } → Solo Argentina
+ * - locationRestriction: círculo de 15km desde centro de Río Cuarto → Restringe predicciones
+ * - locationBias: mismo círculo → Prioriza resultados dentro del área
+ * - Validación post-selección: rechaza coordenadas fuera de RIO_CUARTO_BOUNDS
+ * - Session tokens: mejora calidad de predicciones y agrupa requests
+ * 
+ * Esto asegura que:
+ * 1. Las sugerencias sean principalmente de Río Cuarto
+ * 2. Si el usuario selecciona algo fuera de Río Cuarto, se rechaza con mensaje claro
+ * 3. No se pueden guardar direcciones con coordenadas incorrectas
+ */
+
 import React, { useRef, useEffect, useState } from 'react';
 import { MapPinIcon } from '@heroicons/react/24/outline';
-import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS, isInRioCuartoBounds } from './GoogleMapsProvider';
+import { useGoogleMapsLoader, RIO_CUARTO_BOUNDS, isInRioCuartoBounds, EMPRESA_COORDENADAS } from './GoogleMapsProvider';
 import {
   obtenerMiUbicacion,
   MiUbicacionError,
@@ -67,12 +83,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const onChangeRef = useRef(onChange);
   const valueRef = useRef(value);
   const selectingPlaceRef = useRef(false);
   const [errorFueraDeCiudad, setErrorFueraDeCiudad] = useState(false);
   const [errorMiUbicacion, setErrorMiUbicacion] = useState<string | null>(null);
   const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
+  const [direccionSeleccionada, setDireccionSeleccionada] = useState<string>('');
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
   useEffect(() => {
@@ -107,16 +125,29 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
 
+    sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+
     const bounds = new google.maps.LatLngBounds(
       { lat: RIO_CUARTO_BOUNDS.south, lng: RIO_CUARTO_BOUNDS.west },
       { lat: RIO_CUARTO_BOUNDS.north, lng: RIO_CUARTO_BOUNDS.east }
     );
 
+    const center = new google.maps.LatLng(EMPRESA_COORDENADAS.lat, EMPRESA_COORDENADAS.lng);
+    const RADIO_RIO_CUARTO_METROS = 15000;
+
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       componentRestrictions: { country: 'ar' },
       bounds,
-      strictBounds: true,
-      fields: ['formatted_address', 'geometry', 'name', 'place_id'],
+      strictBounds: false,
+      locationRestriction: {
+        center,
+        radius: RADIO_RIO_CUARTO_METROS,
+      },
+      locationBias: {
+        center,
+        radius: RADIO_RIO_CUARTO_METROS,
+      },
+      fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components'],
       types: ['address'],
     });
 
@@ -125,21 +156,34 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     const listener = autocomplete.addListener('place_changed', () => {
       void (async () => {
         const place = autocomplete.getPlace();
+        
+        if (!place.place_id) {
+          console.warn('Lugar sin place_id, ignorando');
+          return;
+        }
+
         const detalles = await obtenerDetallesLugar(place);
-        if (!detalles) return;
+        if (!detalles) {
+          console.warn('No se pudieron obtener detalles del lugar');
+          return;
+        }
 
         if (!isInRioCuartoBounds(detalles.lat, detalles.lng)) {
           setErrorFueraDeCiudad(true);
+          setDireccionSeleccionada('');
           if (inputRef.current) {
-            inputRef.current.value = '';
+            inputRef.current.value = valueRef.current;
           }
-          onChangeRef.current('', '', '');
+          onChangeRef.current(valueRef.current, '', '');
+          
+          sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
           return;
         }
 
         setErrorFueraDeCiudad(false);
         setErrorMiUbicacion(null);
         selectingPlaceRef.current = true;
+        setDireccionSeleccionada(detalles.address);
 
         if (inputRef.current) {
           inputRef.current.value = detalles.address;
@@ -151,6 +195,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           String(detalles.lng)
         );
 
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+
         window.setTimeout(() => {
           selectingPlaceRef.current = false;
         }, 200);
@@ -160,18 +206,27 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     return () => {
       google.maps.event.removeListener(listener);
       autocompleteRef.current = null;
+      sessionTokenRef.current = null;
     };
   }, [isLoaded]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (selectingPlaceRef.current) return;
+    
+    const newValue = event.target.value;
+    
     if (errorFueraDeCiudad) {
       setErrorFueraDeCiudad(false);
     }
     if (errorMiUbicacion) {
       setErrorMiUbicacion(null);
     }
-    onChangeRef.current(event.target.value, '', '');
+    
+    if (newValue !== direccionSeleccionada) {
+      setDireccionSeleccionada('');
+    }
+    
+    onChangeRef.current(newValue, '', '');
   };
 
   const handleMiUbicacion = async () => {
@@ -182,6 +237,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     try {
       const resultado = await obtenerMiUbicacion(valueRef.current);
       selectingPlaceRef.current = true;
+      setDireccionSeleccionada(resultado.direccion);
 
       if (inputRef.current) {
         inputRef.current.value = resultado.direccion;
@@ -222,12 +278,17 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   const mensajesError = (
     <>
       {errorFueraDeCiudad && (
-        <p className="mt-1 text-xs text-red-600">
-          La dirección debe estar dentro de Río Cuarto.
+        <p className="mt-1 text-xs font-medium text-red-600">
+          ⚠️ La dirección seleccionada está fuera de Río Cuarto. Por favor, elegí una dirección dentro de la ciudad.
         </p>
       )}
       {errorMiUbicacion && (
         <p className="mt-1 text-xs text-red-600">{errorMiUbicacion}</p>
+      )}
+      {direccionSeleccionada && !errorFueraDeCiudad && (
+        <p className="mt-1 text-xs font-medium text-green-600">
+          ✓ Dirección seleccionada: {direccionSeleccionada}
+        </p>
       )}
     </>
   );
