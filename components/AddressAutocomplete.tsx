@@ -3,17 +3,20 @@
 /**
  * AddressAutocomplete - Componente de autocompletado de direcciones con Google Places API
  * 
- * RESTRICCIÓN GEOGRÁFICA IMPLEMENTADA:
- * - componentRestrictions: { country: 'ar' } → Solo Argentina
- * - locationRestriction: círculo de 15km desde centro de Río Cuarto → Restringe predicciones
- * - locationBias: mismo círculo → Prioriza resultados dentro del área
- * - Validación post-selección: rechaza coordenadas fuera de RIO_CUARTO_BOUNDS
- * - Session tokens: mejora calidad de predicciones y agrupa requests
+ * RESTRICCIÓN GEOGRÁFICA IMPLEMENTADA (solo Río Cuarto, Córdoba, Argentina):
+ * 
+ * 1. componentRestrictions: { country: 'ar' } → Solo Argentina
+ * 2. bounds: área de ~15km alrededor del centro de Río Cuarto
+ * 3. strictBounds: true → Restringe ESTRICTAMENTE predicciones a bounds
+ * 4. Validación post-selección: rechaza coordenadas fuera de RIO_CUARTO_BOUNDS
+ * 5. Session tokens: mejora calidad de predicciones y agrupa requests
+ * 6. Indicador visual: muestra dirección seleccionada para confirmación
  * 
  * Esto asegura que:
- * 1. Las sugerencias sean principalmente de Río Cuarto
- * 2. Si el usuario selecciona algo fuera de Río Cuarto, se rechaza con mensaje claro
- * 3. No se pueden guardar direcciones con coordenadas incorrectas
+ * - Las sugerencias sean SOLO de Río Cuarto (no aparecen otras ciudades)
+ * - Si el usuario intenta seleccionar algo fuera, se rechaza con mensaje claro
+ * - No se pueden guardar direcciones con coordenadas incorrectas
+ * - Mejor trazabilidad: coordenadas siempre coinciden con la dirección real
  */
 
 import React, { useRef, useEffect, useState } from 'react';
@@ -127,26 +130,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
     sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
 
+    const RADIO_RIO_CUARTO_GRADOS = 0.15;
+    const center = { lat: EMPRESA_COORDENADAS.lat, lng: EMPRESA_COORDENADAS.lng };
+    
     const bounds = new google.maps.LatLngBounds(
-      { lat: RIO_CUARTO_BOUNDS.south, lng: RIO_CUARTO_BOUNDS.west },
-      { lat: RIO_CUARTO_BOUNDS.north, lng: RIO_CUARTO_BOUNDS.east }
+      { lat: center.lat - RADIO_RIO_CUARTO_GRADOS, lng: center.lng - RADIO_RIO_CUARTO_GRADOS },
+      { lat: center.lat + RADIO_RIO_CUARTO_GRADOS, lng: center.lng + RADIO_RIO_CUARTO_GRADOS }
     );
-
-    const center = new google.maps.LatLng(EMPRESA_COORDENADAS.lat, EMPRESA_COORDENADAS.lng);
-    const RADIO_RIO_CUARTO_METROS = 15000;
 
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       componentRestrictions: { country: 'ar' },
       bounds,
-      strictBounds: false,
-      locationRestriction: {
-        center,
-        radius: RADIO_RIO_CUARTO_METROS,
-      },
-      locationBias: {
-        center,
-        radius: RADIO_RIO_CUARTO_METROS,
-      },
+      strictBounds: true,
       fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components'],
       types: ['address'],
     });
