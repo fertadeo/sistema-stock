@@ -1,3 +1,5 @@
+import { RADIO_BUSQUEDA_CERCANOS_METROS, RADIO_MAXIMO_METROS, UMBRAL_KILOMETROS } from './config';
+
 /**
  * Calcula la distancia en metros entre dos puntos GPS usando la fórmula de Haversine.
  */
@@ -20,23 +22,15 @@ export function calcularDistanciaMetros(
   return R * c;
 }
 
-/**
- * Radio por defecto para búsqueda de clientes cercanos en metros.
- * ~200m es una distancia razonable para un par de cuadras en Río Cuarto.
- */
-export const RADIO_BUSQUEDA_CERCANOS_METROS = 200;
-
-/**
- * Radio máximo configurable en metros.
- */
-export const RADIO_MAXIMO_METROS = 500;
+// Re-exportar configuración para conveniencia
+export { RADIO_BUSQUEDA_CERCANOS_METROS, RADIO_MAXIMO_METROS };
 
 /**
  * Formatea una distancia en metros a un string legible.
- * Si es menos de 1000m, muestra en metros, sino en kilómetros.
+ * Si es menos de UMBRAL_KILOMETROS, muestra en metros, sino en kilómetros.
  */
 export function formatearDistancia(metros: number): string {
-  if (metros < 1000) {
+  if (metros < UMBRAL_KILOMETROS) {
     return `${Math.round(metros)}m`;
   }
   return `${(metros / 1000).toFixed(1)}km`;

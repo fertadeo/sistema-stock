@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { calcularDistanciaMetros, RADIO_BUSQUEDA_CERCANOS_METROS, formatearDistancia } from '@/lib/geolocation/distancia';
+import { GEOLOCATION_OPTIONS } from '@/lib/geolocation/config';
 import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
 
 export interface ClienteConDistancia<T> {
@@ -67,11 +68,7 @@ export function useEstoyAca<T extends { latitud?: number | null; longitud?: numb
           
           reject(new Error(mensaje));
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 30000,
-        }
+        GEOLOCATION_OPTIONS
       );
     });
   }, []);
