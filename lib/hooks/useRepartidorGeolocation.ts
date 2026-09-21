@@ -2,23 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { repartidorRapidoService } from '@/lib/services/repartidorRapidoService';
+import { calcularDistanciaMetros } from '@/lib/geolocation/distancia';
 
 const INTERVALO_MS = 45_000;
 const DISTANCIA_MINIMA_METROS = 50;
-
-function distanciaMetros(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 /**
  * Envía la ubicación GPS del repartidor al backend usando la API del navegador (sin costo Google).
@@ -37,7 +24,7 @@ export function useRepartidorGeolocation(activo: boolean = true) {
       const ahora = Date.now();
       const ultima = ultimaPosicionRef.current;
       const distancia = ultima
-        ? distanciaMetros(ultima.lat, ultima.lng, lat, lng)
+        ? calcularDistanciaMetros(ultima.lat, ultima.lng, lat, lng)
         : DISTANCIA_MINIMA_METROS + 1;
       const pasoTiempo = ahora - ultimoEnvioRef.current >= INTERVALO_MS;
 
