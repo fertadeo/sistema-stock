@@ -46,6 +46,8 @@ import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { geocodificarDireccion } from '@/lib/geocode/geocodificarDireccion';
 import { useRepartidorGeolocation } from '@/lib/hooks/useRepartidorGeolocation';
 import { esProductoVentaPublico, normalizarTipoProducto } from '@/types/productos';
+import { useEstoyAca, ClienteConDistancia } from '@/lib/hooks/useEstoyAca';
+import { RADIO_BUSQUEDA_CERCANOS_METROS } from '@/lib/geolocation/distancia';
 
 interface EnvasePrestadoCliente {
   producto_id: number;
@@ -166,8 +168,11 @@ export default function RepartidorRapido() {
     navInferiorVisible,
   } = useRepartidorUi();
   useRepartidorGeolocation(true);
+  const { estado: estadoEstoyAca, buscarClientesCercanos, limpiarError: limpiarErrorEstoyAca } = useEstoyAca<Cliente>();
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
+  const [clientesCercanos, setClientesCercanos] = useState<ClienteConDistancia<Cliente>[]>([]);
+  const [viendoCercanos, setViendoCercanos] = useState(false);
   const [resumenClientes, setResumenClientes] = useState({ disponibles: 0, inactivos: 0 });
   const [repartidoresLista, setRepartidoresLista] = useState<Array<{ id: number; nombre: string }>>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -339,6 +344,28 @@ export default function RepartidorRapido() {
     } catch (error) {
       mostrarError('Error al buscar clientes');
     }
+  };
+
+  const manejarEstoyAca = async () => {
+    limpiarErrorEstoyAca();
+    setViendoCercanos(true);
+    setClientesCercanos([]);
+    setBusquedaCliente('');
+    setClientesEncontrados([]);
+
+    try {
+      const todosClientes = await repartidorRapidoService.obtenerTodosClientes();
+      const cercanos = await buscarClientesCercanos(todosClientes, RADIO_BUSQUEDA_CERCANOS_METROS);
+      setClientesCercanos(cercanos);
+    } catch (error) {
+      console.error('Error al buscar clientes cercanos:', error);
+    }
+  };
+
+  const salirDeViendoCercanos = () => {
+    setViendoCercanos(false);
+    setClientesCercanos([]);
+    limpiarErrorEstoyAca();
   };
 
   const normalizarCliente = (cliente: Cliente): Cliente => ({
@@ -551,6 +578,7 @@ export default function RepartidorRapido() {
       await cargarFichaCliente(cliente.id, cliente);
       setBusquedaCliente('');
       setClientesEncontrados([]);
+      salirDeViendoCercanos();
     } catch (error) {
       mostrarError('Error al cargar información del cliente');
     } finally {
@@ -1226,11 +1254,172 @@ export default function RepartidorRapido() {
               type="text"
               placeholder="Buscar cliente por nombre, teléfono o dirección..."
               value={busquedaCliente}
-              onChange={(e) => setBusquedaCliente(e.target.value)}
+              onChange={(e) => {
+                setBusquedaCliente(e.target.value);
+                if (viendoCercanos) {
+                  salirDeViendoCercanos();
+                }
+              }}
               className="py-3 pr-4 pl-10 w-full text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <MagnifyingGlassIcon className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
           </div>
+
+          {/* Botón "Estoy acá" */}
+          <button
+            type="button"
+            onClick={manejarEstoyAca}
+            disabled={estadoEstoyAca.buscando}
+            className={`mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold rounded-lg border transition-colors ${
+              viendoCercanos
+                ? 'text-teal-700 bg-teal-50 border-teal-300 hover:bg-teal-100'
+                : 'text-teal-600 bg-teal-50 border-teal-200 hover:bg-teal-100'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title="Buscar clientes cerca de tu ubicación actual"
+          >
+            <MapPinIconSolid className={`w-5 h-5 ${estadoEstoyAca.buscando ? 'animate-pulse' : ''}`} />
+            <span>
+              {estadoEstoyAca.buscando
+                ? 'Obteniendo ubicación...'
+                : viendoCercanos
+                  ? 'Actualizar ubicación'
+                  : 'Estoy acá'}
+            </span>
+          </button>
+
+          {/* Error de permisos de geolocalización */}
+          {estadoEstoyAca.errorPermiso && estadoEstoyAca.errorMensaje && (
+            <div className="p-3 mt-2 text-amber-800 bg-amber-50 rounded-lg border border-amber-200">
+              <p className="text-sm font-medium">⚠️ Permiso de ubicación requerido</p>
+              <p className="mt-1 text-xs">{estadoEstoyAca.errorMensaje}</p>
+              <p className="mt-2 text-xs">
+                Para usar esta función, activá la ubicación en tu dispositivo y otorgá permisos al navegador.
+                La geolocalización requiere HTTPS o localhost.
+              </p>
+              <button
+                type="button"
+                onClick={limpiarErrorEstoyAca}
+                className="mt-2 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-100 rounded hover:bg-amber-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
+          {/* Error genérico */}
+          {!estadoEstoyAca.errorPermiso && estadoEstoyAca.errorMensaje && (
+            <div className="p-3 mt-2 text-red-800 bg-red-50 rounded-lg border border-red-200">
+              <p className="text-sm">{estadoEstoyAca.errorMensaje}</p>
+              <button
+                type="button"
+                onClick={limpiarErrorEstoyAca}
+                className="mt-2 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
+          {/* Lista de clientes cercanos */}
+          {viendoCercanos && !estadoEstoyAca.buscando && (
+            <div className="mt-3">
+              {clientesCercanos.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="flex gap-1.5 items-center text-sm font-semibold text-teal-700">
+                      <MapPinIconSolid className="w-4 h-4" />
+                      {clientesCercanos.length} cliente{clientesCercanos.length !== 1 ? 's' : ''} cerca
+                      <span className="text-xs font-normal text-gray-500">
+                        (radio {RADIO_BUSQUEDA_CERCANOS_METROS}m)
+                      </span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={salirDeViendoCercanos}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Volver a búsqueda
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto space-y-2 max-h-96 bg-white rounded-lg border border-teal-200 shadow-sm">
+                    {clientesCercanos.map(({ cliente, distanciaFormateada }) => {
+                      const fijado = estaFijado(cliente.id);
+                      return (
+                        <div
+                          key={cliente.id}
+                          className="flex gap-2 items-center px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-teal-50"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => seleccionarCliente(cliente)}
+                            className="flex-1 min-w-0 text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-800">{cliente.nombre}</span>
+                              <span className="inline-block px-2 py-0.5 text-xs font-semibold text-teal-700 bg-teal-100 rounded-full">
+                                📍 {distanciaFormateada}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {!clienteEstaActivo(cliente) && (
+                                <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-red-700 bg-red-50 rounded">
+                                  Inactivo
+                                </span>
+                              )}
+                              {cliente.repartidor?.trim() ? (
+                                <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-teal-700 bg-teal-50 rounded">
+                                  {cliente.repartidor}
+                                </span>
+                              ) : (
+                                <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
+                                  Sin repartidor
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600">{cliente.telefono}</div>
+                            {cliente.direccion && (
+                              <div className="text-xs text-gray-500 truncate">{cliente.direccion}</div>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => toggleFijar(e, cliente)}
+                            className={`p-2 rounded-full flex-shrink-0 ${
+                              fijado
+                                ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                                : 'text-gray-400 hover:text-blue-600 hover:bg-gray-100'
+                            }`}
+                            title={fijado ? 'Quitar de clientes a visitar' : 'Fijar para visitar'}
+                          >
+                            {fijado ? (
+                              <MapPinIconSolid className="w-5 h-5" />
+                            ) : (
+                              <MapPinIcon className="w-5 h-5" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 text-center bg-teal-50 rounded-lg border border-teal-200">
+                  <MapPinIconSolid className="w-8 h-8 mx-auto text-teal-600 mb-2" />
+                  <p className="font-medium text-teal-900">No hay clientes cerca</p>
+                  <p className="mt-1 text-sm text-teal-700">
+                    No se encontraron clientes en un radio de {RADIO_BUSQUEDA_CERCANOS_METROS}m de tu ubicación.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={salirDeViendoCercanos}
+                    className="mt-3 px-4 py-2 text-sm font-medium text-teal-700 bg-white rounded-lg border border-teal-300 hover:bg-teal-50"
+                  >
+                    Volver a búsqueda
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <p className="mt-2 text-sm text-gray-600">
             <span className="font-medium text-teal-700">
@@ -1242,23 +1431,25 @@ export default function RepartidorRapido() {
             </span>
           </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              setClienteForm({
-                ...CLIENTE_FORM_VACIO,
-                repartidor: repartidorPorDefecto(),
-              });
-              setMostrarModalCliente(true);
-            }}
-            className="mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100"
-          >
-            <UserPlusIcon className="w-5 h-5" />
-            <span>Crear Cliente</span>
-          </button>
+          {!viendoCercanos && (
+            <button
+              type="button"
+              onClick={() => {
+                setClienteForm({
+                  ...CLIENTE_FORM_VACIO,
+                  repartidor: repartidorPorDefecto(),
+                });
+                setMostrarModalCliente(true);
+              }}
+              className="mt-3 flex justify-center items-center w-full px-4 py-2.5 space-x-2 font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100"
+            >
+              <UserPlusIcon className="w-5 h-5" />
+              <span>Crear Cliente</span>
+            </button>
+          )}
 
           {/* Lista de clientes encontrados */}
-          {clientesEncontrados.length > 0 && (
+          {!viendoCercanos && clientesEncontrados.length > 0 && (
             <div className="overflow-y-auto mt-2 max-h-64 bg-white rounded-lg border border-gray-200 shadow-sm">
               {clientesEncontrados.map((cliente) => {
                 const fijado = estaFijado(cliente.id);
@@ -1317,7 +1508,7 @@ export default function RepartidorRapido() {
           )}
 
           {/* Sin resultados: mensaje y botón Crear Cliente */}
-          {busquedaCliente.trim().length >= 2 && clientesEncontrados.length === 0 && (
+          {!viendoCercanos && busquedaCliente.trim().length >= 2 && clientesEncontrados.length === 0 && (
             <div className="p-4 mt-4 text-center bg-gray-50 rounded-lg border border-gray-200">
               <p className="font-medium text-gray-600">Búsqueda no encontrada</p>
               <p className="mt-1 text-sm text-gray-500">
