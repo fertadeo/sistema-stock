@@ -136,26 +136,21 @@ const MovimientosFeed: React.FC = () => {
 
   const handleBorrarMovimiento = async (id: number, tipo: string) => {
     try {
-      let endpoint = '';
-      if (tipo === 'GASTO') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${id}`;
-      } else if (tipo === 'VENTA_LOCAL') {
-        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local/${id}`;
-      } else {
-        setError('Tipo de movimiento no soportado para borrar');
+      if (tipo !== 'GASTO') {
+        setError('Solo se pueden borrar gastos');
         return;
       }
 
-      const response = await authFetch(endpoint, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/gastos/${id}`, {
         method: 'DELETE',
       });
       
-      if (!response.ok) throw new Error('Error al borrar el movimiento');
+      if (!response.ok) throw new Error('Error al borrar el gasto');
       
       await fetchMovimientos();
       setConfirmandoBorrado(null);
     } catch (err) {
-      setError('Error al borrar el movimiento');
+      setError('Error al borrar el gasto');
     }
   };
 
@@ -302,21 +297,19 @@ const MovimientosFeed: React.FC = () => {
                   return montoNum < 0 ? `-$${montoFormateado}` : `$${montoFormateado}`;
                 })()}
               </span>
-              {(mov.tipo === 'GASTO' || mov.tipo === 'VENTA_LOCAL') && (
+              {mov.tipo === 'GASTO' && (
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {mov.tipo === 'GASTO' && (
-                    <button
-                      onClick={() => handleEditarGasto(mov)}
-                      className="p-1 rounded hover:bg-blue-100 text-blue-600"
-                      title="Editar gasto"
-                    >
-                      <PencilIcon className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleEditarGasto(mov)}
+                    className="p-1 rounded hover:bg-blue-100 text-blue-600"
+                    title="Editar gasto"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setConfirmandoBorrado({ id: mov.id, tipo: mov.tipo })}
                     className="p-1 rounded hover:bg-red-100 text-red-600"
-                    title="Borrar movimiento"
+                    title="Borrar gasto"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -370,7 +363,7 @@ const MovimientosFeed: React.FC = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
             <p className="text-gray-600 mb-6">
-              ¿Estás seguro de que querés borrar este {confirmandoBorrado.tipo === 'GASTO' ? 'gasto' : 'movimiento'}? Esta acción no se puede deshacer.
+              ¿Estás seguro de que querés borrar este gasto? Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-3 justify-end">
               <button

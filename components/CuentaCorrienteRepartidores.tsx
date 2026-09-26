@@ -153,17 +153,24 @@ export default function CuentaCorrienteRepartidores() {
     try {
       const esEdicion = !!pagoEditando;
       const url = esEdicion
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos/${pagoEditando.id}`
+        ? `${process.env.NEXT_PUBLIC_API_URL}/repartidores/cuenta-corriente/pagos/${pagoEditando.id}`
         : `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos`;
+      
+      const body: any = {
+        monto: parseFloat(montoPago),
+        medio_pago: medioPago,
+        observaciones: observaciones.trim() || undefined
+      };
+      
+      // Agregar repartidor_id al body solo en creación o edición
+      if (!esEdicion) {
+        body.repartidor_id = parseInt(repartidorSeleccionado);
+      }
       
       const response = await authFetch(url, {
         method: esEdicion ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          monto: parseFloat(montoPago),
-          medio_pago: medioPago,
-          observaciones: observaciones.trim() || undefined
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -192,7 +199,7 @@ export default function CuentaCorrienteRepartidores() {
     
     try {
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos/${id}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/repartidores/cuenta-corriente/pagos/${id}`,
         { method: 'DELETE' }
       );
 

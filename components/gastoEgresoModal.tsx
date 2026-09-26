@@ -84,7 +84,7 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
 
       const esEdicion = !!gastoParaEditar;
       const url = esEdicion 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${gastoParaEditar.id}`
+        ? `${process.env.NEXT_PUBLIC_API_URL}/gastos/${gastoParaEditar.id}`
         : `${process.env.NEXT_PUBLIC_API_URL}/api/gastos`;
       
       const response = await authFetch(url, {

@@ -88,7 +88,7 @@ export default function GastosIngresosDashboard() {
 
   const handleBorrarGasto = async (id: number) => {
     try {
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${id}`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/gastos/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error al borrar el gasto');

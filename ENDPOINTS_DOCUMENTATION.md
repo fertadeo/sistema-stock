@@ -6,8 +6,8 @@ Este documento describe los endpoints que el frontend necesita para las funciona
 
 ### 1. Gastos
 
-#### PUT /api/gastos/:id
-Editar un gasto existente.
+#### PUT /gastos/:id
+Editar un gasto existente (tabla movimientos, tipo GASTO).
 
 **Request Body:**
 ```json
@@ -21,6 +21,8 @@ Editar un gasto existente.
   }
 }
 ```
+
+**Nota:** Todos los campos son opcionales. Solo se actualizan los campos enviados.
 
 **Response:**
 ```json
@@ -37,8 +39,8 @@ Editar un gasto existente.
 }
 ```
 
-#### DELETE /api/gastos/:id
-Borrar un gasto. Esta acción debe reflejarse en los movimientos y totales.
+#### DELETE /gastos/:id
+Borrar un gasto (soft delete). Esta acción debe reflejarse en los movimientos y totales.
 
 **Response:**
 ```json
@@ -52,31 +54,44 @@ Borrar un gasto. Esta acción debe reflejarse en los movimientos y totales.
 
 ### 2. Ventas Locales
 
-#### DELETE /api/ventas/local/:id
-Borrar una venta local. Debe revertir el stock de los productos vendidos.
+⚠️ **No implementado:** El backend no incluye endpoints de edición o borrado de ventas locales. La funcionalidad fue removida del frontend.
+
+---
+
+### 3. Cobros de Clientes
+
+⚠️ **No implementado en frontend:** Estos endpoints existen en el backend pero aún no están implementados en la UI del frontend.
+
+#### PUT /clientes/cobros/:cobroId
+Editar un cobro registrado de un cliente.
+
+**Request Body:**
+```json
+{
+  "monto": 50000,
+  "medio_pago": "efectivo",
+  "observaciones": "Cobro parcial corregido"
+}
+```
+
+**Nota:** Todos los campos son opcionales. Solo se actualizan los campos enviados.
+
+#### DELETE /clientes/cobros/:cobroId
+Borrar un cobro registrado (soft delete).
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Venta local borrada exitosamente",
-  "productos_revertidos": [
-    {
-      "producto_id": "P001",
-      "cantidad_revertida": 5,
-      "stock_actual": 150
-    }
-  ]
+  "message": "Cobro borrado exitosamente"
 }
 ```
 
-**Nota:** Por ahora no se implementa edición de ventas locales, solo borrado.
-
 ---
 
-### 3. Cuenta Corriente de Repartidores
+### 4. Cuenta Corriente de Repartidores
 
-#### GET /api/repartidores/:id/cuenta-corriente
+#### GET /api/repartidores/:repartidorId/cuenta-corriente
 Obtener el resumen y los movimientos de cuenta corriente de un repartidor.
 
 **Response:**
@@ -118,12 +133,13 @@ Obtener el resumen y los movimientos de cuenta corriente de un repartidor.
 }
 ```
 
-#### POST /api/repartidores/:id/cuenta-corriente/pagos
+#### POST /api/repartidores/:repartidorId/cuenta-corriente/pagos
 Registrar un nuevo pago del repartidor a la empresa.
 
 **Request Body:**
 ```json
 {
+  "repartidor_id": 5,
   "monto": 25000,
   "medio_pago": "efectivo",
   "observaciones": "Pago parcial semana 1"
@@ -149,7 +165,7 @@ Registrar un nuevo pago del repartidor a la empresa.
 }
 ```
 
-#### PUT /api/repartidores/:id/cuenta-corriente/pagos/:pagoId
+#### PUT /repartidores/cuenta-corriente/pagos/:pagoId
 Editar un pago existente del repartidor.
 
 **Request Body:**
@@ -160,6 +176,8 @@ Editar un pago existente del repartidor.
   "observaciones": "Pago parcial corregido"
 }
 ```
+
+**Nota:** Todos los campos son opcionales. Solo se actualizan los campos enviados.
 
 **Response:**
 ```json
@@ -180,8 +198,8 @@ Editar un pago existente del repartidor.
 }
 ```
 
-#### DELETE /api/repartidores/:id/cuenta-corriente/pagos/:pagoId
-Borrar un pago registrado. Debe recalcular los saldos acumulados de todos los movimientos posteriores.
+#### DELETE /repartidores/cuenta-corriente/pagos/:pagoId
+Borrar un pago registrado (soft delete). Debe recalcular los saldos acumulados de todos los movimientos posteriores.
 
 **Response:**
 ```json
@@ -201,10 +219,12 @@ Borrar un pago registrado. Debe recalcular los saldos acumulados de todos los mo
 ### Gastos
 - Los débitos automáticos (cierre de ventas) NO deben ser editables ni borrables desde esta UI
 - Solo los registros de tipo GASTO creados manualmente pueden editarse/borrarse
+- Soft delete implementado en el backend
 
 ### Ventas Locales
-- Al borrar una venta local, debe revertirse el stock de los productos
-- Por ahora no se implementa edición, solo borrado
+- **No hay endpoints de editar/borrar implementados**
+- La funcionalidad fue removida del frontend
+- Si en el futuro se implementa, debe revertirse el stock de los productos al borrar
 
 ### Cuenta Corriente Repartidores
 - Los débitos se generan automáticamente cuando el repartidor fía a clientes (NO editables/borrables desde esta UI)
@@ -227,7 +247,7 @@ Después de cada operación de editar o borrar, el frontend refrescará:
 
 ### 1. Dashboard Home (`app/home/page.tsx`)
 - **GastosIngresosDashboard**: Lista de últimos gastos con botones de editar/borrar
-- **MovimientosFeed**: Feed en tiempo real con botones de editar (solo gastos) y borrar (gastos y ventas locales)
+- **MovimientosFeed**: Feed en tiempo real con botones de editar y borrar (solo para GASTOS)
 
 ### 2. Cuenta Corriente Repartidores (`app/ventas/repartidores-donjavier/cuenta-corriente/page.tsx`)
 - Lista de movimientos de cuenta corriente con botones de editar/borrar (solo para pagos/créditos)
@@ -262,20 +282,25 @@ El proyecto sigue el siguiente contrato REST:
 
 ## 📦 Estado Actual del Backend
 
-Según el código y comentarios encontrados, los siguientes endpoints están **pendientes de implementación**:
+**✅ Endpoints implementados y mergeados** (PR fertadeo/sistema-stock-back#2):
 
-- ❌ `PUT /api/gastos/:id`
-- ❌ `DELETE /api/gastos/:id`
-- ❌ `DELETE /api/ventas/local/:id`
-- ❌ `GET /api/repartidores/:id/cuenta-corriente`
-- ❌ `POST /api/repartidores/:id/cuenta-corriente/pagos`
-- ❌ `PUT /api/repartidores/:id/cuenta-corriente/pagos/:pagoId`
-- ❌ `DELETE /api/repartidores/:id/cuenta-corriente/pagos/:pagoId`
+- ✅ `PUT /gastos/:id` - Editar gasto
+- ✅ `DELETE /gastos/:id` - Borrar gasto (soft delete)
+- ✅ `PUT /clientes/cobros/:cobroId` - Editar cobro
+- ✅ `DELETE /clientes/cobros/:cobroId` - Borrar cobro (soft delete)
+- ✅ `PUT /repartidores/cuenta-corriente/pagos/:pagoId` - Editar pago
+- ✅ `DELETE /repartidores/cuenta-corriente/pagos/:pagoId` - Borrar pago (soft delete)
 
-✅ Los endpoints de creación ya existen:
-- `POST /api/gastos`
-- `POST /api/ventas/local`
-- `GET /api/movimientos`
+**✅ Endpoints de creación existentes:**
+- `POST /api/gastos` - Crear gasto
+- `POST /api/ventas/local` - Crear venta local
+- `POST /api/repartidores/:repartidorId/cuenta-corriente/pagos` - Crear pago
+- `GET /api/movimientos` - Obtener movimientos
+- `GET /api/repartidores/:repartidorId/cuenta-corriente` - Obtener cuenta corriente
+
+**❌ No implementados:**
+- Editar/borrar ventas locales (no requerido por ahora)
+- Cobros de clientes en frontend (endpoints existen pero UI pendiente)
 
 ---
 
