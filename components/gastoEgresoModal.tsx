@@ -6,6 +6,17 @@ interface GastoEgresoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGastoAgregado?: (gasto: any) => void;
+  gastoParaEditar?: {
+    id: number;
+    monto: number;
+    concepto: string;
+    detalles?: {
+      proveedor?: string;
+      factura?: string;
+      categoria?: string;
+    };
+  } | null;
+  onGastoEditado?: (gasto: any) => void;
 }
 
 const CATEGORIAS = [
@@ -18,7 +29,7 @@ const CATEGORIAS = [
   "Otros"
 ];
 
-const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, onGastoAgregado }) => {
+const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, onGastoAgregado, gastoParaEditar, onGastoEditado }) => {
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -26,6 +37,24 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
   const [factura, setFactura] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Cargar datos cuando hay un gasto para editar
+  React.useEffect(() => {
+    if (gastoParaEditar) {
+      setConcepto(gastoParaEditar.concepto || "");
+      setMonto(String(gastoParaEditar.monto));
+      setCategoria(gastoParaEditar.detalles?.categoria || "");
+      setProveedor(gastoParaEditar.detalles?.proveedor || "");
+      setFactura(gastoParaEditar.detalles?.factura || "");
+    } else {
+      setConcepto("");
+      setMonto("");
+      setCategoria("");
+      setProveedor("");
+      setFactura("");
+    }
+    setError("");
+  }, [gastoParaEditar, isOpen]);
 
   const handleGuardar = async () => {
     if (!concepto.trim()) {
@@ -52,16 +81,27 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
           categoria
         }
       };
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos`, {
-        method: "POST",
+
+      const esEdicion = !!gastoParaEditar;
+      const url = esEdicion 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${gastoParaEditar.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/api/gastos`;
+      
+      const response = await authFetch(url, {
+        method: esEdicion ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-      if (!response.ok) throw new Error("Error al guardar el gasto");
+      
+      if (!response.ok) throw new Error(`Error al ${esEdicion ? 'editar' : 'guardar'} el gasto`);
       const data = await response.json();
-      if (onGastoAgregado) {
-        onGastoAgregado(body);
+      
+      if (esEdicion && onGastoEditado) {
+        onGastoEditado({ ...body, id: gastoParaEditar.id });
+      } else if (onGastoAgregado) {
+        onGastoAgregado(data.gasto || body);
       }
+      
       setConcepto("");
       setMonto("");
       setCategoria("");
@@ -69,7 +109,7 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
       setFactura("");
       onClose();
     } catch (err) {
-      setError("Error al guardar el gasto");
+      setError(`Error al ${gastoParaEditar ? 'editar' : 'guardar'} el gasto`);
     } finally {
       setLoading(false);
     }
@@ -88,7 +128,7 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
   return (
     <Modal isOpen={isOpen} onClose={handleClose} backdrop="blur" size="md">
       <ModalContent>
-        <ModalHeader>Nuevo Gasto/Egreso</ModalHeader>
+        <ModalHeader>{gastoParaEditar ? 'Editar Gasto/Egreso' : 'Nuevo Gasto/Egreso'}</ModalHeader>
         <ModalBody>
           <div className="flex flex-col gap-4">
             <Input
@@ -135,7 +175,7 @@ const GastoEgresoModal: React.FC<GastoEgresoModalProps> = ({ isOpen, onClose, on
             Cancelar
           </Button>
           <Button color="success" onClick={handleGuardar} style={{ color: "white" }} isLoading={loading}>
-            Guardar
+            {gastoParaEditar ? 'Actualizar' : 'Guardar'}
           </Button>
         </ModalFooter>
       </ModalContent>
