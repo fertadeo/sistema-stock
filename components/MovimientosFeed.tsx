@@ -141,7 +141,7 @@ const MovimientosFeed: React.FC = () => {
         return;
       }
 
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/gastos/${id}`, {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${id}`, {
         method: 'DELETE',
       });
       

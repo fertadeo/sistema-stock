@@ -6,7 +6,7 @@ Este documento describe los endpoints que el frontend necesita para las funciona
 
 ### 1. Gastos
 
-#### PUT /gastos/:id
+#### PUT /api/gastos/:id
 Editar un gasto existente (tabla movimientos, tipo GASTO).
 
 **Request Body:**
@@ -39,7 +39,7 @@ Editar un gasto existente (tabla movimientos, tipo GASTO).
 }
 ```
 
-#### DELETE /gastos/:id
+#### DELETE /api/gastos/:id
 Borrar un gasto (soft delete). Esta acción debe reflejarse en los movimientos y totales.
 
 **Response:**
@@ -60,9 +60,9 @@ Borrar un gasto (soft delete). Esta acción debe reflejarse en los movimientos y
 
 ### 3. Cobros de Clientes
 
-⚠️ **No implementado en frontend:** Estos endpoints existen en el backend pero aún no están implementados en la UI del frontend.
+✅ **Implementado en frontend:** Botones de editar y borrar en `components/repartidor/MovimientosCliente.tsx`
 
-#### PUT /clientes/cobros/:cobroId
+#### PUT /api/clientes/cobros/:cobroId
 Editar un cobro registrado de un cliente.
 
 **Request Body:**
@@ -76,7 +76,7 @@ Editar un cobro registrado de un cliente.
 
 **Nota:** Todos los campos son opcionales. Solo se actualizan los campos enviados.
 
-#### DELETE /clientes/cobros/:cobroId
+#### DELETE /api/clientes/cobros/:cobroId
 Borrar un cobro registrado (soft delete).
 
 **Response:**
@@ -165,7 +165,7 @@ Registrar un nuevo pago del repartidor a la empresa.
 }
 ```
 
-#### PUT /repartidores/cuenta-corriente/pagos/:pagoId
+#### PUT /api/repartidores/cuenta-corriente/pagos/:pagoId
 Editar un pago existente del repartidor.
 
 **Request Body:**
@@ -198,7 +198,7 @@ Editar un pago existente del repartidor.
 }
 ```
 
-#### DELETE /repartidores/cuenta-corriente/pagos/:pagoId
+#### DELETE /api/repartidores/cuenta-corriente/pagos/:pagoId
 Borrar un pago registrado (soft delete). Debe recalcular los saldos acumulados de todos los movimientos posteriores.
 
 **Response:**
@@ -252,6 +252,10 @@ Después de cada operación de editar o borrar, el frontend refrescará:
 ### 2. Cuenta Corriente Repartidores (`app/ventas/repartidores-donjavier/cuenta-corriente/page.tsx`)
 - Lista de movimientos de cuenta corriente con botones de editar/borrar (solo para pagos/créditos)
 
+### 3. Movimientos de Cliente - Cobros (`components/repartidor/MovimientosCliente.tsx`)
+- Lista de movimientos operativos del cliente incluyendo cobros
+- Botones de editar y borrar (solo para cobros)
+
 ## ✅ Validaciones
 
 ### En el Frontend:
@@ -284,12 +288,13 @@ El proyecto sigue el siguiente contrato REST:
 
 **✅ Endpoints implementados y mergeados** (PR fertadeo/sistema-stock-back#2):
 
-- ✅ `PUT /gastos/:id` - Editar gasto
-- ✅ `DELETE /gastos/:id` - Borrar gasto (soft delete)
-- ✅ `PUT /clientes/cobros/:cobroId` - Editar cobro
-- ✅ `DELETE /clientes/cobros/:cobroId` - Borrar cobro (soft delete)
-- ✅ `PUT /repartidores/cuenta-corriente/pagos/:pagoId` - Editar pago
-- ✅ `DELETE /repartidores/cuenta-corriente/pagos/:pagoId` - Borrar pago (soft delete)
+Todos los routers se montan con prefijo `/api` (ver `src/index.ts` líneas 55-75 del backend):
+- ✅ `PUT /api/gastos/:id` - Editar gasto
+- ✅ `DELETE /api/gastos/:id` - Borrar gasto (soft delete)
+- ✅ `PUT /api/clientes/cobros/:cobroId` - Editar cobro
+- ✅ `DELETE /api/clientes/cobros/:cobroId` - Borrar cobro (soft delete)
+- ✅ `PUT /api/repartidores/cuenta-corriente/pagos/:pagoId` - Editar pago
+- ✅ `DELETE /api/repartidores/cuenta-corriente/pagos/:pagoId` - Borrar pago (soft delete)
 
 **✅ Endpoints de creación existentes:**
 - `POST /api/gastos` - Crear gasto
@@ -300,7 +305,6 @@ El proyecto sigue el siguiente contrato REST:
 
 **❌ No implementados:**
 - Editar/borrar ventas locales (no requerido por ahora)
-- Cobros de clientes en frontend (endpoints existen pero UI pendiente)
 
 ---
 

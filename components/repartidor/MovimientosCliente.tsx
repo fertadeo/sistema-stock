@@ -10,6 +10,8 @@ import {
   CubeIcon,
   ShoppingCartIcon,
   XMarkIcon,
+  PencilIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import {
   abrirWhatsAppConMensaje,
@@ -21,6 +23,7 @@ import {
   MovimientoOperativoRepartidor,
   FiltroMovimientoRepartidor,
 } from '@/lib/services/repartidorRapidoService';
+import { authFetch } from '@/lib/api/fetchWithAuth';
 
 const TABS: Array<{ key: FiltroMovimientoRepartidor; label: string }> = [
   { key: 'todos', label: 'Todos' },
@@ -109,6 +112,13 @@ export default function MovimientosCliente({
   const [error, setError] = useState('');
   const [movimientoSeleccionado, setMovimientoSeleccionado] =
     useState<MovimientoOperativoRepartidor | null>(null);
+  const [cobroEditando, setCobroEditando] = useState<MovimientoOperativoRepartidor | null>(null);
+  const [confirmandoBorradoCobro, setConfirmandoBorradoCobro] = useState<string | null>(null);
+  const [modalEditarCobro, setModalEditarCobro] = useState(false);
+  const [montoEditando, setMontoEditando] = useState('');
+  const [medioPagoEditando, setMedioPagoEditando] = useState('efectivo');
+  const [observacionesEditando, setObservacionesEditando] = useState('');
+  const [guardandoCobro, setGuardandoCobro] = useState(false);
 
   const telefonoValido = Boolean(normalizarTelefonoWhatsApp(telefono));
 
@@ -156,6 +166,64 @@ export default function MovimientosCliente({
       setCargando(false);
     }
   }, [clienteId, clienteNombre]);
+
+  const abrirModalEdicionCobro = (movimiento: MovimientoOperativoRepartidor) => {
+    if (movimiento.categoria !== 'cobro') return;
+    setCobroEditando(movimiento);
+    setMontoEditando(String(movimiento.monto || ''));
+    setMedioPagoEditando('efectivo');
+    setObservacionesEditando('');
+    setModalEditarCobro(true);
+  };
+
+  const guardarCobro = async () => {
+    if (!cobroEditando || !montoEditando || parseFloat(montoEditando) <= 0) {
+      setError('Ingresá un monto válido');
+      return;
+    }
+
+    setGuardandoCobro(true);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/cobros/${cobroEditando.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monto: parseFloat(montoEditando),
+            medio_pago: medioPagoEditando,
+            observaciones: observacionesEditando.trim() || undefined
+          })
+        }
+      );
+
+      if (!response.ok) throw new Error('Error al editar el cobro');
+
+      setModalEditarCobro(false);
+      setCobroEditando(null);
+      await cargarMovimientos();
+    } catch (err) {
+      setError('Error al editar el cobro');
+    } finally {
+      setGuardandoCobro(false);
+    }
+  };
+
+  const borrarCobro = async (cobroId: string) => {
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/cobros/${cobroId}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) throw new Error('Error al borrar el cobro');
+
+      setConfirmandoBorradoCobro(null);
+      await cargarMovimientos();
+    } catch (err) {
+      setError('Error al borrar el cobro');
+    }
+  };
 
   useEffect(() => {
     void cargarMovimientos();
@@ -284,60 +352,88 @@ export default function MovimientosCliente({
                   {grupo.items.map((movimiento) => {
                     const Icono = ICONO_CATEGORIA[movimiento.categoria];
                     return (
-                      <li key={movimiento.id}>
-                        <button
-                          type="button"
-                          onClick={() => setMovimientoSeleccionado(movimiento)}
-                          className="flex gap-3 p-3 w-full text-left bg-white rounded-xl border border-gray-100 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
-                        >
-                        <div
-                          className={`flex flex-shrink-0 justify-center items-center w-10 h-10 rounded-full border ${
-                            ESTILO_CATEGORIA[movimiento.categoria]
-                          }`}
-                        >
-                          <Icono className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap gap-2 items-center">
-                            <span
-                              className={`inline-block px-2 py-0.5 text-xs font-semibold rounded border ${
+                      <li key={movimiento.id} className="group">
+                        <div className="flex gap-2 items-center">
+                          <button
+                            type="button"
+                            onClick={() => setMovimientoSeleccionado(movimiento)}
+                            className="flex flex-1 gap-3 p-3 text-left bg-white rounded-xl border border-gray-100 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
+                          >
+                            <div
+                              className={`flex flex-shrink-0 justify-center items-center w-10 h-10 rounded-full border ${
                                 ESTILO_CATEGORIA[movimiento.categoria]
                               }`}
                             >
-                              {ETIQUETA_CATEGORIA[movimiento.categoria]}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {formatearFechaHora(movimiento.fecha)}
-                            </span>
-                          </div>
-                          <p className="mt-1 font-medium text-gray-900">{movimiento.titulo}</p>
-                          {movimiento.subtitulo && (
-                            <p className="text-sm text-gray-600">{movimiento.subtitulo}</p>
-                          )}
-                          {movimiento.detalleExtra && (
-                            <p className="mt-1 text-xs text-gray-500">{movimiento.detalleExtra}</p>
+                              <Icono className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap gap-2 items-center">
+                                <span
+                                  className={`inline-block px-2 py-0.5 text-xs font-semibold rounded border ${
+                                    ESTILO_CATEGORIA[movimiento.categoria]
+                                  }`}
+                                >
+                                  {ETIQUETA_CATEGORIA[movimiento.categoria]}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {formatearFechaHora(movimiento.fecha)}
+                                </span>
+                              </div>
+                              <p className="mt-1 font-medium text-gray-900">{movimiento.titulo}</p>
+                              {movimiento.subtitulo && (
+                                <p className="text-sm text-gray-600">{movimiento.subtitulo}</p>
+                              )}
+                              {movimiento.detalleExtra && (
+                                <p className="mt-1 text-xs text-gray-500">{movimiento.detalleExtra}</p>
+                              )}
+                            </div>
+                            {movimiento.monto != null && (
+                              <div className="flex-shrink-0 text-right">
+                                {movimiento.categoria === 'envase' ? (
+                                  <p className="text-base font-bold text-blue-700">
+                                    {movimiento.esCredito ? '−' : '+'}
+                                    {movimiento.monto} u.
+                                  </p>
+                                ) : (
+                                  <p
+                                    className={`text-base font-bold tabular-nums ${
+                                      movimiento.esCredito ? 'text-green-700' : 'text-red-700'
+                                    }`}
+                                  >
+                                    {movimiento.esCredito ? '+' : '−'}$
+                                    {movimiento.monto.toLocaleString('es-AR')}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </button>
+                          {movimiento.categoria === 'cobro' && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  abrirModalEdicionCobro(movimiento);
+                                }}
+                                className="p-2 rounded-lg hover:bg-blue-100 text-blue-600"
+                                title="Editar cobro"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmandoBorradoCobro(movimiento.id);
+                                }}
+                                className="p-2 rounded-lg hover:bg-red-100 text-red-600"
+                                title="Borrar cobro"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </div>
-                        {movimiento.monto != null && (
-                          <div className="flex-shrink-0 text-right">
-                            {movimiento.categoria === 'envase' ? (
-                              <p className="text-base font-bold text-blue-700">
-                                {movimiento.esCredito ? '−' : '+'}
-                                {movimiento.monto} u.
-                              </p>
-                            ) : (
-                              <p
-                                className={`text-base font-bold tabular-nums ${
-                                  movimiento.esCredito ? 'text-green-700' : 'text-red-700'
-                                }`}
-                              >
-                                {movimiento.esCredito ? '+' : '−'}$
-                                {movimiento.monto.toLocaleString('es-AR')}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        </button>
                       </li>
                     );
                   })}
@@ -423,12 +519,130 @@ export default function MovimientosCliente({
     </div>
   );
 
+  const modalEdicionCobro = modalEditarCobro && cobroEditando && (
+    <div className="flex fixed inset-0 z-[90] justify-center items-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Editar Cobro</h3>
+          <button
+            type="button"
+            onClick={() => {
+              setModalEditarCobro(false);
+              setCobroEditando(null);
+            }}
+            className="p-1 text-gray-400 hover:text-gray-600"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <label htmlFor="monto-cobro-editar" className="block text-sm font-medium text-gray-700 mb-1">
+              Monto
+            </label>
+            <input
+              id="monto-cobro-editar"
+              type="number"
+              value={montoEditando}
+              onChange={(e) => setMontoEditando(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div>
+            <label htmlFor="medio-pago-cobro-editar" className="block text-sm font-medium text-gray-700 mb-1">
+              Medio de Pago
+            </label>
+            <select
+              id="medio-pago-cobro-editar"
+              value={medioPagoEditando}
+              onChange={(e) => setMedioPagoEditando(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="debito">Débito</option>
+              <option value="credito">Crédito</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="observaciones-cobro-editar" className="block text-sm font-medium text-gray-700 mb-1">
+              Observaciones (opcional)
+            </label>
+            <textarea
+              id="observaciones-cobro-editar"
+              value={observacionesEditando}
+              onChange={(e) => setObservacionesEditando(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              rows={3}
+              placeholder="Ingrese observaciones"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setModalEditarCobro(false);
+                setCobroEditando(null);
+              }}
+              disabled={guardandoCobro}
+              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={guardarCobro}
+              disabled={guardandoCobro || !montoEditando || parseFloat(montoEditando) <= 0}
+              className="flex-1 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {guardandoCobro ? 'Guardando...' : 'Actualizar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const modalConfirmacionBorrado = confirmandoBorradoCobro && (
+    <div className="flex fixed inset-0 z-[90] justify-center items-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6">
+        <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
+        <p className="text-gray-600 mb-6">
+          ¿Estás seguro de que querés borrar este cobro? Esta acción no se puede deshacer y afectará el saldo de la cuenta corriente del cliente.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmandoBorradoCobro(null)}
+            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => borrarCobro(confirmandoBorradoCobro)}
+            className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+          >
+            Borrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (modo === 'embedded') {
     return (
-      <div className="rounded-xl bg-gray-50 border border-gray-200 shadow-sm">
-        {contenido}
-        {panelDetalleMovimiento}
-      </div>
+      <>
+        <div className="rounded-xl bg-gray-50 border border-gray-200 shadow-sm">
+          {contenido}
+          {panelDetalleMovimiento}
+        </div>
+        {modalEdicionCobro}
+        {modalConfirmacionBorrado}
+      </>
     );
   }
 
@@ -440,6 +654,8 @@ export default function MovimientosCliente({
         </div>
       </div>
       {panelDetalleMovimiento}
+      {modalEdicionCobro}
+      {modalConfirmacionBorrado}
     </>
   );
 }

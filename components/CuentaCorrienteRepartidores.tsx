@@ -153,7 +153,7 @@ export default function CuentaCorrienteRepartidores() {
     try {
       const esEdicion = !!pagoEditando;
       const url = esEdicion
-        ? `${process.env.NEXT_PUBLIC_API_URL}/repartidores/cuenta-corriente/pagos/${pagoEditando.id}`
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/cuenta-corriente/pagos/${pagoEditando.id}`
         : `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos`;
       
       const body: any = {
@@ -199,7 +199,7 @@ export default function CuentaCorrienteRepartidores() {
     
     try {
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/repartidores/cuenta-corriente/pagos/${id}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/cuenta-corriente/pagos/${id}`,
         { method: 'DELETE' }
       );
 
