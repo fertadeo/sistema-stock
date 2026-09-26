@@ -11,8 +11,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ShoppingCartIcon, MinusCircleIcon } from '@heroicons/react/24/solid';
+import { ShoppingCartIcon, MinusCircleIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { authFetch } from '@/lib/api/fetchWithAuth';
+import GastoEgresoModal from './gastoEgresoModal';
 
 interface Movimiento {
   id: number;
@@ -54,27 +55,55 @@ export default function GastosIngresosDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<PeriodoKey>('7d');
+  const [modalEditarGasto, setModalEditarGasto] = useState(false);
+  const [gastoSeleccionado, setGastoSeleccionado] = useState<Movimiento | null>(null);
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState<number | null>(null);
+
+  const fetchMovimientos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
+      const data: ApiResponse = await response.json();
+      if (data.success && Array.isArray(data.movimientos)) {
+        setMovimientos(data.movimientos);
+      } else {
+        setError('Error al cargar los movimientos');
+      }
+    } catch {
+      setError('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMovimientos = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/movimientos`);
-        const data: ApiResponse = await response.json();
-        if (data.success && Array.isArray(data.movimientos)) {
-          setMovimientos(data.movimientos);
-        } else {
-          setError('Error al cargar los movimientos');
-        }
-      } catch {
-        setError('Error de conexión con el servidor');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchMovimientos();
   }, []);
+
+  const handleEditarGasto = (gasto: Movimiento) => {
+    setGastoSeleccionado(gasto);
+    setModalEditarGasto(true);
+  };
+
+  const handleBorrarGasto = async (id: number) => {
+    try {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Error al borrar el gasto');
+      await fetchMovimientos();
+      setConfirmandoBorrado(null);
+    } catch (err) {
+      setError('Error al borrar el gasto');
+    }
+  };
+
+  const handleGastoEditado = async () => {
+    setModalEditarGasto(false);
+    setGastoSeleccionado(null);
+    await fetchMovimientos();
+  };
 
   const { datosGrafico, totalIngresos, totalGastos, recientesIngresos, recientesGastos } = useMemo(() => {
     const dias = periodo === '7d' ? 7 : 30;
@@ -266,20 +295,82 @@ export default function GastosIngresosDashboard() {
               recientesGastos.map((m) => (
                 <li
                   key={m.id}
-                  className="flex justify-between items-center text-sm py-1 border-b border-gray-100"
+                  className="flex justify-between items-center text-sm py-1 border-b border-gray-100 group hover:bg-gray-50"
                 >
-                  <span className="text-gray-700 truncate max-w-[180px]" title={m.descripcion}>
+                  <span className="text-gray-700 truncate max-w-[120px]" title={m.descripcion}>
                     {m.descripcion || m.detalles?.concepto || 'Gasto'}
                   </span>
-                  <span className="font-medium text-red-700 shrink-0">
-                    {formatMonto(parseMonto(m.monto))}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-red-700 shrink-0">
+                      {formatMonto(parseMonto(m.monto))}
+                    </span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEditarGasto(m)}
+                        className="p-1 rounded hover:bg-blue-100 text-blue-600"
+                        title="Editar gasto"
+                      >
+                        <PencilIcon className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setConfirmandoBorrado(m.id)}
+                        className="p-1 rounded hover:bg-red-100 text-red-600"
+                        title="Borrar gasto"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))
             )}
           </ul>
         </div>
       </div>
+
+      {/* Modal de edición de gasto */}
+      {gastoSeleccionado && (
+        <GastoEgresoModal
+          isOpen={modalEditarGasto}
+          onClose={() => {
+            setModalEditarGasto(false);
+            setGastoSeleccionado(null);
+          }}
+          gastoParaEditar={{
+            id: gastoSeleccionado.id,
+            monto: parseMonto(gastoSeleccionado.monto),
+            concepto: gastoSeleccionado.detalles?.concepto || gastoSeleccionado.descripcion,
+            detalles: gastoSeleccionado.detalles
+          }}
+          onGastoEditado={handleGastoEditado}
+        />
+      )}
+
+      {/* Modal de confirmación de borrado */}
+      {confirmandoBorrado !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
+            <p className="text-gray-600 mb-6">
+              ¿Estás seguro de que querés borrar este gasto? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmandoBorrado(null)}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleBorrarGasto(confirmandoBorrado)}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

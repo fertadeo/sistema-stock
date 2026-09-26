@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@heroui/react";
-import { UserPlusIcon, ShoppingCartIcon, MinusCircleIcon } from '@heroicons/react/24/solid';
+import { UserPlusIcon, ShoppingCartIcon, MinusCircleIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { authFetch, createAuthStreamUrl } from '@/lib/api/fetchWithAuth';
 import NuevoClienteModal from "./nuevoClienteModal";
 import VentaLocalModal from "./ventaLocalModal";
@@ -107,6 +107,9 @@ const MovimientosFeed: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const [modalEditarGasto, setModalEditarGasto] = useState(false);
+  const [gastoSeleccionado, setGastoSeleccionado] = useState<Movimiento | null>(null);
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState<{ id: number; tipo: string } | null>(null);
 
   const fetchMovimientos = async () => {
     try {
@@ -124,6 +127,42 @@ const MovimientosFeed: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditarGasto = (gasto: Movimiento) => {
+    setGastoSeleccionado(gasto);
+    setModalEditarGasto(true);
+  };
+
+  const handleBorrarMovimiento = async (id: number, tipo: string) => {
+    try {
+      let endpoint = '';
+      if (tipo === 'GASTO') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/gastos/${id}`;
+      } else if (tipo === 'VENTA_LOCAL') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_URL}/api/ventas/local/${id}`;
+      } else {
+        setError('Tipo de movimiento no soportado para borrar');
+        return;
+      }
+
+      const response = await authFetch(endpoint, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) throw new Error('Error al borrar el movimiento');
+      
+      await fetchMovimientos();
+      setConfirmandoBorrado(null);
+    } catch (err) {
+      setError('Error al borrar el movimiento');
+    }
+  };
+
+  const handleGastoEditado = async () => {
+    setModalEditarGasto(false);
+    setGastoSeleccionado(null);
+    await fetchMovimientos();
   };
 
   const handleNuevoMovimiento = (event: MessageEvent) => {
@@ -238,7 +277,7 @@ const MovimientosFeed: React.FC = () => {
         {movimientosFiltrados.map((mov) => (
           <div
             key={mov.id}
-            className={`flex justify-between items-center px-3 py-2 rounded-lg shadow-sm transition-all duration-700 hover:bg-opacity-90 border-l-4 ${getColor(mov.tipo)} ${mov.animating ? 'opacity-0 -translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}`}
+            className={`flex justify-between items-center px-3 py-2 rounded-lg shadow-sm transition-all duration-700 hover:bg-opacity-90 border-l-4 group ${getColor(mov.tipo)} ${mov.animating ? 'opacity-0 -translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}`}
             style={{ willChange: 'opacity, transform' }}
           >
             <div className="flex gap-2 items-center">
@@ -248,7 +287,7 @@ const MovimientosFeed: React.FC = () => {
                 <div className="text-xs text-gray-500">{new Date(mov.fecha).toLocaleDateString()}</div>
               </div>
             </div>
-            <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2">
               <span className={`text-lg font-bold`}>
                 {(() => {
                   let montoNum =
@@ -263,6 +302,26 @@ const MovimientosFeed: React.FC = () => {
                   return montoNum < 0 ? `-$${montoFormateado}` : `$${montoFormateado}`;
                 })()}
               </span>
+              {(mov.tipo === 'GASTO' || mov.tipo === 'VENTA_LOCAL') && (
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {mov.tipo === 'GASTO' && (
+                    <button
+                      onClick={() => handleEditarGasto(mov)}
+                      className="p-1 rounded hover:bg-blue-100 text-blue-600"
+                      title="Editar gasto"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setConfirmandoBorrado({ id: mov.id, tipo: mov.tipo })}
+                    className="p-1 rounded hover:bg-red-100 text-red-600"
+                    title="Borrar movimiento"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -286,6 +345,50 @@ const MovimientosFeed: React.FC = () => {
       <NuevoClienteModal isOpen={modalNuevoCliente} onClose={() => setModalNuevoCliente(false)} onClienteAgregado={() => setModalNuevoCliente(false)} />
       <VentaLocalModal isOpen={modalVentaLocal} onClose={() => setModalVentaLocal(false)} />
       <GastoEgresoModal isOpen={modalGastoEgreso} onClose={() => setModalGastoEgreso(false)} />
+
+      {/* Modal de edición de gasto */}
+      {gastoSeleccionado && (
+        <GastoEgresoModal
+          isOpen={modalEditarGasto}
+          onClose={() => {
+            setModalEditarGasto(false);
+            setGastoSeleccionado(null);
+          }}
+          gastoParaEditar={{
+            id: gastoSeleccionado.id,
+            monto: typeof gastoSeleccionado.monto === 'string' ? Number(gastoSeleccionado.monto) : gastoSeleccionado.monto,
+            concepto: gastoSeleccionado.detalles?.concepto || gastoSeleccionado.descripcion,
+            detalles: gastoSeleccionado.detalles
+          }}
+          onGastoEditado={handleGastoEditado}
+        />
+      )}
+
+      {/* Modal de confirmación de borrado */}
+      {confirmandoBorrado !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
+            <p className="text-gray-600 mb-6">
+              ¿Estás seguro de que querés borrar este {confirmandoBorrado.tipo === 'GASTO' ? 'gasto' : 'movimiento'}? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmandoBorrado(null)}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleBorrarMovimiento(confirmandoBorrado.id, confirmandoBorrado.tipo)}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

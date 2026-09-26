@@ -18,6 +18,7 @@ import {
   Textarea,
   useDisclosure
 } from '@heroui/react';
+import { PencilIcon, TrashIcon } from '@heroicons/react/24/solid';
 import Alert from '@/components/shared/alert';
 
 type Repartidor = {
@@ -61,6 +62,8 @@ export default function CuentaCorrienteRepartidores() {
   const [montoPago, setMontoPago] = useState('');
   const [medioPago, setMedioPago] = useState<'efectivo' | 'transferencia' | 'debito' | 'credito'>('efectivo');
   const [observaciones, setObservaciones] = useState('');
+  const [pagoEditando, setPagoEditando] = useState<MovimientoCuentaCorriente | null>(null);
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState<string | null>(null);
 
   useEffect(() => {
     cargarRepartidores();
@@ -124,9 +127,19 @@ export default function CuentaCorrienteRepartidores() {
   };
 
   const abrirModalPago = () => {
+    setPagoEditando(null);
     setMontoPago('');
     setMedioPago('efectivo');
     setObservaciones('');
+    onOpen();
+  };
+
+  const abrirModalEdicion = (movimiento: MovimientoCuentaCorriente) => {
+    if (movimiento.tipo !== 'CREDITO') return;
+    setPagoEditando(movimiento);
+    setMontoPago(String(movimiento.monto));
+    setMedioPago((movimiento.medio_pago as any) || 'efectivo');
+    setObservaciones(movimiento.observaciones || '');
     onOpen();
   };
 
@@ -138,42 +151,64 @@ export default function CuentaCorrienteRepartidores() {
 
     setRegistrandoPago(true);
     try {
-      // NOTA: Este endpoint debe implementarse en el backend
-      // POST /api/repartidores/{id}/cuenta-corriente/pagos
-      // Body: { monto: number, medio_pago: string, observaciones?: string }
-      // Response: { success: boolean, saldo_actual: number, pago: {...} }
+      const esEdicion = !!pagoEditando;
+      const url = esEdicion
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos/${pagoEditando.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos`;
       
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            monto: parseFloat(montoPago),
-            medio_pago: medioPago,
-            observaciones: observaciones.trim() || undefined
-          })
-        }
-      );
+      const response = await authFetch(url, {
+        method: esEdicion ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monto: parseFloat(montoPago),
+          medio_pago: medioPago,
+          observaciones: observaciones.trim() || undefined
+        })
+      });
 
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('Endpoint no implementado aún. Documentación en el PR.');
         }
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al registrar el pago');
+        throw new Error(errorData.message || `Error al ${esEdicion ? 'editar' : 'registrar'} el pago`);
       }
 
-      mostrarAlerta('Pago registrado exitosamente', 'success');
+      mostrarAlerta(`Pago ${esEdicion ? 'editado' : 'registrado'} exitosamente`, 'success');
+      setPagoEditando(null);
       onClose();
       
-      // Recargar cuenta corriente
       await cargarCuentaCorriente(repartidorSeleccionado);
     } catch (error: any) {
-      console.error('Error al registrar pago:', error);
-      mostrarAlerta(error.message || 'Error al registrar el pago', 'error');
+      console.error('Error al registrar/editar pago:', error);
+      mostrarAlerta(error.message || `Error al ${pagoEditando ? 'editar' : 'registrar'} el pago`, 'error');
     } finally {
       setRegistrandoPago(false);
+    }
+  };
+
+  const borrarPago = async (id: string) => {
+    if (!repartidorSeleccionado) return;
+    
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidorSeleccionado}/cuenta-corriente/pagos/${id}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Endpoint no implementado aún. Documentación en el PR.');
+        }
+        throw new Error('Error al borrar el pago');
+      }
+
+      mostrarAlerta('Pago borrado exitosamente', 'success');
+      setConfirmandoBorrado(null);
+      await cargarCuentaCorriente(repartidorSeleccionado);
+    } catch (error: any) {
+      console.error('Error al borrar pago:', error);
+      mostrarAlerta(error.message || 'Error al borrar el pago', 'error');
     }
   };
 
@@ -341,7 +376,7 @@ export default function CuentaCorrienteRepartidores() {
                   {movimientos.map((mov) => (
                     <div
                       key={mov.id}
-                      className={`p-4 rounded-lg border ${
+                      className={`p-4 rounded-lg border group ${
                         mov.tipo === 'DEBITO' 
                           ? 'bg-red-50 border-red-200' 
                           : 'bg-green-50 border-green-200'
@@ -375,15 +410,35 @@ export default function CuentaCorrienteRepartidores() {
                             </p>
                           )}
                         </div>
-                        <div className="text-right">
-                          <p className={`text-xl font-bold ${
-                            mov.tipo === 'DEBITO' ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {mov.tipo === 'DEBITO' ? '+' : '-'}${mov.monto.toLocaleString('es-AR')}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Saldo: ${mov.saldo_acumulado.toLocaleString('es-AR')}
-                          </p>
+                        <div className="flex items-start gap-2">
+                          <div className="text-right">
+                            <p className={`text-xl font-bold ${
+                              mov.tipo === 'DEBITO' ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {mov.tipo === 'DEBITO' ? '+' : '-'}${mov.monto.toLocaleString('es-AR')}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Saldo: ${mov.saldo_acumulado.toLocaleString('es-AR')}
+                            </p>
+                          </div>
+                          {mov.tipo === 'CREDITO' && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => abrirModalEdicion(mov)}
+                                className="p-1.5 rounded hover:bg-blue-100 text-blue-600"
+                                title="Editar pago"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setConfirmandoBorrado(mov.id)}
+                                className="p-1.5 rounded hover:bg-red-100 text-red-600"
+                                title="Borrar pago"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -411,7 +466,7 @@ export default function CuentaCorrienteRepartidores() {
             <>
               <ModalHeader>
                 <div>
-                  <h3 className="text-lg font-bold">Registrar Pago del Repartidor</h3>
+                  <h3 className="text-lg font-bold">{pagoEditando ? 'Editar Pago' : 'Registrar Pago del Repartidor'}</h3>
                   <p className="text-sm font-normal text-gray-600">
                     Saldo actual: ${resumen?.saldo_actual.toLocaleString('es-AR') || '0'}
                   </p>
@@ -468,13 +523,41 @@ export default function CuentaCorrienteRepartidores() {
                   onPress={registrarPago}
                   isDisabled={registrandoPago || !montoPago || parseFloat(montoPago) <= 0}
                 >
-                  {registrandoPago ? 'Registrando...' : 'Registrar Pago'}
+                  {registrandoPago 
+                    ? (pagoEditando ? 'Actualizando...' : 'Registrando...') 
+                    : (pagoEditando ? 'Actualizar Pago' : 'Registrar Pago')}
                 </Button>
               </ModalFooter>
             </>
           )}
         </ModalContent>
       </Modal>
+
+      {/* Modal de confirmación de borrado */}
+      {confirmandoBorrado !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirmar eliminación</h3>
+            <p className="text-gray-600 mb-6">
+              ¿Estás seguro de que querés borrar este pago? Esta acción no se puede deshacer y afectará el saldo de la cuenta corriente.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmandoBorrado(null)}
+                className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => borrarPago(confirmandoBorrado)}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Documentación de endpoints */}
       <Card className="bg-gray-50">
@@ -548,6 +631,41 @@ Response: {
       "observaciones": "Pago parcial semana 1"
     },
     "saldo_actual": 20000
+  }
+}`}
+              </pre>
+            </div>
+
+            <div>
+              <p className="font-bold text-orange-600">PUT /api/repartidores/:id/cuenta-corriente/pagos/:pagoId</p>
+              <p className="text-gray-700 mt-1">Editar un pago existente del repartidor</p>
+              <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-x-auto">
+{`Request Body: {
+  "monto": 30000,
+  "medio_pago": "transferencia",
+  "observaciones": "Pago parcial corregido"
+}
+
+Response: {
+  "success": true,
+  "message": "Pago editado exitosamente",
+  "data": {
+    "pago": { /* ... */ },
+    "saldo_actual": 15000
+  }
+}`}
+              </pre>
+            </div>
+
+            <div>
+              <p className="font-bold text-red-600">DELETE /api/repartidores/:id/cuenta-corriente/pagos/:pagoId</p>
+              <p className="text-gray-700 mt-1">Borrar un pago registrado (recalcula saldos)</p>
+              <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-x-auto">
+{`Response: {
+  "success": true,
+  "message": "Pago borrado exitosamente",
+  "data": {
+    "saldo_actual": 45000
   }
 }`}
               </pre>
