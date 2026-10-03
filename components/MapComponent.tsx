@@ -51,6 +51,7 @@ interface MapComponentProps {
   clientesIncluidos?: number[];
   rutaDetallada: [number, number][];
   onClienteActualizado: (clienteId: number, datos: Partial<Cliente>) => void;
+  onClienteEliminado?: (clienteId: number) => void;
   clientesAtendidos?: number[];
   repartidorPalette?: RepartidorPaletteItem[];
   repartidores?: RepartidorOption[];
@@ -259,6 +260,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   clientesIncluidos = [],
   rutaDetallada,
   onClienteActualizado,
+  onClienteEliminado,
   clientesAtendidos = [],
   repartidorPalette = [],
   repartidores = [],
@@ -292,6 +294,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [colocandoCliente, setColocandoCliente] = useState(false);
   const [grupoActivoKey, setGrupoActivoKey] = useState<string | null>(null);
+  const [confirmarBorradoId, setConfirmarBorradoId] = useState<number | null>(null);
+  const [borrandoClienteId, setBorrandoClienteId] = useState<number | null>(null);
 
   const clientesConCoords = useMemo(
     () =>
@@ -520,6 +524,27 @@ const MapComponent: React.FC<MapComponentProps> = ({
       alert(error instanceof Error ? error.message : 'Error al actualizar las coordenadas');
     } finally {
       setGuardandoUbicacion(false);
+    }
+  };
+
+  const borrarCliente = async (cliente: Cliente) => {
+    setBorrandoClienteId(cliente.id);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${cliente.id}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'No se pudo borrar el cliente');
+      }
+      onClienteEliminado?.(cliente.id);
+      setConfirmarBorradoId(null);
+      if (selectedCliente?.id === cliente.id) setSelectedCliente(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'No se pudo borrar el cliente');
+    } finally {
+      setBorrandoClienteId(null);
     }
   };
 
@@ -998,7 +1023,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
               <div className="map-info-window-list">
                 {grupoActivo.map((cliente) => (
                   <div key={cliente.id} className="map-info-window-card">
-                    <p className="map-info-window-card-title">{cliente.nombre}</p>
+                    <p className="map-info-window-card-title">
+                      {cliente.nombre}
+                      <span className="ml-1 text-xs font-normal text-gray-500">ID {cliente.id}</span>
+                    </p>
                     <InfoRow label="Dirección" value={cliente.direccion} />
                     <InfoRow label="Teléfono" value={cliente.telefono} />
                     <InfoRow label="Zona" value={cliente.zona} />
@@ -1030,6 +1058,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
                       >
                         Mover
                       </button>
+                      {confirmarBorradoId === cliente.id ? (
+                        <button
+                          type="button"
+                          className="map-info-window-btn map-info-window-btn-danger"
+                          onClick={() => void borrarCliente(cliente)}
+                          disabled={borrandoClienteId === cliente.id}
+                        >
+                          {borrandoClienteId === cliente.id ? 'Borrando...' : 'Confirmar borrado'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="map-info-window-btn map-info-window-btn-danger"
+                          onClick={() => setConfirmarBorradoId(cliente.id)}
+                          disabled={borrandoClienteId != null}
+                        >
+                          Borrar
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

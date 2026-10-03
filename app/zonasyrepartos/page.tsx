@@ -423,6 +423,12 @@ const PageZonasyRepartos = () => {
     [clientes]
   );
 
+  const eliminarClienteEnMapa = (clienteId: number) => {
+    setClientes((prev) => prev.filter((cliente) => cliente.id !== clienteId));
+    setClientesOmitidos((prev) => prev.filter((id) => id !== clienteId));
+    setClientesIncluidos((prev) => prev.filter((id) => id !== clienteId));
+  };
+
   const actualizarClienteEnMapa = (clienteId: number, datos: Partial<Cliente>) => {
     setClientes((prev) =>
       prev.map((cliente) =>
@@ -1492,6 +1498,7 @@ const PageZonasyRepartos = () => {
               clientesIncluidos={clientesIncluidos}
               rutaDetallada={rutaDetallada}
               onClienteActualizado={actualizarClienteEnMapa}
+              onClienteEliminado={eliminarClienteEnMapa}
               clientesAtendidos={clientesAtendidos}
               repartidorPalette={repartidorPalette}
               repartidores={repartidores}
