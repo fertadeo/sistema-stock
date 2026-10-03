@@ -308,6 +308,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const claveUbicacion = (lat: number, lng: number) =>
     `${lat.toFixed(5)},${lng.toFixed(5)}`;
 
+  const distanciaMetros = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const aLat = (lat1 * Math.PI) / 180;
+    const bLat = (lat2 * Math.PI) / 180;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(aLat) * Math.cos(bLat) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+  };
+
+  const acercarAPinExistente = (lat: number, lng: number, clienteId: number) => {
+    let mejor: { lat: number; lng: number; dist: number } | null = null;
+    clientesConCoords.forEach((cliente) => {
+      if (cliente.id === clienteId) return;
+      const dist = distanciaMetros(lat, lng, cliente.latitud, cliente.longitud);
+      if (dist <= 35 && (!mejor || dist < mejor.dist)) {
+        mejor = { lat: cliente.latitud, lng: cliente.longitud, dist };
+      }
+    });
+    return mejor ? { lat: mejor.lat, lng: mejor.lng } : { lat, lng };
+  };
+
   const gruposUbicacion = useMemo(() => {
     const grupos = new Map<string, Cliente[]>();
     clientesConCoords.forEach((cliente) => {
@@ -420,16 +443,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const latNum = Number(lat);
     const lngNum = Number(lon);
     if (!address.trim() || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
-    setDragPosition({ lat: latNum, lng: lngNum });
+    const destino = acercarAPinExistente(latNum, lngNum, cliente.id);
+    setDragPosition(destino);
     setEditingClienteId(cliente.id);
-    map?.panTo({ lat: latNum, lng: lngNum });
-    setPendingConfirm({ cliente, lat: latNum, lng: lngNum, direccion: address });
+    map?.panTo(destino);
+    setPendingConfirm({ cliente, ...destino, direccion: address });
   };
 
   const handleDragEnd = async (cliente: Cliente, lat: number, lng: number) => {
-    setDragPosition({ lat, lng });
-    const direccion = await obtenerDireccion(lat, lng);
-    setPendingConfirm({ cliente, lat, lng, direccion });
+    const destino = acercarAPinExistente(lat, lng, cliente.id);
+    setDragPosition(destino);
+    const direccion = await obtenerDireccion(destino.lat, destino.lng);
+    setPendingConfirm({ cliente, ...destino, direccion });
   };
 
   const actualizarClienteEnApi = async (
@@ -514,7 +539,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const selectedAtendido = selectedCliente
     ? clientesAtendidos.includes(selectedCliente.id)
     : false;
-  const editandoUbicacion = selectedCliente != null && editingClienteId === selectedCliente.id;
+  const editandoUbicacion = editingClienteId != null && dragPosition != null;
+  const clienteEnEdicion = editandoUbicacion
+    ? clientesConCoords.find((cliente) => cliente.id === editingClienteId) ?? null
+    : null;
+  const otrosEnDestino =
+    clienteEnEdicion && dragPosition
+      ? clientesConCoords.filter(
+          (cliente) =>
+            cliente.id !== clienteEnEdicion.id &&
+            claveUbicacion(cliente.latitud, cliente.longitud) ===
+              claveUbicacion(dragPosition.lat, dragPosition.lng)
+        )
+      : [];
   const repartidorModificado =
     selectedCliente != null && repartidorEditado !== (selectedCliente.repartidor ?? '');
 
@@ -841,6 +878,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         )}
 
         {gruposUbicacion.map(([clave, grupo]) => {
+          if (
+            editingClienteId != null &&
+            dragPosition &&
+            clave === claveUbicacion(dragPosition.lat, dragPosition.lng)
+          ) {
+            return null;
+          }
           const cliente = grupo[0];
           const cantidad = grupo.length;
           const enRuta =
@@ -898,7 +942,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           <Marker
             position={dragPosition}
             draggable
-            zIndex={40}
+            zIndex={80}
             icon={toGoogleMarkerIcon(
               getMarkerIcon(
                 clientesConCoords.find((c) => c.id === editingClienteId) as Cliente,
@@ -907,6 +951,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   mostrarRuta,
                   seguirRecorrido,
                   palette: repartidorPalette,
+                  cantidad:
+                    clientesConCoords.filter(
+                      (cliente) =>
+                        cliente.id !== editingClienteId &&
+                        claveUbicacion(cliente.latitud, cliente.longitud) ===
+                          claveUbicacion(dragPosition.lat, dragPosition.lng)
+                    ).length + 1,
                 }
               )
             )}
@@ -987,7 +1038,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </InfoWindow>
         )}
 
-        {selectedCliente && !pendingConfirm && (
+        {selectedCliente && !pendingConfirm && !editandoUbicacion && (
           <InfoWindow
             position={{
               lat: selectedCliente.latitud,
@@ -1126,56 +1177,55 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </InfoWindow>
         )}
 
-        {pendingConfirm && (
-          <InfoWindow
-            position={{ lat: pendingConfirm.lat, lng: pendingConfirm.lng }}
-            options={infoWindowOptions('Confirmar ubicación')}
-            onCloseClick={cancelarCambio}
-          >
-            <div className="map-info-window-body">
-              <p className="map-info-window-row font-semibold">
-                ¿Cambiar ubicación de {pendingConfirm.cliente.nombre}?
-              </p>
-              <AddressAutocomplete
-                label="Dirección"
-                placeholder="Corregí la dirección con Google"
-                value={pendingConfirm.direccion}
-                showMiUbicacion={false}
-                onChange={(address, lat, lon) => {
-                  if (!lat || !lon) return;
-                  moverPinADireccionGoogle(pendingConfirm.cliente, address, lat, lon);
-                }}
-              />
-              <p className="map-info-window-row">
-                <span className="map-info-window-label">Lat:</span> {pendingConfirm.lat.toFixed(6)}
-              </p>
-              <p className="map-info-window-row">
-                <span className="map-info-window-label">Lng:</span> {pendingConfirm.lng.toFixed(6)}
-              </p>
-              <div className="map-info-window-actions">
-                <button
-                  type="button"
-                  className="map-info-window-btn map-info-window-btn-success"
-                  onClick={confirmarCambio}
-                  disabled={guardandoUbicacion}
-                >
-                  {guardandoUbicacion ? 'Guardando...' : 'Confirmar'}
-                </button>
-                <button
-                  type="button"
-                  className="map-info-window-btn map-info-window-btn-danger"
-                  onClick={cancelarCambio}
-                  disabled={guardandoUbicacion}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </InfoWindow>
-        )}
       </GoogleMap>
 
-      {!ocultarBannerDibujo && bannerDibujo && (
+      {clienteEnEdicion && dragPosition && (
+        <div className="absolute top-3 left-1/2 z-30 w-[min(440px,92%)] -translate-x-1/2 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+          <p className="text-sm font-semibold text-gray-900">{clienteEnEdicion.nombre}</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Arrastrá el pin sin que el cartel lo tape. Si lo acercás a otro cliente, se agrupa y el número confirma que coinciden.
+          </p>
+          <div className="mt-2">
+            <AddressAutocomplete
+              label="Corregir dirección"
+              placeholder="Escribí y elegí la dirección real"
+              value={pendingConfirm?.direccion || clienteEnEdicion.direccion}
+              showMiUbicacion={false}
+              onChange={(address, lat, lon) => {
+                if (!lat || !lon) return;
+                moverPinADireccionGoogle(clienteEnEdicion, address, lat, lon);
+              }}
+            />
+          </div>
+          {otrosEnDestino.length > 0 && (
+            <p className="mt-2 text-xs font-semibold text-teal-700">
+              Queda junto a {otrosEnDestino.length === 1 ? otrosEnDestino[0].nombre : `${otrosEnDestino.length} clientes`}. El pin muestra {otrosEnDestino.length + 1}.
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pendingConfirm && (
+              <button
+                type="button"
+                className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                onClick={confirmarCambio}
+                disabled={guardandoUbicacion}
+              >
+                {guardandoUbicacion ? 'Guardando...' : 'Confirmar ubicación'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="rounded-md bg-gray-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+              onClick={cancelarCambio}
+              disabled={guardandoUbicacion}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!ocultarBannerDibujo && bannerDibujo && !clienteEnEdicion && (
         <div className="absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white shadow-lg pointer-events-none max-w-[90%] text-center">
           {bannerDibujo}
         </div>
