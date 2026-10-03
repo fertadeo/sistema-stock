@@ -106,8 +106,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       }
     `;
     document.head.appendChild(style);
+    const detenerClicSugerencia = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('.pac-container')) {
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener('mousedown', detenerClicSugerencia);
+    document.addEventListener('touchstart', detenerClicSugerencia);
     return () => {
       document.head.removeChild(style);
+      document.removeEventListener('mousedown', detenerClicSugerencia);
+      document.removeEventListener('touchstart', detenerClicSugerencia);
     };
   }, []);
 
@@ -334,6 +344,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         defaultValue={value}
         placeholder={placeholder}
         onChange={handleInputChange}
+        onKeyDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         className="px-3 py-2 w-full rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-400"
         autoComplete="off"
       />

@@ -7,6 +7,7 @@ import { EMPRESA_COORDENADAS, RIO_CUARTO_BOUNDS } from './GoogleMapsProvider';
 import { getMarkerIcon, MARKER_ICONS, MarkerIconConfig, RepartidorPaletteItem } from '@/lib/map/repartidorMarkers';
 import { tieneCoordenadasValidas } from '@/lib/map/clienteCoords';
 import { openInGoogleMaps } from '@/lib/map/openGoogleMaps';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
 import {
   clienteCoincideFiltros,
   FiltrosCliente,
@@ -408,6 +409,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
     } catch {
       return 'No se pudo obtener la dirección';
     }
+  };
+
+  const moverPinADireccionGoogle = (
+    cliente: Cliente,
+    address: string,
+    lat: string,
+    lon: string
+  ) => {
+    const latNum = Number(lat);
+    const lngNum = Number(lon);
+    if (!address.trim() || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
+    setDragPosition({ lat: latNum, lng: lngNum });
+    setEditingClienteId(cliente.id);
+    map?.panTo({ lat: latNum, lng: lngNum });
+    setPendingConfirm({ cliente, lat: latNum, lng: lngNum, direccion: address });
   };
 
   const handleDragEnd = async (cliente: Cliente, lat: number, lng: number) => {
@@ -981,7 +997,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
             onCloseClick={() => setSelectedCliente(null)}
           >
             <div className="map-info-window-body">
-              <InfoRow label="Dirección" value={selectedCliente.direccion} />
+              {editandoUbicacion ? (
+                <AddressAutocomplete
+                  label="Corregir dirección"
+                  placeholder="Escribí y elegí la dirección real"
+                  value={selectedCliente.direccion}
+                  showMiUbicacion={false}
+                  onChange={(address, lat, lon) => {
+                    if (!lat || !lon) return;
+                    moverPinADireccionGoogle(selectedCliente, address, lat, lon);
+                  }}
+                />
+              ) : (
+                <InfoRow label="Dirección" value={selectedCliente.direccion} />
+              )}
               <InfoRow label="Teléfono" value={selectedCliente.telefono} />
               <InfoRow label="Zona" value={selectedCliente.zona} />
               <InfoRow label="Día de reparto" value={selectedCliente.dia_reparto} />
@@ -1018,7 +1047,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
               {editandoUbicacion && (
                 <p className="map-info-window-hint">
-                  Arrastrá el marcador en el mapa hasta la nueva ubicación. Al soltarlo podrás confirmar el cambio.
+                  Escribí la dirección y elegí una sugerencia de Google para mover el pin a la ubicación real. También podés arrastrar el marcador.
                 </p>
               )}
 
@@ -1107,7 +1136,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
               <p className="map-info-window-row font-semibold">
                 ¿Cambiar ubicación de {pendingConfirm.cliente.nombre}?
               </p>
-              <InfoRow label="Dirección" value={pendingConfirm.direccion} />
+              <AddressAutocomplete
+                label="Dirección"
+                placeholder="Corregí la dirección con Google"
+                value={pendingConfirm.direccion}
+                showMiUbicacion={false}
+                onChange={(address, lat, lon) => {
+                  if (!lat || !lon) return;
+                  moverPinADireccionGoogle(pendingConfirm.cliente, address, lat, lon);
+                }}
+              />
               <p className="map-info-window-row">
                 <span className="map-info-window-label">Lat:</span> {pendingConfirm.lat.toFixed(6)}
               </p>

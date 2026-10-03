@@ -773,8 +773,9 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
                   />
                 </svg>
               }
-              onChange={(e) => setSearchTerm(e.target.value)}
               value={searchTerm}
+              onValueChange={setSearchTerm}
+              onClear={() => setSearchTerm("")}
               className="w-full px-3 py-2"
               size="sm"
             />
