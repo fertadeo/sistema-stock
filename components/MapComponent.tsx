@@ -87,6 +87,10 @@ interface MapComponentProps {
   /** Alta de cliente desde un punto del mapa (doble click o botón). */
   onCrearClienteEnPunto?: (lat: number, lng: number) => void;
   puntoNuevoCliente?: { lat: number; lng: number } | null;
+  /** Botón + Zona, al lado de + Cliente. */
+  onIniciarCrearZona?: () => void;
+  mostrarBotonZona?: boolean;
+  botonZonaDeshabilitado?: boolean;
 }
 
 const mapContainerStyle: React.CSSProperties = {
@@ -278,6 +282,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   ocultarBannerDibujo = false,
   onCrearClienteEnPunto,
   puntoNuevoCliente = null,
+  onIniciarCrearZona,
+  mostrarBotonZona = false,
+  botonZonaDeshabilitado = false,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -603,13 +610,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }, [dibujandoZona]);
 
   useEffect(() => {
-    if (!map || !onCrearClienteEnPunto) return;
+    if (!map || (!onCrearClienteEnPunto && !onIniciarCrearZona)) return;
 
     const wrap = document.createElement('div');
-    wrap.style.margin = '0 0 28px 12px';
+    wrap.style.margin = '0 16px 20px 0';
     wrap.style.display = 'flex';
     wrap.style.flexDirection = 'column';
-    wrap.style.alignItems = 'flex-start';
+    wrap.style.alignItems = 'flex-end';
     wrap.style.gap = '8px';
 
     if (colocandoCliente) {
@@ -617,8 +624,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       hint.textContent = 'Click en el mapa para ubicar al cliente';
       hint.style.cssText = [
         'background:#fff',
-        'color:#115e59',
-        'border:1px solid #99f6e4',
+        'color:#1e3a8a',
+        'border:1px solid #bfdbfe',
         'border-radius:8px',
         'padding:6px 10px',
         'font-size:12px',
@@ -628,39 +635,74 @@ const MapComponent: React.FC<MapComponentProps> = ({
       wrap.appendChild(hint);
     }
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = colocandoCliente ? 'Cancelar cliente' : '+ Cliente';
-    button.title = 'Doble click en el mapa, o usá este botón y después marcá el punto';
-    button.disabled = dibujandoZona;
-    button.style.cssText = [
-      'background:#0d9488',
-      'color:#fff',
-      'border:2px solid #fff',
-      'border-radius:9999px',
-      'padding:12px 16px',
-      'font-weight:700',
-      'font-size:14px',
-      'box-shadow:0 10px 15px rgba(0,0,0,.25)',
-      'cursor:pointer',
-      dibujandoZona ? 'opacity:0.5' : '',
-    ].filter(Boolean).join(';');
-    button.onclick = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (dibujandoZona) return;
-      setColocandoCliente((prev) => !prev);
-    };
-    wrap.appendChild(button);
+    const fila = document.createElement('div');
+    fila.style.display = 'flex';
+    fila.style.alignItems = 'center';
+    fila.style.gap = '8px';
 
-    const position = google.maps.ControlPosition.LEFT_BOTTOM;
+    const estiloBoton = (fondo: string, deshabilitado: boolean) =>
+      [
+        `background:${fondo}`,
+        'color:#fff',
+        'border:2px solid rgba(255,255,255,.8)',
+        'border-radius:9999px',
+        'padding:12px 16px',
+        'font-weight:700',
+        'font-size:14px',
+        'line-height:1.25',
+        'box-shadow:0 10px 15px rgba(0,0,0,.25)',
+        deshabilitado ? 'opacity:0.5' : 'cursor:pointer',
+      ].join(';');
+
+    if (onCrearClienteEnPunto) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = colocandoCliente ? 'Cancelar cliente' : '+ Cliente';
+      button.title = 'Doble click en el mapa, o usá este botón y después marcá el punto';
+      button.disabled = dibujandoZona;
+      button.style.cssText = estiloBoton('#2563eb', dibujandoZona);
+      button.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (dibujandoZona) return;
+        setColocandoCliente((prev) => !prev);
+      };
+      fila.appendChild(button);
+    }
+
+    if (onIniciarCrearZona && mostrarBotonZona) {
+      const zona = document.createElement('button');
+      zona.type = 'button';
+      zona.textContent = '+ Zona';
+      zona.disabled = botonZonaDeshabilitado;
+      zona.style.cssText = estiloBoton('#0d9488', botonZonaDeshabilitado);
+      zona.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (botonZonaDeshabilitado) return;
+        onIniciarCrearZona();
+      };
+      fila.appendChild(zona);
+    }
+
+    wrap.appendChild(fila);
+
+    const position = google.maps.ControlPosition.RIGHT_BOTTOM;
     map.controls[position].push(wrap);
     return () => {
       const controls = map.controls[position];
       const index = controls.getArray().indexOf(wrap);
       if (index > -1) controls.removeAt(index);
     };
-  }, [map, colocandoCliente, dibujandoZona, onCrearClienteEnPunto]);
+  }, [
+    map,
+    colocandoCliente,
+    dibujandoZona,
+    onCrearClienteEnPunto,
+    onIniciarCrearZona,
+    mostrarBotonZona,
+    botonZonaDeshabilitado,
+  ]);
 
   const bannerDibujo = (() => {
     if (!modoDibujoZona) return null;

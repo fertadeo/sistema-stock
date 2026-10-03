@@ -1515,6 +1515,9 @@ const PageZonasyRepartos = () => {
               onActualizarPoligonoZona={actualizarPoligonoZona}
               ocultarBannerDibujo
               onCrearClienteEnPunto={(lat, lng) => setAltaClienteMapa({ lat, lng })}
+              onIniciarCrearZona={iniciarCrearZona}
+              mostrarBotonZona={!editandoZona}
+              botonZonaDeshabilitado={cargandoRuta || guardandoZona}
               puntoNuevoCliente={
                 altaClienteMapa
                   ? { lat: altaClienteMapa.lat, lng: altaClienteMapa.lng }
@@ -1534,16 +1537,6 @@ const PageZonasyRepartos = () => {
             </>
           )}
 
-          {!editandoZona && (
-            <button
-              type="button"
-              onClick={iniciarCrearZona}
-              disabled={cargandoRuta || guardandoZona}
-              className="absolute bottom-5 right-4 z-30 rounded-full bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-xl ring-2 ring-white/80 hover:bg-teal-700 disabled:opacity-50"
-            >
-              + Zona
-            </button>
-          )}
         </div>
       </div>
       {/* Footer fijo con datos de la ruta — se oculta al editar zona en mobile */}
