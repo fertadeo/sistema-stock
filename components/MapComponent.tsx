@@ -332,14 +332,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const acercarAPinExistente = (lat: number, lng: number, clienteId: number) => {
     let mejor: { lat: number; lng: number; dist: number } | null = null;
-    clientesConCoords.forEach((cliente) => {
-      if (cliente.id === clienteId) return;
+    for (const cliente of clientesConCoords) {
+      if (cliente.id === clienteId) continue;
       const dist = distanciaMetros(lat, lng, cliente.latitud, cliente.longitud);
-      if (dist <= 35 && (!mejor || dist < mejor.dist)) {
+      if (dist <= 35 && (mejor == null || dist < mejor.dist)) {
         mejor = { lat: cliente.latitud, lng: cliente.longitud, dist };
       }
-    });
-    return mejor ? { lat: mejor.lat, lng: mejor.lng } : { lat, lng };
+    }
+    if (!mejor) return { lat, lng };
+    return { lat: mejor.lat, lng: mejor.lng };
   };
 
   const gruposUbicacion = useMemo(() => {
