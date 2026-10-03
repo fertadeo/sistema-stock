@@ -18,9 +18,13 @@ function svgToDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function buildPinSvg(fillColor: string, variant: PinVariant): string {
-  const innerSymbol =
-    variant === 'empresa'
+function buildPinSvg(fillColor: string, variant: PinVariant, cantidad?: number): string {
+  const muestraCantidad = cantidad != null && cantidad > 1;
+  const textoCantidad = muestraCantidad ? (cantidad > 99 ? '99+' : String(cantidad)) : '';
+  const innerSymbol = muestraCantidad
+    ? `<circle cx="17" cy="15" r="7.4" fill="#FFFFFF"/>
+       <text x="17" y="18.7" text-anchor="middle" font-family="Arial, sans-serif" font-size="${textoCantidad.length > 1 ? 9 : 12}" font-weight="700" fill="${fillColor}">${textoCantidad}</text>`
+    : variant === 'empresa'
       ? `<path d="M12.5 17.5V14.5L16 12L19.5 14.5V17.5H17.5V21H14.5V17.5H12.5Z" fill="${fillColor}" opacity="0.85"/>`
       : variant === 'repartidor'
         ? `<circle cx="16" cy="13" r="3.5" fill="#FFFFFF" opacity="0.95"/><path d="M16 17c-2.5 0-4.5 1.2-4.5 2.5v1h9v-1c0-1.3-2-2.5-4.5-2.5z" fill="#FFFFFF" opacity="0.95"/>`
@@ -45,9 +49,13 @@ function buildPinSvg(fillColor: string, variant: PinVariant): string {
 </svg>`;
 }
 
-export function createPinIcon(fillColor: string, variant: PinVariant = 'cliente'): MarkerIconConfig {
+export function createPinIcon(
+  fillColor: string,
+  variant: PinVariant = 'cliente',
+  cantidad?: number
+): MarkerIconConfig {
   return {
-    url: svgToDataUrl(buildPinSvg(fillColor, variant)),
+    url: svgToDataUrl(buildPinSvg(fillColor, variant, cantidad)),
     scaledSize: { width: PIN_WIDTH, height: PIN_HEIGHT },
     anchor: { x: PIN_WIDTH / 2, y: PIN_HEIGHT },
   };

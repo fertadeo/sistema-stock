@@ -93,12 +93,15 @@ interface NuevoClienteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onClienteAgregado: () => void;
+  /** Si viene del mapa, precarga coordenadas y busca la dirección. */
+  ubicacionInicial?: { latitud: number; longitud: number } | null;
 }
 
 const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
   isOpen,
   onClose,
   onClienteAgregado,
+  ubicacionInicial = null,
 }) => {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
@@ -191,6 +194,49 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
       fetchNextClienteId();
     }
   }, [isOpen]);
+
+  const latInicial = ubicacionInicial?.latitud;
+  const lngInicial = ubicacionInicial?.longitud;
+
+  useEffect(() => {
+    if (!isOpen || latInicial == null || lngInicial == null) return;
+
+    const lat = String(latInicial);
+    const lng = String(lngInicial);
+    setDni("");
+    setNombre("");
+    setTelefono("");
+    setEmail("");
+    setPiso("");
+    setDepartamento("");
+    setZona("");
+    setRepartidor("");
+    setDiaReparto("");
+    setEnvasesPrestados([]);
+    setLatitud(lat);
+    setLongitud(lng);
+    setDireccion("");
+
+    let activo = true;
+    const buscarDireccion = async () => {
+      try {
+        const response = await authFetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`
+        );
+        if (!response.ok || !activo) return;
+        const data = await response.json();
+        if (!activo) return;
+        setDireccion(data.formatted_address || data.display_name || "");
+      } catch (error) {
+        console.error("No se pudo obtener la dirección del punto:", error);
+      }
+    };
+
+    void buscarDireccion();
+    return () => {
+      activo = false;
+    };
+  }, [isOpen, latInicial, lngInicial]);
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement> | string,
@@ -494,7 +540,10 @@ const NuevoClienteModal: React.FC<NuevoClienteModalProps> = ({
                 />
                 {latitud && longitud && (
                   <p className="mt-1 text-xs text-green-600">
-                    Ubicación detectada: {Number(latitud).toFixed(5)}, {Number(longitud).toFixed(5)}
+                    {ubicacionInicial
+                      ? "Ubicación tomada del mapa: "
+                      : "Ubicación detectada: "}
+                    {Number(latitud).toFixed(5)}, {Number(longitud).toFixed(5)}
                   </p>
                 )}
                 {direccion.trim() && !latitud && (

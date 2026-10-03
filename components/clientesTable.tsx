@@ -1,5 +1,5 @@
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tooltip, useDisclosure, Pagination, Button, User, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from "@heroui/react";
 import ModalToTable from "@/components/modalToTable";
 import NuevoClienteModal from "@/components/nuevoClienteModal";
@@ -20,6 +20,8 @@ import {
 import { resumirEnvasesClientes } from "@/lib/map/envasesResumen";
 import EnvasesFiltroResumen from "@/components/EnvasesFiltroResumen";
 import { descargarClientesExcel } from "@/lib/export/excelClientes";
+import { leerResumenClientesExcel, type ActualizacionCliente, type ResumenImportacion } from "@/lib/import/clientesExcel";
+import ImportarClientesModal from "@/components/ImportarClientesModal";
 
 type Repartidor = {
   id: number;
@@ -84,6 +86,15 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
   const [filtroDatos, setFiltroDatos] = useState("");
   const [repartidores, setRepartidores] = useState<Repartidor[]>([]);
   const [clientesSeleccionados, setClientesSeleccionados] = useState<Set<number>>(new Set());
+  const archivoImportacionRef = useRef<HTMLInputElement>(null);
+  const [resumenImportacion, setResumenImportacion] = useState<ResumenImportacion | null>(null);
+  const [archivoImportacion, setArchivoImportacion] = useState("");
+  const [importando, setImportando] = useState(false);
+  const [progresoImportacion, setProgresoImportacion] = useState<{ hechas: number; total: number } | null>(null);
+  const [resultadoImportacion, setResultadoImportacion] = useState<{
+    ok: number;
+    errores: { nombre: string; motivo: string }[];
+  } | null>(null);
 
   const columns = [
     { uid: "checkbox", name: "" },
@@ -588,6 +599,132 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
     setAlertVisible(true);
   };
 
+  const cerrarImportacion = () => {
+    if (importando) return;
+    setResumenImportacion(null);
+    setArchivoImportacion("");
+    setProgresoImportacion(null);
+    setResultadoImportacion(null);
+  };
+
+  const textoEnvases = (user: User) => {
+    const envases = user.envases_prestados || [];
+    if (envases.length === 0) return "Sin envases";
+    return envases
+      .map((envase) => {
+        const nombre = envase.producto_nombre || envase.nombre_producto || "Producto";
+        return `${Number(envase.cantidad) || 0} x ${nombre}`;
+      })
+      .join("; ");
+  };
+
+  const handleArchivoImportacion = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const resumen = await leerResumenClientesExcel(
+        file,
+        users.map((user) => ({
+          ...user,
+          envasesTexto: textoEnvases(user),
+          vinculadoTexto: user.cliente_vinculado?.nombre || "",
+        })),
+        {
+          zonas,
+          repartidores: repartidores.map((repartidor) => repartidor.nombre),
+          diasReparto: diasRepartoData.diasReparto,
+        }
+      );
+      setResultadoImportacion(null);
+      setProgresoImportacion(null);
+      setArchivoImportacion(file.name);
+      setResumenImportacion(resumen);
+    } catch (error) {
+      setAlertMessage(error instanceof Error ? error.message : "No se pudo leer el Excel.");
+      setAlertType("error");
+      setAlertVisible(true);
+    }
+  };
+
+  const aplicarImportacion = async () => {
+    if (!resumenImportacion || resumenImportacion.actualizaciones.length === 0) return;
+
+    const pendientes = resumenImportacion.actualizaciones;
+    setImportando(true);
+    setProgresoImportacion({ hechas: 0, total: pendientes.length });
+
+    const errores: { nombre: string; motivo: string }[] = [];
+    let ok = 0;
+    let hechas = 0;
+    const cola = [...pendientes];
+
+    const guardarCliente = async (item: ActualizacionCliente) => {
+      const soloEstado = item.cambios.every((cambio) => cambio.campo === "Estado");
+      if (!soloEstado) {
+        const body: Record<string, unknown> = {
+          dni: item.datos.dni,
+          nombre: item.datos.nombre,
+          email: item.datos.email,
+          telefono: item.datos.telefono,
+          direccion: item.datos.direccion,
+          piso: item.datos.piso,
+          departamento: item.datos.departamento,
+          repartidor: item.datos.repartidor,
+          dia_reparto: item.datos.dia_reparto,
+          latitud: item.datos.latitud,
+          longitud: item.datos.longitud,
+        };
+        if (item.datos.zonaId != null) body.zona = item.datos.zonaId;
+
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${item.id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || data.message || "No se pudo actualizar el cliente");
+        }
+      }
+
+      if (item.estado !== undefined) {
+        const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clientes/${item.id}/estado`, {
+          method: "PATCH",
+          body: JSON.stringify({ estado: item.estado }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || data.message || "No se pudo actualizar el estado");
+        }
+      }
+    };
+
+    const worker = async () => {
+      while (cola.length > 0) {
+        const item = cola.shift();
+        if (!item) return;
+        try {
+          await guardarCliente(item);
+          ok += 1;
+        } catch (error) {
+          errores.push({
+            nombre: item.nombre,
+            motivo: error instanceof Error ? error.message : "Error al actualizar",
+          });
+        } finally {
+          hechas += 1;
+          setProgresoImportacion({ hechas, total: pendientes.length });
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(4, pendientes.length) }, () => worker()));
+    setResultadoImportacion({ ok, errores });
+    setImportando(false);
+    if (ok > 0) await fetchClientes();
+  };
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filtroDiaReparto, filtroRepartidor, filtroZona, filtroDatos]);
@@ -769,6 +906,13 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
             Total clientes: {filteredUsers.length}
           </p>
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={archivoImportacionRef}
+              type="file"
+              accept=".xls,.xlsx,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={handleArchivoImportacion}
+            />
             <Button
               color="secondary"
               variant="flat"
@@ -782,6 +926,19 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
               }
             >
               Exportar ({filteredUsers.length})
+            </Button>
+            <Button
+              color="secondary"
+              variant="bordered"
+              size="sm"
+              onPress={() => archivoImportacionRef.current?.click()}
+              startContent={
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+              }
+            >
+              Importar
             </Button>
             <Button
               color="primary"
@@ -895,6 +1052,16 @@ const ClientesTable: React.FC<Props> = ({ initialUsers }) => {
           nombre: userToDelete?.nombre || '',
           mensaje: "¿Está seguro que desea borrar este cliente? Todos los datos asociados a él como información de ventas y envases también se perderán"
         }}
+      />
+      <ImportarClientesModal
+        isOpen={resumenImportacion !== null}
+        archivoNombre={archivoImportacion}
+        resumen={resumenImportacion}
+        aplicando={importando}
+        progreso={progresoImportacion}
+        resultado={resultadoImportacion}
+        onClose={cerrarImportacion}
+        onConfirmar={aplicarImportacion}
       />
       <Modal
         isOpen={isEnvasesModalOpen}

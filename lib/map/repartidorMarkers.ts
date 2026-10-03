@@ -2,6 +2,7 @@ import {
   createPinIcon,
   MarkerIconConfig,
   PIN_ICONS,
+  PinVariant,
   REPARTIDOR_PIN_COLORS,
 } from './markerPinIcon';
 import { clienteCoincideFiltros, FiltrosCliente } from './clienteFiltros';
@@ -88,6 +89,18 @@ export function getRepartidorIcon(
   return createPinIcon(REPARTIDOR_PIN_COLORS[0], 'cliente');
 }
 
+const MARKER_COLORS_GRIS = '#94A3B8';
+
+function colorDeRepartidor(
+  repartidor: string | null | undefined,
+  palette: RepartidorPaletteItem[]
+): string {
+  const item = findPaletteItem(repartidor, palette);
+  if (item) return item.color;
+  if (palette.length > 0) return palette[0].color;
+  return REPARTIDOR_PIN_COLORS[0];
+}
+
 interface ClienteMapa {
   id: number;
   repartidor?: string | null;
@@ -108,6 +121,8 @@ export function getMarkerIcon(
     atendido?: boolean;
     palette?: RepartidorPaletteItem[];
     incluidoManualmente?: boolean;
+    /** Si hay más de un cliente en el mismo punto, se dibuja ese número en el pin. */
+    cantidad?: number;
   }
 ): MarkerIconConfig {
   const {
@@ -118,39 +133,46 @@ export function getMarkerIcon(
     atendido,
     palette = [],
     incluidoManualmente = false,
+    cantidad,
   } = options;
 
   const coincide =
     incluidoManualmente || !filtros || clienteCoincideFiltros(cliente, filtros);
 
+  const colorGrupo = (color: string, variant: PinVariant = 'cliente') =>
+    cantidad != null && cantidad > 1 ? createPinIcon(color, variant, cantidad) : null;
+
   if (seguirRecorrido && coincide) {
     if (!atendido) {
-      return MARKER_ICONS.gris;
+      return colorGrupo(MARKER_COLORS_GRIS, 'pending') ?? MARKER_ICONS.gris;
     }
     const repartidorColor =
       filtros?.repartidor && filtros.repartidor !== 'todos'
         ? filtros.repartidor
         : cliente.repartidor;
-    return getRepartidorIcon(repartidorColor, palette);
+    return colorGrupo(colorDeRepartidor(repartidorColor, palette)) ?? getRepartidorIcon(repartidorColor, palette);
   }
 
   if (mostrarRuta && enRuta) {
     if (!atendido) {
-      return MARKER_ICONS.gris;
+      return colorGrupo(MARKER_COLORS_GRIS, 'pending') ?? MARKER_ICONS.gris;
     }
     const repartidorColor =
       filtros?.repartidor && filtros.repartidor !== 'todos'
         ? filtros.repartidor
         : cliente.repartidor;
-    return getRepartidorIcon(repartidorColor, palette);
+    return colorGrupo(colorDeRepartidor(repartidorColor, palette)) ?? getRepartidorIcon(repartidorColor, palette);
   }
 
   if (!coincide) {
-    return MARKER_ICONS.gris;
+    return colorGrupo(MARKER_COLORS_GRIS, 'pending') ?? MARKER_ICONS.gris;
   }
   if (!cliente.repartidor?.trim()) {
-    return MARKER_ICONS.gris;
+    return colorGrupo(MARKER_COLORS_GRIS, 'pending') ?? MARKER_ICONS.gris;
   }
 
-  return getRepartidorIcon(cliente.repartidor, palette);
+  return (
+    colorGrupo(colorDeRepartidor(cliente.repartidor, palette)) ??
+    getRepartidorIcon(cliente.repartidor, palette)
+  );
 }

@@ -24,6 +24,7 @@ import {
   PuntoMapa,
   contarClientesEnZona,
 } from '@/lib/map/zonaRadio';
+import NuevoClienteModal from '@/components/nuevoClienteModal';
 import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
@@ -137,6 +138,7 @@ const PageZonasyRepartos = () => {
   // Agregar nuevo estado para clientes incluidos manualmente
   const [clientesIncluidos, setClientesIncluidos] = useState<number[]>([]);
   const [clientesAtendidos, setClientesAtendidos] = useState<number[]>([]);
+  const [altaClienteMapa, setAltaClienteMapa] = useState<{ lat: number; lng: number } | null>(null);
   const [seguirRecorrido, setSeguirRecorrido] = useState(false);
   const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
   const [esDesktop, setEsDesktop] = useState(false);
@@ -1505,6 +1507,12 @@ const PageZonasyRepartos = () => {
               onMoverCentroZona={(lat, lng) => void moverCentroZonaSeleccionada(lat, lng)}
               onActualizarPoligonoZona={actualizarPoligonoZona}
               ocultarBannerDibujo
+              onCrearClienteEnPunto={(lat, lng) => setAltaClienteMapa({ lat, lng })}
+              puntoNuevoCliente={
+                altaClienteMapa
+                  ? { lat: altaClienteMapa.lat, lng: altaClienteMapa.lng }
+                  : null
+              }
             />
           </div>
 
@@ -1547,6 +1555,18 @@ const PageZonasyRepartos = () => {
           Distancia total: {mostrarRuta && distanciaTotal > 0 ? (distanciaTotal / 1000).toFixed(2) + ' km' : '--'}
         </span>
       </footer>
+      <NuevoClienteModal
+        isOpen={altaClienteMapa != null}
+        onClose={() => setAltaClienteMapa(null)}
+        onClienteAgregado={() => {
+          void fetchClientes();
+        }}
+        ubicacionInicial={
+          altaClienteMapa
+            ? { latitud: altaClienteMapa.lat, longitud: altaClienteMapa.lng }
+            : null
+        }
+      />
       {cargandoRuta && <Spinner />}
       <ConfirmModal
         open={showConfirmSalirRuta}

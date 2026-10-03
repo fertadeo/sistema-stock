@@ -82,6 +82,9 @@ interface MapComponentProps {
   onActualizarPoligonoZona?: (puntos: PuntoMapa[]) => void;
   /** Oculta el banner de instrucción (cuando hay composer externo). */
   ocultarBannerDibujo?: boolean;
+  /** Alta de cliente desde un punto del mapa (doble click o botón). */
+  onCrearClienteEnPunto?: (lat: number, lng: number) => void;
+  puntoNuevoCliente?: { lat: number; lng: number } | null;
 }
 
 const mapContainerStyle: React.CSSProperties = {
@@ -181,6 +184,26 @@ const INFO_WINDOW_STYLES = `
     border-radius: 0.375rem;
     border: 1px solid #fde68a;
   }
+  .map-info-window-list {
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 2px;
+  }
+  .map-info-window-card {
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background: #f9fafb;
+  }
+  .map-info-window-card-title {
+    margin: 0 0 4px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #111827;
+  }
 `;
 
 function infoWindowOptions(titulo: string): google.maps.InfoWindowOptions {
@@ -250,6 +273,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onMoverCentroZona,
   onActualizarPoligonoZona,
   ocultarBannerDibujo = false,
+  onCrearClienteEnPunto,
+  puntoNuevoCliente = null,
 }) => {
   const [editingClienteId, setEditingClienteId] = useState<number | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -264,6 +289,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   } | null>(null);
   const [dragPosition, setDragPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [colocandoCliente, setColocandoCliente] = useState(false);
+  const [grupoActivoKey, setGrupoActivoKey] = useState<string | null>(null);
 
   const clientesConCoords = useMemo(
     () =>
@@ -276,6 +303,31 @@ const MapComponent: React.FC<MapComponentProps> = ({
         .filter((cliente): cliente is Cliente => cliente !== null),
     [clientes]
   );
+
+  const claveUbicacion = (lat: number, lng: number) =>
+    `${lat.toFixed(5)},${lng.toFixed(5)}`;
+
+  const gruposUbicacion = useMemo(() => {
+    const grupos = new Map<string, Cliente[]>();
+    clientesConCoords.forEach((cliente) => {
+      if (cliente.id === editingClienteId) return;
+      const clave = claveUbicacion(cliente.latitud, cliente.longitud);
+      const lista = grupos.get(clave) ?? [];
+      lista.push(cliente);
+      grupos.set(clave, lista);
+    });
+    return Array.from(grupos.entries()).map(
+      ([clave, lista]) =>
+        [
+          clave,
+          [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+        ] as [string, Cliente[]]
+    );
+  }, [clientesConCoords, editingClienteId]);
+
+  const grupoActivo = grupoActivoKey
+    ? gruposUbicacion.find(([clave]) => clave === grupoActivoKey)?.[1] ?? null
+    : null;
 
   const clientesParaVista = useMemo(() => {
     if (!filtrosMapa || !hayFiltrosActivos(filtrosMapa)) {
@@ -452,7 +504,85 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const dibujandoZona = Boolean(modoDibujoZona);
   const cursorDibujo =
-    modoDibujoZona === 'radio' || modoDibujoZona === 'poligono' ? 'crosshair' : undefined;
+    colocandoCliente || modoDibujoZona === 'radio' || modoDibujoZona === 'poligono'
+      ? 'crosshair'
+      : undefined;
+
+  const crearClienteEn = useCallback((lat: number, lng: number) => {
+    if (!onCrearClienteEnPunto || dibujandoZona) return;
+    setColocandoCliente(false);
+    setSelectedCliente(null);
+    const abrir = () => onCrearClienteEnPunto(lat, lng);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().finally(abrir);
+      return;
+    }
+    abrir();
+  }, [dibujandoZona, onCrearClienteEnPunto]);
+
+  useEffect(() => {
+    if (dibujandoZona) setColocandoCliente(false);
+  }, [dibujandoZona]);
+
+  useEffect(() => {
+    if (!map || !onCrearClienteEnPunto) return;
+
+    const wrap = document.createElement('div');
+    wrap.style.margin = '0 0 28px 12px';
+    wrap.style.display = 'flex';
+    wrap.style.flexDirection = 'column';
+    wrap.style.alignItems = 'flex-start';
+    wrap.style.gap = '8px';
+
+    if (colocandoCliente) {
+      const hint = document.createElement('div');
+      hint.textContent = 'Click en el mapa para ubicar al cliente';
+      hint.style.cssText = [
+        'background:#fff',
+        'color:#115e59',
+        'border:1px solid #99f6e4',
+        'border-radius:8px',
+        'padding:6px 10px',
+        'font-size:12px',
+        'font-weight:600',
+        'box-shadow:0 4px 10px rgba(0,0,0,.15)',
+      ].join(';');
+      wrap.appendChild(hint);
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = colocandoCliente ? 'Cancelar cliente' : '+ Cliente';
+    button.title = 'Doble click en el mapa, o usá este botón y después marcá el punto';
+    button.disabled = dibujandoZona;
+    button.style.cssText = [
+      'background:#0d9488',
+      'color:#fff',
+      'border:2px solid #fff',
+      'border-radius:9999px',
+      'padding:12px 16px',
+      'font-weight:700',
+      'font-size:14px',
+      'box-shadow:0 10px 15px rgba(0,0,0,.25)',
+      'cursor:pointer',
+      dibujandoZona ? 'opacity:0.5' : '',
+    ].filter(Boolean).join(';');
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (dibujandoZona) return;
+      setColocandoCliente((prev) => !prev);
+    };
+    wrap.appendChild(button);
+
+    const position = google.maps.ControlPosition.LEFT_BOTTOM;
+    map.controls[position].push(wrap);
+    return () => {
+      const controls = map.controls[position];
+      const index = controls.getArray().indexOf(wrap);
+      if (index > -1) controls.removeAt(index);
+    };
+  }, [map, colocandoCliente, dibujandoZona, onCrearClienteEnPunto]);
 
   const bannerDibujo = (() => {
     if (!modoDibujoZona) return null;
@@ -492,8 +622,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
           gestureHandling: 'greedy',
           clickableIcons: false,
           draggableCursor: cursorDibujo,
+          disableDoubleClickZoom: Boolean(onCrearClienteEnPunto) && !dibujandoZona,
+        }}
+        onDblClick={(e) => {
+          if (!e.latLng || colocandoCliente) return;
+          crearClienteEn(e.latLng.lat(), e.latLng.lng());
         }}
         onClick={(e) => {
+          if (colocandoCliente && e.latLng) {
+            crearClienteEn(e.latLng.lat(), e.latLng.lng());
+            return;
+          }
           if (dibujandoZona && e.latLng && onMapClickZona) {
             if (modoDibujoZona === 'radio' || modoDibujoZona === 'poligono') {
               onMapClickZona(e.latLng.lat(), e.latLng.lng());
@@ -502,6 +641,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           }
           if (!pendingConfirm) {
             setSelectedCliente(null);
+            setGrupoActivoKey(null);
             setEditingClienteId(null);
             if (!dibujandoZona) onSeleccionarZona?.(null);
           }
@@ -517,7 +657,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             strokeColor: zona.color || '#0d9488',
             strokeOpacity: seleccionada ? 1 : 0.7,
             strokeWeight: seleccionada ? 3 : 2,
-            clickable: !dibujandoZona,
+            clickable: !dibujandoZona && !colocandoCliente,
             zIndex: seleccionada ? 20 : 10,
           };
 
@@ -676,35 +816,49 @@ const MapComponent: React.FC<MapComponentProps> = ({
           title="Sodería - Punto de partida"
         />
 
-        {clientesConCoords.map((cliente) => {
-          const isEditing = editingClienteId === cliente.id;
-          const position =
-            isEditing && dragPosition
-              ? dragPosition
-              : { lat: cliente.latitud, lng: cliente.longitud };
+        {puntoNuevoCliente && (
+          <Marker
+            position={puntoNuevoCliente}
+            title="Nuevo cliente"
+            zIndex={60}
+          />
+        )}
+
+        {gruposUbicacion.map(([clave, grupo]) => {
+          const cliente = grupo[0];
+          const cantidad = grupo.length;
           const enRuta =
             mostrarRuta &&
-            rutaOptimizada.some((c) => c.id === cliente.id) &&
-            !clientesOmitidos.includes(cliente.id);
-          const atendido = clientesAtendidos.includes(cliente.id);
-          const incluidoManualmente = clientesIncluidos.includes(cliente.id);
+            grupo.some(
+              (item) =>
+                rutaOptimizada.some((c) => c.id === item.id) &&
+                !clientesOmitidos.includes(item.id)
+            );
+          const atendido = grupo.every((item) => clientesAtendidos.includes(item.id));
+          const incluidoManualmente = grupo.some((item) => clientesIncluidos.includes(item.id));
           const markerIcon = getMarkerIcon(cliente, {
             filtros: filtrosMapa,
             mostrarRuta,
             seguirRecorrido,
             enRuta,
-            atendido: clientesAtendidos.includes(cliente.id),
+            atendido,
             palette: repartidorPalette,
             incluidoManualmente,
+            cantidad,
           });
 
           return (
             <Marker
-              key={cliente.id}
-              position={position}
+              key={cantidad > 1 ? `grupo-${clave}` : cliente.id}
+              position={{ lat: cliente.latitud, lng: cliente.longitud }}
               icon={toGoogleMarkerIcon(markerIcon)}
-              draggable={isEditing}
+              title={cantidad > 1 ? `${cantidad} clientes en este punto` : cliente.nombre}
+              zIndex={cantidad > 1 ? 20 : 10}
               onClick={() => {
+                if (colocandoCliente) {
+                  crearClienteEn(cliente.latitud, cliente.longitud);
+                  return;
+                }
                 if (
                   (modoDibujoZona === 'radio' || modoDibujoZona === 'poligono') &&
                   onMapClickZona
@@ -712,16 +866,42 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   onMapClickZona(cliente.latitud, cliente.longitud);
                   return;
                 }
-                setSelectedCliente(cliente);
-              }}
-              onDragEnd={(e) => {
-                if (e.latLng) {
-                  handleDragEnd(cliente, e.latLng.lat(), e.latLng.lng());
+                if (cantidad > 1) {
+                  setSelectedCliente(null);
+                  setGrupoActivoKey(clave);
+                  return;
                 }
+                setGrupoActivoKey(null);
+                setSelectedCliente(cliente);
               }}
             />
           );
         })}
+
+        {editingClienteId != null && dragPosition && clientesConCoords.some((c) => c.id === editingClienteId) && (
+          <Marker
+            position={dragPosition}
+            draggable
+            zIndex={40}
+            icon={toGoogleMarkerIcon(
+              getMarkerIcon(
+                clientesConCoords.find((c) => c.id === editingClienteId) as Cliente,
+                {
+                  filtros: filtrosMapa,
+                  mostrarRuta,
+                  seguirRecorrido,
+                  palette: repartidorPalette,
+                }
+              )
+            )}
+            onDragEnd={(e) => {
+              const cliente = clientesConCoords.find((c) => c.id === editingClienteId);
+              if (cliente && e.latLng) {
+                handleDragEnd(cliente, e.latLng.lat(), e.latLng.lng());
+              }
+            }}
+          />
+        )}
 
         {seguirRecorrido && repartidorUbicacion?.en_linea && (
           <Marker
@@ -733,6 +913,62 @@ const MapComponent: React.FC<MapComponentProps> = ({
             title={`${repartidorUbicacion.repartidor_nombre} (en vivo)`}
             zIndex={1000}
           />
+        )}
+
+        {grupoActivo && grupoActivo.length > 1 && !pendingConfirm && (
+          <InfoWindow
+            position={{
+              lat: grupoActivo[0].latitud,
+              lng: grupoActivo[0].longitud,
+            }}
+            options={infoWindowOptions(`${grupoActivo.length} clientes en este punto`)}
+            onCloseClick={() => setGrupoActivoKey(null)}
+          >
+            <div className="map-info-window-body">
+              <p className="map-info-window-row">
+                Misma ubicación. Hay {grupoActivo.length} clientes.
+              </p>
+              <div className="map-info-window-list">
+                {grupoActivo.map((cliente) => (
+                  <div key={cliente.id} className="map-info-window-card">
+                    <p className="map-info-window-card-title">{cliente.nombre}</p>
+                    <InfoRow label="Dirección" value={cliente.direccion} />
+                    <InfoRow label="Teléfono" value={cliente.telefono} />
+                    <InfoRow label="Zona" value={cliente.zona} />
+                    <InfoRow label="Día de reparto" value={cliente.dia_reparto} />
+                    <InfoRow label="Repartidor" value={cliente.repartidor || 'Sin repartidor'} />
+                    <div className="map-info-window-actions">
+                      <button
+                        type="button"
+                        className="map-info-window-btn map-info-window-btn-primary"
+                        onClick={() =>
+                          openInGoogleMaps({
+                            latitud: cliente.latitud,
+                            longitud: cliente.longitud,
+                            direccion: cliente.direccion,
+                          })
+                        }
+                      >
+                        Mapa
+                      </button>
+                      <button
+                        type="button"
+                        className="map-info-window-btn map-info-window-btn-neutral"
+                        onClick={() => {
+                          setGrupoActivoKey(null);
+                          setSelectedCliente(cliente);
+                          setEditingClienteId(cliente.id);
+                          setDragPosition({ lat: cliente.latitud, lng: cliente.longitud });
+                        }}
+                      >
+                        Mover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </InfoWindow>
         )}
 
         {selectedCliente && !pendingConfirm && (

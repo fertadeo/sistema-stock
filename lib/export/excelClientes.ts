@@ -1,4 +1,5 @@
 type ClienteExportable = {
+  id?: number | null;
   nombre?: string | null;
   telefono?: string | null;
   email?: string | null;
@@ -44,16 +45,6 @@ const formatearEnvases = (cliente: ClienteExportable): string => {
     .join("; ");
 };
 
-const formatearDireccion = (cliente: ClienteExportable): string => {
-  const extras = [
-    cliente.piso ? `Piso ${cliente.piso}` : null,
-    cliente.departamento ? `Depto ${cliente.departamento}` : null,
-  ].filter(Boolean);
-
-  if (!extras.length) return cliente.direccion || "";
-  return `${cliente.direccion || ""} (${extras.join(" · ")})`;
-};
-
 type OpcionesExport = {
   nombreArchivo?: string;
   /** Resuelve el índice/código de zona al nombre visible. */
@@ -73,11 +64,14 @@ export function descargarClientesExcel(
   const resolverZona = opts.resolverZona;
 
   const headers = [
+    "ID",
     "Nombre",
     "Teléfono",
     "Email",
     "DNI",
     "Dirección",
+    "Piso",
+    "Departamento",
     "Zona",
     "Repartidor",
     "Día de Reparto",
@@ -94,11 +88,14 @@ export function descargarClientesExcel(
         : "";
 
     return [
+      cliente.id ?? "",
       cliente.nombre || "",
       cliente.telefono || "",
       cliente.email || "",
       cliente.dni || "",
-      formatearDireccion(cliente),
+      cliente.direccion || "",
+      cliente.piso || "",
+      cliente.departamento || "",
       zonaNombre,
       cliente.repartidor || "",
       cliente.dia_reparto || "",
