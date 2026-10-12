@@ -200,6 +200,20 @@ const ControlCargaPage = () => {
     return (cajones * 6) + unidades;
   };
 
+  // Lo que vuelve lleno es lo que salió y no volvió vacío.
+  // Si no se completa, la cuenta cobra toda la carga como vendida.
+  const llenosDesdeVacios = (cantidadCarga: number, vacios: number) => {
+    return Math.max(0, cantidadCarga - vacios);
+  };
+
+  const descomponerEnCajones = (total: number) => {
+    const unidadesTotales = Math.max(0, total);
+    return {
+      cajones: Math.floor(unidadesTotales / 6),
+      unidades: unidadesTotales % 6,
+    };
+  };
+
   // Función para prevenir el cambio de valor con la rueda del mouse en inputs number
   const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
     e.currentTarget.blur();
@@ -216,22 +230,40 @@ const ControlCargaPage = () => {
       productos: prev.productos.map(p => {
         if (p.id === productId) {
           if (isSoda) {
-            // Calcula el total de unidades para productos de soda
             const newValues = { ...p, [field]: value };
-            const totalLlenos = calcularTotalUnidades(
-              newValues.cajonesLlenos || 0,
-              newValues.unidadesLlenas || 0
-            );
             const totalVacios = calcularTotalUnidades(
               newValues.cajonesVacios || 0,
               newValues.unidadesVacias || 0
             );
+            const esCampoVacio = field === 'cajonesVacios' || field === 'unidadesVacias';
+
+            let cajonesLlenos = newValues.cajonesLlenos || 0;
+            let unidadesLlenas = newValues.unidadesLlenas || 0;
+
+            if (!isCarga && esCampoVacio) {
+              const llenos = llenosDesdeVacios(newValues.cantidadCarga || 0, totalVacios);
+              const partes = descomponerEnCajones(llenos);
+              cajonesLlenos = partes.cajones;
+              unidadesLlenas = partes.unidades;
+            }
+
             return {
               ...newValues,
-              cantidadLlenos: totalLlenos,
+              cajonesLlenos,
+              unidadesLlenas,
+              cantidadLlenos: calcularTotalUnidades(cajonesLlenos, unidadesLlenas),
               cantidadVacios: totalVacios
             };
           }
+
+          if (!isCarga && field === 'cantidadVacios') {
+            return {
+              ...p,
+              cantidadVacios: value,
+              cantidadLlenos: llenosDesdeVacios(p.cantidadCarga || 0, value),
+            };
+          }
+
           return { ...p, [field]: value };
         }
         return p;
@@ -1010,6 +1042,7 @@ const ControlCargaPage = () => {
                               <th className="p-2 w-1/4 text-center">
                                 <div className="flex flex-col items-center">
                                   <span className="font-semibold text-green-600">Llenos</span>
+                                  <span className="text-xs font-normal text-gray-500">Se completa al cargar vacíos</span>
                                 </div>
                               </th>
                               <th className="p-2 w-1/4 text-center">

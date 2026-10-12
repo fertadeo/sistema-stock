@@ -129,6 +129,47 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const balanceFiado = totalRecaudado - totalVenta;
 
   // Función para actualizar el precio unitario de un producto
+  const cargadaDe = (item: { cantidad_cargada?: number; cantidad_vendida?: number; cantidad_devuelta?: number }) => {
+    if (typeof item.cantidad_cargada === 'number') return item.cantidad_cargada;
+    return (item.cantidad_vendida || 0) + (item.cantidad_devuelta || 0);
+  };
+
+  const handleCantidadVendidaChange = (index: number, valor: string) => {
+    if (proceso?.estado_cuenta === 'finalizado') return;
+    const item = productosDetalle[index];
+    const cargada = cargadaDe(item);
+    const parsed = valor === '' ? 0 : parseInt(valor.replace(/[^\d]/g, ''), 10);
+    if (Number.isNaN(parsed)) return;
+    const vendida = Math.min(Math.max(0, parsed), cargada);
+    const nuevosProductos = [...productosDetalle];
+    nuevosProductos[index] = {
+      ...item,
+      cantidad_cargada: cargada,
+      cantidad_vendida: vendida,
+      cantidad_devuelta: cargada - vendida,
+      subtotal: Math.round(vendida * (item.precio_unitario || 0))
+    };
+    setProductosDetalle(nuevosProductos);
+  };
+
+  const guardarCantidadesEnDescarga = async (detalle = productosDetalle) => {
+    if (!proceso?.id) return;
+    const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/descargas/${proceso.id}/cantidades`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productos: detalle.map((item) => ({
+          producto_id: item.producto_id,
+          cantidad_vendida: item.cantidad_vendida
+        }))
+      })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.message || 'Error al actualizar las cantidades de la descarga');
+    }
+  };
+
   const handlePrecioUnitarioChange = (index: number, nuevoPrecio: number) => {
     // Validar que el precio sea un número válido y no negativo
     if (isNaN(nuevoPrecio) || nuevoPrecio < 0) {
@@ -288,6 +329,10 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const procesarGuardado = async () => {
     setIsLoading(true);
     try {
+      if (productosDetalle.length > 0) {
+        await guardarCantidadesEnDescarga(productosDetalle);
+      }
+
       // SIEMPRE enviar todos los precios unitarios actuales antes de guardar el proceso
       const preciosUnitarios = productosDetalle.map((item) => ({
         producto_id: item.producto_id,
@@ -469,7 +514,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
               <Table aria-label="Detalle de Venta">
                 <TableHeader>
                   <TableColumn>Producto</TableColumn>
-                  <TableColumn>Cantidad</TableColumn>
+                  <TableColumn>Vendido</TableColumn>
                   <TableColumn>Precio Unitario</TableColumn>
                   <TableColumn>Subtotal</TableColumn>
                 </TableHeader>
@@ -477,7 +522,36 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                   {productosDetalle.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell>{item.nombre}</TableCell>
-                      <TableCell>{item.cantidad_vendida}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={String(item.cantidad_vendida ?? 0)}
+                            onChange={(e) => handleCantidadVendidaChange(index, e.target.value)}
+                            onBlur={() => {
+                              if (proceso?.estado_cuenta !== 'finalizado') {
+                                guardarCantidadesEnDescarga().catch((error) => {
+                                  setNotification({
+                                    isVisible: true,
+                                    message: 'No se pudo actualizar la descarga',
+                                    description: error instanceof Error ? error.message : 'Revisá la cantidad vendida.',
+                                    type: 'error'
+                                  });
+                                });
+                              }
+                            }}
+                            onWheel={handleWheel}
+                            disabled={proceso?.estado_cuenta === 'finalizado'}
+                            className={`w-20 px-2 py-1 text-right rounded border ${
+                              proceso?.estado_cuenta === 'finalizado' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                            }`}
+                          />
+                          <span className="text-xs text-gray-500">
+                            Carga {cargadaDe(item)} · Llenos {Math.max(0, cargadaDe(item) - (item.cantidad_vendida || 0))}
+                          </span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex relative flex-col gap-1 items-start">
                           <div className="flex gap-2 items-center">

@@ -48,6 +48,8 @@ export interface VentaCerrada {
   productos_detalle?: {
     producto_id: number;
     nombre: string;
+    cantidad_cargada?: number;
+    cantidad_devuelta?: number;
     cantidad_vendida: number;
     precio_unitario: number;
     subtotal: number;

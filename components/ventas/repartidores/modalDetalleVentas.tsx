@@ -34,6 +34,19 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   const [showInput, setShowInput] = useState<boolean>(true);
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
+  const [guardandoCorreccion, setGuardandoCorreccion] = useState(false);
+  const [borrador, setBorrador] = useState<{
+    ventaId: number;
+    montoEfectivo: string;
+    montoTransferencia: string;
+    productos: {
+      producto_id: number;
+      nombre: string;
+      cantidad_cargada: number;
+      cantidad_vendida: number;
+      precio_unitario: number;
+    }[];
+  } | null>(null);
 
   // Actualizar el porcentaje cuando cambien las ventas seleccionadas
   useEffect(() => {
@@ -48,6 +61,7 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
     if (!isOpen) {
       setError("");
       setSuccess("");
+      setBorrador(null);
     }
   }, [isOpen]);
 
@@ -69,9 +83,76 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
   // Agregar console.log para ver los datos
   console.log('Datos de ventas seleccionadas:', ventasSeleccionadas);
 
+  const ventaConBorrador = (venta: VentaCerrada) => {
+    if (!borrador || borrador.ventaId !== venta.id) return venta;
+    const totalProductos = borrador.productos.reduce(
+      (suma, producto) => suma + producto.cantidad_vendida * producto.precio_unitario,
+      0
+    );
+    const totalVenta = borrador.productos.length > 0 ? totalProductos : Number(venta.total_venta);
+    const efectivo = Number(borrador.montoEfectivo) || 0;
+    const transferencia = Number(borrador.montoTransferencia) || 0;
+    return {
+      ...venta,
+      total_venta: String(totalVenta),
+      monto_efectivo: String(efectivo),
+      monto_transferencia: String(transferencia),
+      balance_fiado: String(efectivo + transferencia - totalVenta)
+    };
+  };
+
+  const abrirCorreccion = (venta: VentaCerrada) => {
+    setError("");
+    setBorrador({
+      ventaId: venta.id,
+      montoEfectivo: String(Math.round(Number(venta.monto_efectivo) || 0)),
+      montoTransferencia: String(Math.round(Number(venta.monto_transferencia) || 0)),
+      productos: (venta.productos_detalle || []).map((producto) => ({
+        producto_id: producto.producto_id,
+        nombre: producto.nombre,
+        cantidad_cargada: producto.cantidad_cargada ?? producto.cantidad_vendida,
+        cantidad_vendida: producto.cantidad_vendida,
+        precio_unitario: Number(producto.precio_unitario) || 0
+      }))
+    });
+  };
+
+  const guardarCorreccion = async () => {
+    if (!borrador) return;
+    setGuardandoCorreccion(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ventas-cerradas/${borrador.ventaId}/correccion`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monto_efectivo: Number(borrador.montoEfectivo) || 0,
+          monto_transferencia: Number(borrador.montoTransferencia) || 0,
+          productos: borrador.productos.map((producto) => ({
+            producto_id: producto.producto_id,
+            cantidad_vendida: producto.cantidad_vendida
+          }))
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'No se pudo corregir la venta');
+      }
+      setSuccess("Corrección guardada en la venta y en la descarga");
+      setShowFloatingAlert(true);
+      setBorrador(null);
+      if (onVentasActualizadas) onVentasActualizadas();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo corregir la venta');
+    } finally {
+      setGuardandoCorreccion(false);
+    }
+  };
+
   // Función para calcular totales
   const calcularTotales = () => {
-    return ventasSeleccionadas.reduce((acc, venta) => ({
+    return ventasSeleccionadas.map(ventaConBorrador).reduce((acc, venta) => ({
       totalVenta: acc.totalVenta + Number(venta.total_venta),
       totalEfectivo: acc.totalEfectivo + Number(venta.monto_efectivo),
       totalTransferencia: acc.totalTransferencia + Number(venta.monto_transferencia),
@@ -299,9 +380,13 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                       <TableColumn>Efectivo</TableColumn>
                       <TableColumn>Transferencia</TableColumn>
                       <TableColumn>Balance</TableColumn>
+                      <TableColumn> </TableColumn>
                     </TableHeader>
                     <TableBody>
-                      {ventasPaginadas.map((venta) => (
+                      {ventasPaginadas.map((ventaOriginal) => {
+                        const venta = ventaConBorrador(ventaOriginal);
+                        const puedeCorregir = ventaOriginal.estado !== 'Finalizado' && !ventaOriginal.deleted_at;
+                        return (
                         <TableRow key={venta.id}>
                           <TableCell>#{venta.proceso_id}</TableCell>
                           <TableCell>
@@ -327,8 +412,21 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                               ${formatMonto(Number(venta.balance_fiado))}
                             </span>
                           </TableCell>
+                          <TableCell>
+                            {puedeCorregir && (
+                              <Button
+                                size="sm"
+                                variant="flat"
+                                color="primary"
+                                onClick={() => abrirCorreccion(ventaOriginal)}
+                              >
+                                Corregir
+                              </Button>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -341,6 +439,86 @@ const ModalDetalleVentas: React.FC<ModalDetalleVentasProps> = ({
                       page={page}
                       onChange={setPage}
                     />
+                  </div>
+                )}
+
+                {borrador && (
+                  <div className="p-4 space-y-4 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="font-semibold text-gray-800">
+                        Corregir venta #{ventasSeleccionadas.find((venta) => venta.id === borrador.ventaId)?.proceso_id}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Al cambiar lo vendido, los llenos de la descarga pasan a ser carga menos vendido. Efectivo y transferencia actualizan el balance.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Efectivo
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={borrador.montoEfectivo}
+                          onChange={(e) => setBorrador({
+                            ...borrador,
+                            montoEfectivo: e.target.value.replace(/[^\d]/g, '')
+                          })}
+                          className="block px-3 py-2 mt-1 w-full text-right rounded border"
+                        />
+                      </label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Transferencia
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={borrador.montoTransferencia}
+                          onChange={(e) => setBorrador({
+                            ...borrador,
+                            montoTransferencia: e.target.value.replace(/[^\d]/g, '')
+                          })}
+                          className="block px-3 py-2 mt-1 w-full text-right rounded border"
+                        />
+                      </label>
+                    </div>
+                    {borrador.productos.length > 0 && (
+                      <div className="space-y-2">
+                        {borrador.productos.map((producto, index) => (
+                          <div key={producto.producto_id} className="grid grid-cols-2 gap-2 items-center sm:grid-cols-4">
+                            <span className="text-sm font-medium">{producto.nombre}</span>
+                            <span className="text-sm text-gray-500">Carga {producto.cantidad_cargada}</span>
+                            <label className="text-xs text-gray-600">
+                              Vendido
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={String(producto.cantidad_vendida)}
+                                onChange={(e) => {
+                                  const parsed = parseInt(e.target.value.replace(/[^\d]/g, ''), 10);
+                                  const vendida = Number.isNaN(parsed)
+                                    ? 0
+                                    : Math.min(Math.max(0, parsed), producto.cantidad_cargada);
+                                  const productos = [...borrador.productos];
+                                  productos[index] = { ...producto, cantidad_vendida: vendida };
+                                  setBorrador({ ...borrador, productos });
+                                }}
+                                className="block px-2 py-1 mt-1 w-full text-right rounded border"
+                              />
+                            </label>
+                            <span className="text-sm text-green-700">
+                              Llenos {Math.max(0, producto.cantidad_cargada - producto.cantidad_vendida)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button color="primary" onClick={guardarCorreccion} isLoading={guardandoCorreccion}>
+                        Guardar corrección
+                      </Button>
+                      <Button variant="light" onClick={() => setBorrador(null)} disabled={guardandoCorreccion}>
+                        Cancelar
+                      </Button>
+                    </div>
                   </div>
                 )}
 
