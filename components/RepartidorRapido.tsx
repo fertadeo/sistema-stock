@@ -338,7 +338,12 @@ export default function RepartidorRapido() {
         puntuacion: puntuarCliente(c, termo),
       }));
       const ordenados = conPuntuacion
-        .sort((a, b) => b.puntuacion - a.puntuacion)
+        .sort((a, b) => {
+          const aInactivo = a.cliente.estado === false ? 1 : 0;
+          const bInactivo = b.cliente.estado === false ? 1 : 0;
+          if (aInactivo !== bInactivo) return aInactivo - bInactivo;
+          return b.puntuacion - a.puntuacion;
+        })
         .map((x) => x.cliente);
       setClientesEncontrados(ordenados);
     } catch (error) {
