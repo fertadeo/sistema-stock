@@ -9,6 +9,7 @@ interface TableProcesosProps {
   procesosFiltrados: Proceso[];
   loading: boolean;
   onSelectProceso: (proceso: Proceso | null) => void;
+  onEditarProceso?: (proceso: Proceso) => void;
   setModalAbierto: (isOpen: boolean) => void;
   onProcesosActualizados?: () => void;
 }
@@ -17,6 +18,7 @@ const TableProcesos = ({
   procesosFiltrados,
   loading,
   onSelectProceso,
+  onEditarProceso,
   setModalAbierto,
   onProcesosActualizados
 }: TableProcesosProps) => {
@@ -102,15 +104,106 @@ const TableProcesos = ({
     }
   };
 
+  const procesosOrdenados = procesosFiltrados
+    .filter(proceso => proceso !== null)
+    .sort((a, b) => {
+      if (a.estado_cuenta === 'pendiente' && b.estado_cuenta !== 'pendiente') return -1;
+      if (a.estado_cuenta !== 'pendiente' && b.estado_cuenta === 'pendiente') return 1;
+      const fechaA = new Date(a.fecha_descarga).getTime();
+      const fechaB = new Date(b.fecha_descarga).getTime();
+      return fechaB - fechaA;
+    });
+
+  const unidadesVendidas = (proceso: Proceso) =>
+    proceso.productos_detalle?.reduce((total, prod) => total + prod.cantidad_vendida, 0) || 0;
+
+  const abrirDetalle = (proceso: Proceso) => {
+    onSelectProceso(proceso);
+    setModalAbierto(true);
+  };
+
+  const pedirBorrado = (proceso: Proceso) => {
+    setProcesoAEliminar(proceso.id.toString());
+    setModalConfirmar(true);
+  };
+
   return (
     <>
-    <Card className="p-4 w-full">
-      <CardHeader className="flex justify-between items-center pb-2">
+    <Card className="p-2 w-full sm:p-4">
+      <CardHeader className="flex justify-between items-center px-2 pb-2 sm:px-3">
         <h4 className="text-lg font-semibold">Descargas de Repartidores</h4>
       </CardHeader>
-      <CardBody>
-        <div className="table-scroll">
-          <div className="min-w-[720px]">
+      <CardBody className="px-2 sm:px-3">
+        <div className="space-y-3 md:hidden">
+          {loading && (
+            <p className="py-8 text-sm text-center text-gray-500">Cargando datos...</p>
+          )}
+          {!loading && procesosOrdenados.length === 0 && (
+            <p className="py-8 text-sm text-center text-gray-500">No hay datos disponibles para el período seleccionado.</p>
+          )}
+          {procesosOrdenados.map((proceso) => {
+            const cerrado = proceso.estado_cuenta === 'finalizado';
+            const pendiente = proceso.estado_cuenta === 'pendiente';
+            return (
+              <article
+                key={proceso.id}
+                className={`rounded-xl border p-3 ${cerrado ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="flex gap-2 justify-between items-start">
+                  <div className="min-w-0">
+                    <p className={`font-semibold ${cerrado ? 'text-gray-500' : 'text-gray-900'}`}>#{proceso.id}</p>
+                    <p className="text-sm text-gray-500 truncate">{proceso.repartidor.nombre}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                    cerrado ? 'bg-gray-200 text-gray-600' : pendiente ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {cerrado ? 'Cerrado' : pendiente ? 'Pendiente' : 'Sin estado'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                  <p className="text-green-700">
+                    <span className="block text-xs text-gray-500">Carga</span>
+                    {formatearFecha(proceso.fecha_carga)} {formatearHora(proceso.fecha_carga)}
+                  </p>
+                  <p className="text-red-700">
+                    <span className="block text-xs text-gray-500">Descarga</span>
+                    {formatearFecha(proceso.fecha_descarga)} {formatearHora(proceso.fecha_descarga)}
+                  </p>
+                  <p className={cerrado ? 'text-gray-500' : 'text-gray-800'}>
+                    <span className="block text-xs text-gray-500">Vendidos</span>
+                    {unidadesVendidas(proceso)} unidades
+                  </p>
+                  <p className={`font-bold ${cerrado ? 'text-gray-500' : 'text-gray-900'}`}>
+                    <span className="block text-xs font-normal text-gray-500">Total</span>
+                    {formatearMonto(proceso.totales.monto_total?.toString())}
+                  </p>
+                </div>
+                <div className={`grid gap-2 mt-3 ${onEditarProceso ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  <Button size="sm" color="primary" className="w-full" onClick={() => abrirDetalle(proceso)}>
+                    Detalle
+                  </Button>
+                  {onEditarProceso && (
+                    <Button size="sm" variant="flat" color="warning" className="w-full" onClick={() => onEditarProceso(proceso)}>
+                      Editar
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    color="danger"
+                    className="w-full"
+                    onClick={() => pedirBorrado(proceso)}
+                    isLoading={borrandoId === proceso.id.toString()}
+                  >
+                    Borrar
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden table-scroll md:block">
+          <div className="min-w-[860px]">
           <Table aria-label="Tabla de Procesos">
             <TableHeader>
               <TableColumn>ID Descarga</TableColumn>
@@ -124,18 +217,7 @@ const TableProcesos = ({
               emptyContent={loading ? "Cargando datos..." : "No hay datos disponibles para el período seleccionado."}
               isLoading={loading}
             >
-                {procesosFiltrados
-                  .filter(proceso => proceso !== null)
-                  .sort((a, b) => {
-                    // Primero los pendientes
-                    if (a.estado_cuenta === 'pendiente' && b.estado_cuenta !== 'pendiente') return -1;
-                    if (a.estado_cuenta !== 'pendiente' && b.estado_cuenta === 'pendiente') return 1;
-                    // Luego por fecha de descarga descendente (más nuevo arriba)
-                    const fechaA = new Date(a.fecha_descarga).getTime();
-                    const fechaB = new Date(b.fecha_descarga).getTime();
-                    return fechaB - fechaA;
-                  })
-                  .map((proceso) => (
+                {procesosOrdenados.map((proceso) => (
                 <TableRow 
                   key={proceso.id} 
                   className={`hover:bg-gray-50 ${proceso.estado_cuenta === 'finalizado' ? 'opacity-50 bg-gray-100' : ''}`}
@@ -152,29 +234,25 @@ const TableProcesos = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className={`font-medium text-green-600`}>
+                      <span className="font-medium text-green-600">
                         Carga: {formatearFecha(proceso.fecha_carga)}
                         <span className="ml-1 text-xs">{formatearHora(proceso.fecha_carga)}</span>
                       </span>
-                      <span className={`font-medium text-red-600`}>
+                      <span className="font-medium text-red-600">
                         Descarga: {formatearFecha(proceso.fecha_descarga)}
                         <span className="ml-1 text-xs">{formatearHora(proceso.fecha_descarga)}</span>
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span className={`font-medium ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-500' : ''}`}>
-                        {proceso.productos_detalle?.reduce((total, prod) => total + prod.cantidad_vendida, 0) || 0} unidades
-                      </span>
-                    </div>
+                    <span className={`font-medium ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-500' : ''}`}>
+                      {unidadesVendidas(proceso)} unidades
+                    </span>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span className={`font-bold ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-500' : ''}`}>
-                        {formatearMonto(proceso.totales.monto_total?.toString())}
-                      </span>
-                    </div>
+                    <span className={`font-bold ${proceso.estado_cuenta === 'finalizado' ? 'text-gray-500' : ''}`}>
+                      {formatearMonto(proceso.totales.monto_total?.toString())}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className={`flex gap-2 items-center ${
@@ -189,29 +267,34 @@ const TableProcesos = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      size="sm" 
-                      color="primary"
-                      onClick={() => {
-                        onSelectProceso(proceso);
-                        setModalAbierto(true);
-                      }}
-                      className={proceso.estado_cuenta === 'finalizado' ? 'opacity-50' : ''}
-                    >
-                      Ver Detalle
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button 
+                        size="sm" 
+                        color="primary"
+                        onClick={() => abrirDetalle(proceso)}
+                        className={proceso.estado_cuenta === 'finalizado' ? 'opacity-50' : ''}
+                      >
+                        Ver Detalle
+                      </Button>
+                      {onEditarProceso && (
                         <Button
                           size="sm"
-                          color="danger"
-                          className="ml-2"
-                          onClick={() => {
-                            setProcesoAEliminar(proceso.id.toString());
-                            setModalConfirmar(true);
-                          }}
-                          isLoading={borrandoId === proceso.id.toString()}
+                          variant="flat"
+                          color="warning"
+                          onClick={() => onEditarProceso(proceso)}
                         >
-                          {borrandoId === proceso.id.toString() ? 'Borrando...' : 'Borrar'}
+                          Editar
                         </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        color="danger"
+                        onClick={() => pedirBorrado(proceso)}
+                        isLoading={borrandoId === proceso.id.toString()}
+                      >
+                        {borrandoId === proceso.id.toString() ? 'Borrando...' : 'Borrar'}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

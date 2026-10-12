@@ -124,6 +124,7 @@ const VentasDonjavier = () => {
   const [productos, setProductos] = useState<any[]>([]);
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<number>(7); // Default a 7 días
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [modoEdicion, setModoEdicion] = useState(false);
   const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20); // Default 20%
   const [selectedTab, setSelectedTab] = useState("pendientes");
   const [loadingVentasCerradas, setLoadingVentasCerradas] = useState<boolean>(true);
@@ -369,7 +370,7 @@ const VentasDonjavier = () => {
   };
 
   return (
-    <div className="p-4 mx-auto space-y-4 max-w-[1400px]">
+    <div className="p-2 mx-auto space-y-4 max-w-[1400px] sm:p-4">
         <Card className="p-4 w-full">
           <CardHeader className="pb-2">
           <h4 className="text-xl font-semibold">Ventas por Repartidor</h4>
@@ -402,8 +403,8 @@ const VentasDonjavier = () => {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Tabs de Ventas */}
         <div className="lg:col-span-2">
-          <Card className="p-4 w-full">
-            <CardHeader className="pb-2">
+          <Card className="p-2 w-full sm:p-4">
+            <CardHeader className="px-2 pb-2 sm:px-3">
               <h4 className="text-lg font-semibold">Gestión de Ventas</h4>
             </CardHeader>
             <CardBody>
@@ -416,7 +417,15 @@ const VentasDonjavier = () => {
                   <TableProcesos 
                     procesosFiltrados={procesosFiltrados}
                     loading={loading}
-                    onSelectProceso={setProcesoSeleccionado}
+                    onSelectProceso={(proceso) => {
+                      setModoEdicion(false);
+                      setProcesoSeleccionado(proceso);
+                    }}
+                    onEditarProceso={(proceso) => {
+                      setModoEdicion(true);
+                      setProcesoSeleccionado(proceso);
+                      setModalAbierto(true);
+                    }}
                     setModalAbierto={setModalAbierto}
                     onProcesosActualizados={actualizarDatos}
                   />
@@ -481,7 +490,9 @@ const VentasDonjavier = () => {
         onClose={() => {
           setModalAbierto(false);
           setProcesoSeleccionado(null);
+          setModoEdicion(false);
         }}
+        modoEdicion={modoEdicion}
         proceso={procesoSeleccionado}
         obtenerPrecioProducto={obtenerPrecioProducto}
         onProcesoGuardado={actualizarDatos}

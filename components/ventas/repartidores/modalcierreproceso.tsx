@@ -24,6 +24,7 @@ interface ModalCierreProcesoProps {
   onProcesoGuardado: () => void;
   onPreciosActualizados?: () => void;
   onVentasCerradasActualizadas?: () => void;
+  modoEdicion?: boolean;
 }
 
 const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
@@ -33,12 +34,14 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   obtenerPrecioProducto,
   onProcesoGuardado,
   onPreciosActualizados,
-  onVentasCerradasActualizadas
+  onVentasCerradasActualizadas,
+  modoEdicion = false
 }) => {
   const [comisionPorcentaje, setComisionPorcentaje] = useState<number>(20);
   const [montoTransferencia, setMontoTransferencia] = useState<number>(0);
   const [montoEfectivoRecaudado, setMontoEfectivoRecaudado] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [guardandoRecuento, setGuardandoRecuento] = useState(false);
   const [productosDetalle, setProductosDetalle] = useState<any[]>([]);
   const [editandoPrecioIndex, setEditandoPrecioIndex] = useState<number | null>(null);
   const [preciosOriginales, setPreciosOriginales] = useState<number[]>([]);
@@ -178,6 +181,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   };
 
   const persistirRecuento = async () => {
+    setGuardandoRecuento(true);
     try {
       await guardarCantidadesEnDescarga();
       if (onPreciosActualizados) onPreciosActualizados();
@@ -185,7 +189,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       setNotification({
         isVisible: true,
         message: 'Recuento actualizado',
-        description: 'Vacíos y llenos quedaron guardados en la descarga.',
+        description: 'Se recalcularon lo vendido, el total y el balance.',
         type: 'success'
       });
     } catch (error) {
@@ -195,6 +199,8 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
         description: error instanceof Error ? error.message : 'Revisá vacíos y llenos.',
         type: 'error'
       });
+    } finally {
+      setGuardandoRecuento(false);
     }
   };
 
@@ -560,7 +566,9 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                 variant="flat"
                 className="mb-4"
               >
-                Este proceso ya está cerrado. Podés corregir vacíos y llenos para recontar la venta.
+                {modoEdicion
+                  ? 'Corregí vacíos y llenos. Lo vendido, el total y el balance se recalculan al guardar.'
+                  : 'Este proceso ya está cerrado. Para recontar, usá Editar en la lista de descargas.'}
               </Alert>
             )}
             <div className="space-y-6">
@@ -576,35 +584,47 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                     <TableRow key={index}>
                       <TableCell>{item.nombre}</TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-2">
-                          <label className="text-xs font-medium text-blue-600">
-                            Vacíos
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={String(item.cantidad_vacios ?? item.cantidad_vendida ?? 0)}
-                              onChange={(e) => aplicarRecuento(index, 'vacios', e.target.value)}
-                              onBlur={() => { void persistirRecuento(); }}
-                              onWheel={handleWheel}
-                              className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
-                            />
-                          </label>
-                          <label className="text-xs font-medium text-green-600">
-                            Llenos
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={String(item.cantidad_devuelta ?? 0)}
-                              onChange={(e) => aplicarRecuento(index, 'llenos', e.target.value)}
-                              onBlur={() => { void persistirRecuento(); }}
-                              onWheel={handleWheel}
-                              className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
-                            />
-                          </label>
-                          <span className="text-xs text-gray-500">
-                            Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
-                          </span>
-                        </div>
+                        {modoEdicion ? (
+                          <div className="flex flex-col gap-2" onKeyDown={(e) => e.stopPropagation()}>
+                            <label className="text-xs font-medium text-blue-600">
+                              Vacíos
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={String(item.cantidad_vacios ?? item.cantidad_vendida ?? 0)}
+                                onChange={(e) => aplicarRecuento(index, 'vacios', e.target.value)}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onWheel={handleWheel}
+                                className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
+                              />
+                            </label>
+                            <label className="text-xs font-medium text-green-600">
+                              Llenos
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={String(item.cantidad_devuelta ?? 0)}
+                                onChange={(e) => aplicarRecuento(index, 'llenos', e.target.value)}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onWheel={handleWheel}
+                                className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
+                              />
+                            </label>
+                            <span className="text-xs text-gray-500">
+                              Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-sm">
+                            <p className="text-blue-600">Vacíos {item.cantidad_vacios ?? item.cantidad_vendida ?? 0}</p>
+                            <p className="text-green-600">Llenos {item.cantidad_devuelta ?? 0}</p>
+                            <p className="text-xs text-gray-500">
+                              Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
+                            </p>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex relative flex-col gap-1 items-start">
@@ -776,7 +796,16 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
             >
               Cerrar
             </Button>
-            {proceso?.estado_cuenta !== 'finalizado' && (
+            {modoEdicion && (
+              <Button
+                color="primary"
+                onClick={() => { void persistirRecuento(); }}
+                isLoading={guardandoRecuento}
+              >
+                Guardar recuento
+              </Button>
+            )}
+            {proceso?.estado_cuenta !== 'finalizado' && !modoEdicion && (
               <Button 
                 color="success"
                 className="text-white bg-green-600"
