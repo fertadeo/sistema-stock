@@ -585,7 +585,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                       <TableCell>{item.nombre}</TableCell>
                       <TableCell>
                         {modoEdicion ? (
-                          <div className="flex flex-col gap-2" onKeyDown={(e) => e.stopPropagation()}>
+                          <div className="flex flex-col gap-2">
                             <label className="text-xs font-medium text-blue-600">
                               Vacíos
                               <input
