@@ -94,10 +94,17 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   // Inicializar los productos detalle y precios originales cuando se abre el modal
   useEffect(() => {
     if (proceso?.productos_detalle) {
-      setProductosDetalle(proceso.productos_detalle.map(item => ({
-        ...item,
-        precio_unitario: item.precio_unitario || 0
-      })));
+      setProductosDetalle(proceso.productos_detalle.map(item => {
+        const cargada = item.cantidad_cargada ?? ((item.cantidad_vendida || 0) + (item.cantidad_devuelta || 0));
+        const llenos = item.cantidad_devuelta ?? Math.max(0, cargada - (item.cantidad_vendida || 0));
+        return {
+          ...item,
+          cantidad_cargada: cargada,
+          cantidad_devuelta: llenos,
+          cantidad_vacios: item.cantidad_vendida || 0,
+          precio_unitario: item.precio_unitario || 0
+        };
+      }));
       setPreciosOriginales(proceso.productos_detalle.map(item => item.precio_unitario || 0));
     }
   }, [proceso?.productos_detalle]);
@@ -134,22 +141,61 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
     return (item.cantidad_vendida || 0) + (item.cantidad_devuelta || 0);
   };
 
-  const handleCantidadVendidaChange = (index: number, valor: string) => {
-    if (proceso?.estado_cuenta === 'finalizado') return;
+  const leerEntero = (valor: string) => {
+    if (valor.trim() === '') return 0;
+    const parsed = parseInt(valor.replace(/[^\d]/g, ''), 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const aplicarRecuento = (index: number, campo: 'vacios' | 'llenos', valor: string) => {
     const item = productosDetalle[index];
     const cargada = cargadaDe(item);
-    const parsed = valor === '' ? 0 : parseInt(valor.replace(/[^\d]/g, ''), 10);
-    if (Number.isNaN(parsed)) return;
-    const vendida = Math.min(Math.max(0, parsed), cargada);
+    const ingresado = Math.min(Math.max(0, leerEntero(valor)), cargada);
+    let vacios = item.cantidad_vacios ?? item.cantidad_vendida ?? 0;
+    let llenos = item.cantidad_devuelta ?? Math.max(0, cargada - (item.cantidad_vendida || 0));
+
+    if (campo === 'vacios') {
+      vacios = ingresado;
+      llenos = Math.max(0, cargada - vacios);
+    } else {
+      llenos = ingresado;
+      if (vacios + llenos > cargada) {
+        vacios = cargada - llenos;
+      }
+    }
+
+    const vendida = Math.max(0, cargada - llenos);
     const nuevosProductos = [...productosDetalle];
     nuevosProductos[index] = {
       ...item,
       cantidad_cargada: cargada,
+      cantidad_vacios: vacios,
+      cantidad_devuelta: llenos,
       cantidad_vendida: vendida,
-      cantidad_devuelta: cargada - vendida,
       subtotal: Math.round(vendida * (item.precio_unitario || 0))
     };
     setProductosDetalle(nuevosProductos);
+  };
+
+  const persistirRecuento = async () => {
+    try {
+      await guardarCantidadesEnDescarga();
+      if (onPreciosActualizados) onPreciosActualizados();
+      if (onVentasCerradasActualizadas) onVentasCerradasActualizadas();
+      setNotification({
+        isVisible: true,
+        message: 'Recuento actualizado',
+        description: 'Vacíos y llenos quedaron guardados en la descarga.',
+        type: 'success'
+      });
+    } catch (error) {
+      setNotification({
+        isVisible: true,
+        message: 'No se pudo actualizar la descarga',
+        description: error instanceof Error ? error.message : 'Revisá vacíos y llenos.',
+        type: 'error'
+      });
+    }
   };
 
   const guardarCantidadesEnDescarga = async (detalle = productosDetalle) => {
@@ -479,6 +525,13 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
         isOpen={isOpen} 
         onClose={onClose}
         size="2xl"
+        scrollBehavior="inside"
+        placement="center"
+        classNames={{
+          wrapper: "overflow-y-hidden",
+          base: "!my-4 max-h-[calc(100dvh-2rem)]",
+          body: "overflow-y-auto"
+        }}
       >
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">
@@ -507,14 +560,14 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                 variant="flat"
                 className="mb-4"
               >
-                Este proceso ya está finalizado y no puede ser modificado.
+                Este proceso ya está cerrado. Podés corregir vacíos y llenos para recontar la venta.
               </Alert>
             )}
             <div className="space-y-6">
               <Table aria-label="Detalle de Venta">
                 <TableHeader>
                   <TableColumn>Producto</TableColumn>
-                  <TableColumn>Vendido</TableColumn>
+                  <TableColumn>Vacíos y llenos</TableColumn>
                   <TableColumn>Precio Unitario</TableColumn>
                   <TableColumn>Subtotal</TableColumn>
                 </TableHeader>
@@ -523,32 +576,33 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                     <TableRow key={index}>
                       <TableCell>{item.nombre}</TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={String(item.cantidad_vendida ?? 0)}
-                            onChange={(e) => handleCantidadVendidaChange(index, e.target.value)}
-                            onBlur={() => {
-                              if (proceso?.estado_cuenta !== 'finalizado') {
-                                guardarCantidadesEnDescarga().catch((error) => {
-                                  setNotification({
-                                    isVisible: true,
-                                    message: 'No se pudo actualizar la descarga',
-                                    description: error instanceof Error ? error.message : 'Revisá la cantidad vendida.',
-                                    type: 'error'
-                                  });
-                                });
-                              }
-                            }}
-                            onWheel={handleWheel}
-                            disabled={proceso?.estado_cuenta === 'finalizado'}
-                            className={`w-20 px-2 py-1 text-right rounded border ${
-                              proceso?.estado_cuenta === 'finalizado' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
-                            }`}
-                          />
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-medium text-blue-600">
+                            Vacíos
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={String(item.cantidad_vacios ?? item.cantidad_vendida ?? 0)}
+                              onChange={(e) => aplicarRecuento(index, 'vacios', e.target.value)}
+                              onBlur={() => { void persistirRecuento(); }}
+                              onWheel={handleWheel}
+                              className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
+                            />
+                          </label>
+                          <label className="text-xs font-medium text-green-600">
+                            Llenos
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={String(item.cantidad_devuelta ?? 0)}
+                              onChange={(e) => aplicarRecuento(index, 'llenos', e.target.value)}
+                              onBlur={() => { void persistirRecuento(); }}
+                              onWheel={handleWheel}
+                              className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
+                            />
+                          </label>
                           <span className="text-xs text-gray-500">
-                            Carga {cargadaDe(item)} · Llenos {Math.max(0, cargadaDe(item) - (item.cantidad_vendida || 0))}
+                            Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
                           </span>
                         </div>
                       </TableCell>
@@ -741,6 +795,13 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
         size="2xl"
+        scrollBehavior="inside"
+        placement="center"
+        classNames={{
+          wrapper: "overflow-y-hidden",
+          base: "!my-4 max-h-[calc(100dvh-2rem)]",
+          body: "overflow-y-auto"
+        }}
       >
         <ModalContent>
           <ModalHeader>
