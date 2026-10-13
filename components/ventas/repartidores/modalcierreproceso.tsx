@@ -44,6 +44,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
   const [guardandoRecuento, setGuardandoRecuento] = useState(false);
   const [productosDetalle, setProductosDetalle] = useState<any[]>([]);
   const [editandoPrecioIndex, setEditandoPrecioIndex] = useState<number | null>(null);
+  const [borradorRecuento, setBorradorRecuento] = useState<{ index: number; campo: 'vacios' | 'llenos'; texto: string } | null>(null);
   const [preciosOriginales, setPreciosOriginales] = useState<number[]>([]);
   const [preciosModificados, setPreciosModificados] = useState<{[key: number]: number}>({});
   const [resultadoGuardado, setResultadoGuardado] = useState<{[index: number]: {success: boolean, message: string}}>(
@@ -109,6 +110,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
         };
       }));
       setPreciosOriginales(proceso.productos_detalle.map(item => item.precio_unitario || 0));
+      setBorradorRecuento(null);
     }
   }, [proceso?.productos_detalle]);
 
@@ -178,6 +180,32 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
       subtotal: Math.round(vendida * (item.precio_unitario || 0))
     };
     setProductosDetalle(nuevosProductos);
+  };
+
+  const numeroRecuento = (item: { cantidad_vacios?: number; cantidad_vendida?: number; cantidad_devuelta?: number }, campo: 'vacios' | 'llenos') =>
+    campo === 'vacios'
+      ? (item.cantidad_vacios ?? item.cantidad_vendida ?? 0)
+      : (item.cantidad_devuelta ?? 0);
+
+  const textoRecuento = (index: number, item: { cantidad_vacios?: number; cantidad_vendida?: number; cantidad_devuelta?: number }, campo: 'vacios' | 'llenos') => {
+    if (borradorRecuento?.index === index && borradorRecuento.campo === campo) return borradorRecuento.texto;
+    return String(numeroRecuento(item, campo));
+  };
+
+  const enfocarRecuento = (
+    index: number,
+    item: { cantidad_vacios?: number; cantidad_vendida?: number; cantidad_devuelta?: number },
+    campo: 'vacios' | 'llenos',
+    input: HTMLInputElement
+  ) => {
+    setBorradorRecuento({ index, campo, texto: String(numeroRecuento(item, campo)) });
+    window.setTimeout(() => input.select(), 0);
+  };
+
+  const escribirRecuento = (index: number, campo: 'vacios' | 'llenos', valor: string) => {
+    const texto = valor.replace(/\D/g, '');
+    setBorradorRecuento({ index, campo, texto });
+    aplicarRecuento(index, campo, texto);
   };
 
   const persistirRecuento = async () => {
@@ -572,6 +600,123 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
               </Alert>
             )}
             <div className="space-y-6">
+              {modoEdicion ? (
+                <div className="space-y-3">
+                  {productosDetalle.map((item, index) => (
+                    <div key={item.producto_id ?? index} className="p-3 border rounded-xl">
+                      <p className="font-medium">{item.nombre}</p>
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <label className="text-sm font-medium text-blue-600">
+                          Vacíos
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            enterKeyHint="done"
+                            value={textoRecuento(index, item, 'vacios')}
+                            onFocus={(e) => enfocarRecuento(index, item, 'vacios', e.currentTarget)}
+                            onMouseUp={(e) => e.preventDefault()}
+                            onChange={(e) => escribirRecuento(index, 'vacios', e.target.value)}
+                            onBlur={() => setBorradorRecuento(null)}
+                            className="block w-full px-3 py-2 mt-1 text-lg text-right bg-white rounded-lg border"
+                          />
+                        </label>
+                        <label className="text-sm font-medium text-green-600">
+                          Llenos
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            enterKeyHint="done"
+                            value={textoRecuento(index, item, 'llenos')}
+                            onFocus={(e) => enfocarRecuento(index, item, 'llenos', e.currentTarget)}
+                            onMouseUp={(e) => e.preventDefault()}
+                            onChange={(e) => escribirRecuento(index, 'llenos', e.target.value)}
+                            onBlur={() => setBorradorRecuento(null)}
+                            className="block w-full px-3 py-2 mt-1 text-lg text-right bg-white rounded-lg border"
+                          />
+                        </label>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
+                      </p>
+                      <div className="flex gap-3 justify-between items-start mt-3">
+                        <div className="flex relative flex-col gap-1 items-start">
+                          <span className="text-xs text-gray-500">Precio unitario</span>
+                          <div className="flex gap-2 items-center">
+                            <span>$</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={item.precio_unitario === 0 ? "" : String(Math.round(item.precio_unitario))}
+                              onChange={(e) => {
+                                if (proceso?.estado_cuenta !== 'finalizado') {
+                                  const nuevoPrecio = Math.round(parseFloat(e.target.value.replace(/[^\d]/g, '')) || 0);
+                                  handlePrecioUnitarioChange(index, nuevoPrecio);
+                                }
+                              }}
+                              onFocus={(e) => {
+                                setEditandoPrecioIndex(index);
+                                e.target.select();
+                              }}
+                              onBlur={() => setEditandoPrecioIndex(null)}
+                              onKeyDown={(e) => handleKeyDown(e, index)}
+                              onWheel={handleWheel}
+                              placeholder="0"
+                              className={`w-24 px-2 py-2 text-right rounded border transition-colors duration-200 ${
+                                proceso?.estado_cuenta === 'finalizado'
+                                  ? 'bg-gray-100 cursor-not-allowed'
+                                  : editandoPrecioIndex === index
+                                    ? 'bg-yellow-100 border-yellow-400'
+                                    : 'bg-white'
+                              }`}
+                              disabled={proceso?.estado_cuenta === 'finalizado'}
+                            />
+                            {proceso?.estado_cuenta !== 'finalizado' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="p-0.5 text-blue-500 hover:text-blue-700 focus:outline-none"
+                                  tabIndex={-1}
+                                  onClick={() => setEditandoPrecioIndex(index)}
+                                >
+                                  <PencilSquareIcon className="w-5 h-5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`ml-1 p-0.5 text-green-600 hover:text-green-800 focus:outline-none ${!preciosModificados[index] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  disabled={!preciosModificados[index]}
+                                  onClick={async () => await guardarPreciosModificados()}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                  </svg>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          {editandoPrecioIndex === index && (
+                            <span className="mt-1 text-xs text-blue-600">Enter guarda · Esc cancela</span>
+                          )}
+                          {resultadoGuardado[index] && (
+                            <Alert
+                              color={resultadoGuardado[index].success ? 'success' : 'danger'}
+                              variant="flat"
+                              className="mt-1"
+                            >
+                              {resultadoGuardado[index].message}
+                            </Alert>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">Subtotal</p>
+                          <p className="font-medium">{formatMonto(item.subtotal)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <Table aria-label="Detalle de Venta">
                 <TableHeader>
                   <TableColumn>Producto</TableColumn>
@@ -584,47 +729,13 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                     <TableRow key={index}>
                       <TableCell>{item.nombre}</TableCell>
                       <TableCell>
-                        {modoEdicion ? (
-                          <div className="flex flex-col gap-2">
-                            <label className="text-xs font-medium text-blue-600">
-                              Vacíos
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={String(item.cantidad_vacios ?? item.cantidad_vendida ?? 0)}
-                                onChange={(e) => aplicarRecuento(index, 'vacios', e.target.value)}
-                                onKeyDown={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onWheel={handleWheel}
-                                className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
-                              />
-                            </label>
-                            <label className="text-xs font-medium text-green-600">
-                              Llenos
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={String(item.cantidad_devuelta ?? 0)}
-                                onChange={(e) => aplicarRecuento(index, 'llenos', e.target.value)}
-                                onKeyDown={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onWheel={handleWheel}
-                                className="block w-20 px-2 py-1 mt-1 text-right bg-white rounded border"
-                              />
-                            </label>
-                            <span className="text-xs text-gray-500">
-                              Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-sm">
-                            <p className="text-blue-600">Vacíos {item.cantidad_vacios ?? item.cantidad_vendida ?? 0}</p>
-                            <p className="text-green-600">Llenos {item.cantidad_devuelta ?? 0}</p>
-                            <p className="text-xs text-gray-500">
-                              Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
-                            </p>
-                          </div>
-                        )}
+                        <div className="text-sm">
+                          <p className="text-blue-600">Vacíos {item.cantidad_vacios ?? item.cantidad_vendida ?? 0}</p>
+                          <p className="text-green-600">Llenos {item.cantidad_devuelta ?? 0}</p>
+                          <p className="text-xs text-gray-500">
+                            Carga {cargadaDe(item)} · Vendido {item.cantidad_vendida || 0}
+                          </p>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex relative flex-col gap-1 items-start">
@@ -699,6 +810,7 @@ const ModalCierreProceso: React.FC<ModalCierreProcesoProps> = ({
                   ))}
                 </TableBody>
               </Table>
+              )}
 
               {/* Resumen de la venta */}
               <div className="pt-4 space-y-4 border-t">
