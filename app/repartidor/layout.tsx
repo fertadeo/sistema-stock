@@ -13,6 +13,7 @@ import {
   XMarkIcon,
   BoltIcon,
   ArrowRightOnRectangleIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
 import { asegurarSuscripcionPushSilenciosa } from '@/lib/services/repartidorRutaService';
@@ -103,6 +104,11 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
       icon: <BoltIcon className="w-6 h-6" />
     },
     {
+      href: '/repartidor/ruta',
+      label: 'Ruta',
+      icon: <MapPinIcon className="w-6 h-6" />
+    },
+    {
       href: '/repartidor/ventas',
       label: 'Ventas',
       icon: <ShoppingCartIcon className="w-6 h-6" />
@@ -125,6 +131,14 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   ];
 
   const navItems = allNavItems;
+  const bottomNavHrefs = new Set([
+    '/repartidor',
+    '/repartidor/rapido',
+    '/repartidor/ruta',
+    '/repartidor/fiados',
+    '/repartidor/clientes',
+  ]);
+  const bottomNavItems = allNavItems.filter((item) => bottomNavHrefs.has(item.href));
 
   const tituloActual =
     navItems.find((item) => isRouteActive(currentPathname, item.href) && item.href !== '/repartidor')?.label ||
@@ -134,6 +148,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
   const subtituloActual = (() => {
     if (currentPathname === '/repartidor') return 'Panel operativo';
     if (currentPathname === '/repartidor/rapido') return 'Flujo principal conectado al backend';
+    if (currentPathname === '/repartidor/ruta') return 'Hoja de ruta del día';
     if (currentPathname === '/repartidor/ventas') return 'Preparación y acceso a ventas';
     if (currentPathname === '/repartidor/fiados') return 'Cuenta corriente y cobros';
     if (currentPathname === '/repartidor/envases') return 'Seguimiento de envases';
@@ -286,7 +301,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
         }`}
       >
         <div className="flex justify-around py-2">
-          {navItems.map((item) => (
+          {bottomNavItems.map((item) => (
             <NavItem
               key={item.href}
               icon={item.icon}

@@ -11,6 +11,7 @@ import {
   UserPlusIcon,
   ShoppingCartIcon,
   ExclamationTriangleIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
 import {
   repartidorRapidoService,
@@ -170,6 +171,14 @@ export default function RepartidorDashboard() {
             <CubeIcon className="h-6 w-6" />
             <p className="mt-3 font-semibold">Envases</p>
             <p className="mt-1 text-xs text-purple-100">Seguimiento y ajustes</p>
+          </button>
+          <button
+            onClick={() => router.push('/repartidor/ruta')}
+            className="rounded-xl bg-indigo-600 px-4 py-4 text-left text-white transition-colors hover:bg-indigo-700"
+          >
+            <MapPinIcon className="h-6 w-6" />
+            <p className="mt-3 font-semibold">Ruta del día</p>
+            <p className="mt-1 text-xs text-indigo-100">Paradas asignadas y alertas</p>
           </button>
         </div>
       </section>

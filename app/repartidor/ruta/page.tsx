@@ -320,6 +320,29 @@ export default function RepartidorRutaPage() {
   const paradasPendientes = paradas.filter((p) => !p.visitado);
   const paradasVisitadas = paradas.filter((p) => p.visitado);
 
+  const abrirRecorridoCompleto = () => {
+    const conCoords = paradasPendientes.filter(
+      (p) =>
+        p.cliente &&
+        Number.isFinite(Number(p.cliente.latitud)) &&
+        Number.isFinite(Number(p.cliente.longitud))
+    );
+    if (conCoords.length === 0) {
+      setError('No hay paradas pendientes con coordenadas para abrir el recorrido');
+      return;
+    }
+    const destino = conCoords[conCoords.length - 1];
+    const waypoints = conCoords
+      .slice(0, -1)
+      .map((p) => `${p.cliente!.latitud},${p.cliente!.longitud}`)
+      .join('|');
+    const url =
+      `https://www.google.com/maps/dir/?api=1&destination=${destino.cliente!.latitud},${destino.cliente!.longitud}` +
+      (waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '') +
+      '&travelmode=driving';
+    window.location.assign(url);
+  };
+
   return (
     <div className="py-4 space-y-5 max-w-3xl mx-auto">
       <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
@@ -328,7 +351,7 @@ export default function RepartidorRutaPage() {
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold text-gray-900">Ruta del día</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Fijá clientes que te avisaron por WhatsApp y programá una alerta antes de pasar.
+              Acá ves la hoja que te asignaron desde el mapa, o podés fijar clientes y alertas vos mismo.
             </p>
           </div>
         </div>
@@ -512,10 +535,22 @@ export default function RepartidorRutaPage() {
       )}
 
       <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
-          <ClockIcon className="w-5 h-5 text-teal-600" />
-          Pendientes ({paradasPendientes.length})
-        </h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+            <ClockIcon className="w-5 h-5 text-teal-600" />
+            Pendientes ({paradasPendientes.length})
+          </h3>
+          {paradasPendientes.length > 0 && (
+            <button
+              type="button"
+              onClick={abrirRecorridoCompleto}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+            >
+              <MapPinIcon className="w-4 h-4" />
+              Abrir recorrido
+            </button>
+          )}
+        </div>
 
         {cargando ? (
           <p className="text-sm text-gray-500">Cargando ruta...</p>

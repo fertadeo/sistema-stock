@@ -150,6 +150,33 @@ class RepartidorRutaService {
       throw new Error(json.message || 'No se pudo enviar la notificación de prueba');
     }
   }
+
+  async delegarRuta(payload: {
+    repartidor_id: number;
+    fecha?: string;
+    reemplazar?: boolean;
+    paradas: Array<{ cliente_id: number; orden: number }>;
+  }): Promise<{
+    cantidad: number;
+    fecha: string;
+    push_enviado: number;
+    repartidor: { id: number; nombre: string };
+  }> {
+    const response = await authFetch(this.buildApiUrl('/api/repartidor-ruta/delegar'), {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const json: ApiEnvelope<{
+      cantidad: number;
+      fecha: string;
+      push_enviado: number;
+      repartidor: { id: number; nombre: string };
+    }> = await response.json();
+    if (!response.ok || !json.success) {
+      throw new Error(json.message || 'No se pudo enviar la ruta al repartidor');
+    }
+    return json.data;
+  }
 }
 
 export const repartidorRutaService = new RepartidorRutaService();

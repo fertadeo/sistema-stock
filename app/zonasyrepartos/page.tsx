@@ -28,6 +28,8 @@ import NuevoClienteModal from '@/components/nuevoClienteModal';
 import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
+import { descargarHojaRutaExcel } from '@/lib/export/excelHojaRuta';
+import { repartidorRutaService } from '@/lib/services/repartidorRutaService';
 
 interface Cliente {
   id: number;
@@ -142,6 +144,7 @@ const PageZonasyRepartos = () => {
   const [seguirRecorrido, setSeguirRecorrido] = useState(false);
   const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
   const [esDesktop, setEsDesktop] = useState(false);
+  const [enviandoRuta, setEnviandoRuta] = useState(false);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -1068,44 +1071,67 @@ const PageZonasyRepartos = () => {
     setVistaMovil('mapa');
   };
 
-  // Modificar la función para descargar la hoja de ruta
   const descargarHojaRuta = () => {
     if (!rutaLista || !rutaOptimizada.length) {
       alert('Primero debes generar la ruta en el mapa.');
       return;
     }
 
-    if (typeof window === 'undefined') return;
+    try {
+      const ahora = new Date();
+      descargarHojaRutaExcel(rutaOptimizada, {
+        anio: ahora.getFullYear(),
+        mes: ahora.getMonth() + 1,
+        repartidor: filtroRepartidor,
+        diaReparto: filtroDia,
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo generar el Excel');
+    }
+  };
 
-    const distancia = distanciaTotal;
-    const tiempo = tiempoEstimado;
-    const ruta = rutaOptimizada;
-    const contenido = `
-      HOJA DE RUTA - ${filtroDia !== 'todos' ? filtroDia : 'Todos los días'}
-      Repartidor: ${filtroRepartidor !== 'todos' ? filtroRepartidor : 'Todos'}
-      Fecha: ${new Date().toLocaleDateString()}
+  const enviarRutaAlRepartidor = async () => {
+    if (!rutaLista || !rutaOptimizada.length) {
+      alert('Primero debes generar la ruta en el mapa.');
+      return;
+    }
+    if (filtroRepartidor === 'todos') {
+      alert('Seleccioná un repartidor concreto para enviarle la ruta.');
+      return;
+    }
 
-      DISTANCIA TOTAL: ${(distancia / 1000).toFixed(2)} km
-      TIEMPO ESTIMADO: ${Math.round(tiempo / 60)} minutos
+    const repartidor = repartidores.find(
+      (r) => r.nombre.trim() === filtroRepartidor.trim()
+    );
+    if (!repartidor) {
+      alert('No se encontró la ficha del repartidor seleccionado.');
+      return;
+    }
 
-      RUTA OPTIMIZADA:
-      ${ruta.map((cliente, index) => `
-        ${index + 1}. ${cliente.nombre}
-           Dirección: ${cliente.direccion}
-           Teléfono: ${cliente.telefono}
-           Zona: ${cliente.zona}
-      `).join('\n')}
-    `;
+    const confirmar = window.confirm(
+      `¿Enviar ${rutaOptimizada.length} paradas a ${repartidor.nombre}? Se reemplaza su ruta de hoy.`
+    );
+    if (!confirmar) return;
 
-    const blob = new Blob([contenido], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hoja_ruta_${filtroDia}_${filtroRepartidor}_${new Date().toLocaleDateString()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    setEnviandoRuta(true);
+    try {
+      const resultado = await repartidorRutaService.delegarRuta({
+        repartidor_id: repartidor.id,
+        reemplazar: true,
+        paradas: rutaOptimizada.map((cliente, index) => ({
+          cliente_id: cliente.id,
+          orden: index + 1,
+        })),
+      });
+      alert(
+        `Ruta enviada a ${resultado.repartidor.nombre}: ${resultado.cantidad} paradas` +
+          (resultado.push_enviado > 0 ? ' (notificación enviada).' : '.')
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo enviar la ruta');
+    } finally {
+      setEnviandoRuta(false);
+    }
   };
 
   useEffect(() => {
@@ -1342,7 +1368,18 @@ const PageZonasyRepartos = () => {
                 onClick={descargarHojaRuta}
                 disabled={!rutaLista}
               >
-                Descargar Hoja de Ruta
+                Descargar Excel Hoja de Ruta
+              </button>
+              <button
+                className={`px-4 py-2 mt-2 sm:mt-4 text-sm sm:text-base text-white rounded w-full sm:w-auto ${
+                  rutaLista && filtroRepartidor !== 'todos' && !enviandoRuta
+                    ? 'bg-indigo-600 hover:bg-indigo-700'
+                    : 'bg-gray-400 cursor-not-allowed'
+                }`}
+                onClick={() => void enviarRutaAlRepartidor()}
+                disabled={!rutaLista || filtroRepartidor === 'todos' || enviandoRuta}
+              >
+                {enviandoRuta ? 'Enviando...' : 'Enviar al repartidor'}
               </button>
               {mostrarRuta && (
                 <button

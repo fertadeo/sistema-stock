@@ -75,6 +75,10 @@ export default function CentroCuentasPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>(USER_ROLES.ADMIN);
   const [repartidorId, setRepartidorId] = useState('');
+  const [modoRepartidor, setModoRepartidor] = useState<'existente' | 'nuevo'>('existente');
+  const [nuevoRepNombre, setNuevoRepNombre] = useState('');
+  const [nuevoRepTelefono, setNuevoRepTelefono] = useState('');
+  const [nuevoRepZona, setNuevoRepZona] = useState('');
   const [createSoloClientesPropios, setCreateSoloClientesPropios] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -119,7 +123,9 @@ export default function CentroCuentasPage() {
       setRepartidores(lista);
 
       if (lista.length === 0) {
-        setRepartidoresError('No hay repartidores activos registrados. Creá uno en Ventas > Repartidor.');
+        setRepartidoresError(
+          'No hay repartidores registrados. Podés crear la ficha junto con el acceso eligiendo "Nuevo repartidor".'
+        );
       }
     } catch (err) {
       setRepartidores([]);
@@ -182,16 +188,39 @@ export default function CentroCuentasPage() {
     setSuccess('');
 
     try {
+      if (role === USER_ROLES.REPARTIDOR && modoRepartidor === 'nuevo' && !nuevoRepNombre.trim()) {
+        throw new Error('El nombre del nuevo repartidor es obligatorio');
+      }
+      if (role === USER_ROLES.REPARTIDOR && modoRepartidor === 'existente' && !repartidorId) {
+        throw new Error('Seleccioná un repartidor existente');
+      }
+
+      const body: Record<string, unknown> = {
+        email,
+        password,
+        role,
+        solo_clientes_propios:
+          role === USER_ROLES.REPARTIDOR ? createSoloClientesPropios : false,
+      };
+
+      if (role === USER_ROLES.REPARTIDOR) {
+        if (modoRepartidor === 'nuevo') {
+          body.nuevo_repartidor = {
+            nombre: nuevoRepNombre.trim(),
+            telefono: nuevoRepTelefono.trim() || '-',
+            zona_reparto: nuevoRepZona.trim() || '-',
+          };
+          body.nombre = nuevoRepNombre.trim();
+        } else {
+          body.repartidor_id = repartidorId;
+        }
+      } else {
+        body.repartidor_id = null;
+      }
+
       const response = await authFetch(createApiUrl('api/users'), {
         method: 'POST',
-        body: JSON.stringify({
-          email,
-          password,
-          role,
-          repartidor_id: role === USER_ROLES.REPARTIDOR ? repartidorId : null,
-          solo_clientes_propios:
-            role === USER_ROLES.REPARTIDOR ? createSoloClientesPropios : false,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
 
@@ -202,9 +231,17 @@ export default function CentroCuentasPage() {
       setEmail('');
       setPassword('');
       setRepartidorId('');
+      setModoRepartidor('existente');
+      setNuevoRepNombre('');
+      setNuevoRepTelefono('');
+      setNuevoRepZona('');
       setCreateSoloClientesPropios(false);
       setRole(USER_ROLES.ADMIN);
-      setSuccess('Usuario creado correctamente.');
+      setSuccess(
+        data.repartidor
+          ? `Usuario y repartidor "${data.repartidor.nombre}" creados correctamente.`
+          : 'Usuario creado correctamente.'
+      );
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear usuario');
@@ -419,23 +456,83 @@ export default function CentroCuentasPage() {
           {role === USER_ROLES.REPARTIDOR && (
             <>
               <div>
-                <label htmlFor="create-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
-                <select
-                  id="create-repartidor"
-                  value={repartidorId}
-                  onChange={(e) => setRepartidorId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  required
-                >
-                  <option value="">Seleccionar repartidor</option>
-                  {repartidores.map((repartidor) => (
-                    <option key={repartidor.id} value={repartidor.id}>
-                      {repartidor.nombre}
-                      {repartidor.zona_reparto ? ` (${repartidor.zona_reparto})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <span className="block mb-2 text-sm font-medium text-gray-700">Ficha del repartidor</span>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 flex-1">
+                    <input
+                      type="radio"
+                      name="modo-repartidor"
+                      checked={modoRepartidor === 'existente'}
+                      onChange={() => setModoRepartidor('existente')}
+                    />
+                    <span className="text-sm text-gray-800">Existente</span>
+                  </label>
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 flex-1">
+                    <input
+                      type="radio"
+                      name="modo-repartidor"
+                      checked={modoRepartidor === 'nuevo'}
+                      onChange={() => setModoRepartidor('nuevo')}
+                    />
+                    <span className="text-sm text-gray-800">Nuevo repartidor</span>
+                  </label>
+                </div>
               </div>
+
+              {modoRepartidor === 'existente' ? (
+                <div>
+                  <label htmlFor="create-repartidor" className="block mb-1 text-sm font-medium text-gray-700">Repartidor</label>
+                  <select
+                    id="create-repartidor"
+                    value={repartidorId}
+                    onChange={(e) => setRepartidorId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    required
+                  >
+                    <option value="">Seleccionar repartidor</option>
+                    {repartidores.map((repartidor) => (
+                      <option key={repartidor.id} value={repartidor.id}>
+                        {repartidor.nombre}
+                        {repartidor.zona_reparto ? ` (${repartidor.zona_reparto})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 rounded-lg border border-teal-100 bg-teal-50/40">
+                  <div>
+                    <label htmlFor="nuevo-rep-nombre" className="block mb-1 text-sm font-medium text-gray-700">Nombre</label>
+                    <input
+                      id="nuevo-rep-nombre"
+                      type="text"
+                      value={nuevoRepNombre}
+                      onChange={(e) => setNuevoRepNombre(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="nuevo-rep-telefono" className="block mb-1 text-sm font-medium text-gray-700">Teléfono</label>
+                    <input
+                      id="nuevo-rep-telefono"
+                      type="text"
+                      value={nuevoRepTelefono}
+                      onChange={(e) => setNuevoRepTelefono(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="nuevo-rep-zona" className="block mb-1 text-sm font-medium text-gray-700">Zona de reparto</label>
+                    <input
+                      id="nuevo-rep-zona"
+                      type="text"
+                      value={nuevoRepZona}
+                      onChange={(e) => setNuevoRepZona(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3 items-start p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
                 <input
