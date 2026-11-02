@@ -154,10 +154,11 @@ export default function DelegarZonaModal({
 
         <div className="space-y-4 overflow-y-auto px-4 py-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="delegar-origen" className="mb-1 block text-sm font-medium text-gray-700">
               Repartidor origen (cede clientes)
             </label>
             <select
+              id="delegar-origen"
               value={origen}
               onChange={(e) => setOrigen(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -178,10 +179,11 @@ export default function DelegarZonaModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="delegar-destino" className="mb-1 block text-sm font-medium text-gray-700">
               Repartidor destino (recibe)
             </label>
             <select
+              id="delegar-destino"
               value={destino}
               onChange={(e) => setDestino(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
