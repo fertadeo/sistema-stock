@@ -1210,6 +1210,9 @@ const PageZonasyRepartos = () => {
     puedeGuardar: puedeGuardarZona,
     barrios: barriosCatalogo,
     repartidores,
+    onDelegarZona: !modoCrearZona && zonaSeleccionadaId != null
+      ? () => setMostrarDelegarZona(true)
+      : undefined,
     onCancelar: cerrarEditorZona,
     onSeleccionarTipo: seleccionarTipoCreacion,
     onNombreChange: setFormZonaNombre,

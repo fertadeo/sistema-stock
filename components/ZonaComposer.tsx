@@ -46,6 +46,8 @@ type Props = {
   onEliminar?: () => void;
   /** En dock: ir al mapa tras una acción (mobile). */
   onIrAlMapa?: () => void;
+  /** Solo al editar una zona existente: ceder clientes del origen al destino. */
+  onDelegarZona?: () => void;
 };
 
 function hintFor(tipo: TipoZona): string {
@@ -85,6 +87,7 @@ export default function ZonaComposer({
   onGuardar,
   onEliminar,
   onIrAlMapa,
+  onDelegarZona,
 }: Props) {
   const [masOpciones, setMasOpciones] = useState(false);
   // Empieza colapsado para no tapar el mapa; se expande si el usuario lo pide.
@@ -282,6 +285,16 @@ export default function ZonaComposer({
             Ver mapa para dibujar →
           </button>
         )}
+        {!modoCrear && onDelegarZona && (
+          <button
+            type="button"
+            className="w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            onClick={onDelegarZona}
+            disabled={guardando}
+          >
+            Delegar zona
+          </button>
+        )}
         <div className="flex gap-2">
           <button
             type="button"
@@ -395,6 +408,16 @@ export default function ZonaComposer({
               disabled={puntosPoligono === 0 || guardando}
             >
               Deshacer
+            </button>
+          )}
+          {!modoCrear && onDelegarZona && (
+            <button
+              type="button"
+              className="rounded-xl bg-indigo-600 px-2.5 py-2 text-xs font-bold text-white disabled:opacity-50"
+              onClick={onDelegarZona}
+              disabled={guardando}
+            >
+              Delegar
             </button>
           )}
           <button
