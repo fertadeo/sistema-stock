@@ -36,43 +36,40 @@ export type RepartidorConColor = {
 export function buildRepartidorPalette(
   nombresORepartidores: Array<string | null | undefined | RepartidorConColor>
 ): RepartidorPaletteItem[] {
-  return nombresORepartidores
-    .map((item, index) => {
-      if (item == null) return null;
-      if (typeof item === 'string') {
-        const nombre = item.trim();
-        if (!nombre) return null;
-        const color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
-        return {
-          nombre,
-          color,
-          icon: createPinIcon(color, 'cliente'),
-          legendClass: LEGEND_COLOR_CLASSES[index % LEGEND_COLOR_CLASSES.length],
-        } satisfies RepartidorPaletteItem;
+  const palette: RepartidorPaletteItem[] = [];
+
+  nombresORepartidores.forEach((item, index) => {
+    if (item == null) return;
+
+    let nombre = '';
+    let color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
+
+    if (typeof item === 'string') {
+      nombre = item.trim();
+    } else {
+      nombre = typeof item.nombre === 'string' ? item.nombre.trim() : '';
+      if (typeof item.color_pin === 'string' && item.color_pin.trim()) {
+        color = item.color_pin.trim();
       }
-      const nombre = typeof item.nombre === 'string' ? item.nombre.trim() : '';
-      if (!nombre) return null;
-      const colorPin =
-        typeof item.color_pin === 'string' && item.color_pin.trim()
-          ? item.color_pin.trim()
-          : REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
-      const colorIndex = Math.max(
-        0,
-        REPARTIDOR_PIN_COLORS.findIndex(
-          (c) => c.toUpperCase() === colorPin.toUpperCase()
-        )
-      );
-      return {
-        nombre,
-        color: colorPin,
-        icon: createPinIcon(colorPin, 'cliente'),
-        legendClass:
-          LEGEND_COLOR_CLASSES[
-            (colorIndex >= 0 ? colorIndex : index) % LEGEND_COLOR_CLASSES.length
-          ],
-      } satisfies RepartidorPaletteItem;
-    })
-    .filter((item): item is RepartidorPaletteItem => item != null);
+    }
+
+    if (!nombre) return;
+
+    const colorIndex = REPARTIDOR_PIN_COLORS.findIndex(
+      (c) => c.toUpperCase() === color.toUpperCase()
+    );
+    palette.push({
+      nombre,
+      color,
+      icon: createPinIcon(color, 'cliente'),
+      legendClass:
+        LEGEND_COLOR_CLASSES[
+          (colorIndex >= 0 ? colorIndex : index) % LEGEND_COLOR_CLASSES.length
+        ],
+    });
+  });
+
+  return palette;
 }
 
 function normalizeRepartidorName(name: string | null | undefined): string {
