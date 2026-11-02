@@ -65,7 +65,7 @@ export default function DelegarZonaModal({
       const nom = (c.repartidor || '').trim();
       if (nom) set.add(nom);
     }
-    return [...set].sort((a, b) => a.localeCompare(b));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [clientesEnZona]);
 
   const preview = useMemo(() => {
