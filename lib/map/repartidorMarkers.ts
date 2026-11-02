@@ -42,7 +42,7 @@ export function buildRepartidorPalette(
     if (item == null) return;
 
     let nombre = '';
-    let color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
+    let color: string = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
 
     if (typeof item === 'string') {
       nombre = item.trim();
