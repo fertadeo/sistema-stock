@@ -92,6 +92,16 @@ export interface ClienteDeudor {
   total_creditos: number;
   cantidad_movimientos: number;
   ultimo_movimiento_at: string | null;
+  dueno_repartidor_id?: number | null;
+}
+
+export interface CarterasDeudores {
+  propia: ClienteDeudor[];
+  por_otro: Array<{
+    repartidor_id: number;
+    repartidor_nombre: string;
+    deudores: ClienteDeudor[];
+  }>;
 }
 
 export interface ProductoVenta {
@@ -122,7 +132,11 @@ export interface CobroRapidoData {
   cliente_id: number;
   monto: number;
   medio_pago: MedioPago;
+  /** Dueño contable del cobro (fiado histórico). */
   repartidor_id?: number;
+  cobrado_por_repartidor_id?: number;
+  cobrado_por_nombre?: string;
+  historico?: boolean;
   venta_relacionada_id?: string;
   observaciones?: string;
 }
@@ -298,7 +312,7 @@ class RepartidorRapidoService {
     return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
-  private getRepartidorId(): number | undefined {
+  getRepartidorId(): number | undefined {
     if (typeof window !== 'undefined') {
       const repartidorId = localStorage.getItem('repartidor_id');
       return repartidorId ? parseInt(repartidorId) : undefined;
@@ -367,6 +381,7 @@ class RepartidorRapidoService {
   async registrarCobro(data: CobroRapidoData): Promise<{ cobro: CobroCliente; saldo_actual: number }> {
     try {
       const { cliente_id, ...payload } = data;
+      const operadorId = this.getRepartidorId();
       const response = await authFetch(this.buildApiUrl(`/api/clientes/${cliente_id}/cobros`), {
         method: 'POST',
         headers: {
@@ -374,7 +389,13 @@ class RepartidorRapidoService {
         },
         body: JSON.stringify({
           ...payload,
-          repartidor_id: data.repartidor_id || this.getRepartidorId() || null,
+          repartidor_id:
+            data.repartidor_id != null ? data.repartidor_id : operadorId || null,
+          cobrado_por_repartidor_id:
+            data.cobrado_por_repartidor_id != null
+              ? data.cobrado_por_repartidor_id
+              : operadorId || null,
+          historico: Boolean(data.historico),
         }),
       });
 
@@ -383,6 +404,17 @@ class RepartidorRapidoService {
       console.error('Error al registrar cobro:', error);
       throw error;
     }
+  }
+
+  async obtenerCarterasDeudores(): Promise<CarterasDeudores> {
+    const response = await authFetch(this.buildApiUrl('/api/clientes/deudores-cartera'));
+    const data = await this.parseResponse<ApiEnvelope<CarterasDeudores>>(response);
+    return (
+      data.data || {
+        propia: [],
+        por_otro: [],
+      }
+    );
   }
 
   async registrarFiado(data: FiadoRapidoData): Promise<any> {

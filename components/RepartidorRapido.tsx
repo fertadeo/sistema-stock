@@ -197,6 +197,8 @@ export default function RepartidorRapido() {
   const [envasesDevueltos, setEnvasesDevueltos] = useState<EnvaseMovimiento[]>([]);
   const [resumenCuenta, setResumenCuenta] = useState<CuentaCorrienteResumen | null>(null);
   const [resumenEnvases, setResumenEnvases] = useState<ResumenEnvases | null>(null);
+  /** Si set, el cobro se imputa como histórico de este repartidor (dueño). */
+  const [duenoHistoricoId, setDuenoHistoricoId] = useState<number | null>(null);
   const [mensajeError, setMensajeError] = useState('');
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [rutaRetorno, setRutaRetorno] = useState<string | null>(null);
@@ -910,11 +912,21 @@ export default function RepartidorRapido() {
 
     setCargando(true);
     try {
+      const miRepartidorId = repartidorRapidoService.getRepartidorId();
+      const esHistorico =
+        duenoHistoricoId != null &&
+        miRepartidorId != null &&
+        duenoHistoricoId !== miRepartidorId;
+
       const resultadoCobro = await repartidorRapidoService.registrarCobro({
         cliente_id: clienteOperacion.id,
         monto: montoOperacion,
         medio_pago: medioPagoOperacion,
         observaciones: observacionesOperacion || undefined,
+        repartidor_id: esHistorico ? duenoHistoricoId : miRepartidorId || undefined,
+        cobrado_por_repartidor_id: miRepartidorId || undefined,
+        cobrado_por_nombre: user?.repartidor_nombre || user?.email || undefined,
+        historico: esHistorico,
       });
 
       setResumenCuenta((prev) =>
@@ -1092,8 +1104,14 @@ export default function RepartidorRapido() {
     const accion = searchParams.get('accion');
     const abrirMovimientos = searchParams.get('movimientos') === '1';
     const from = searchParams.get('from');
+    const duenoParam = searchParams.get('dueno');
     if (from === 'fiados') {
       setRutaRetorno('/repartidor/fiados');
+    }
+    if (duenoParam && Number.isFinite(Number(duenoParam))) {
+      setDuenoHistoricoId(Number(duenoParam));
+    } else {
+      setDuenoHistoricoId(null);
     }
 
     const abrirDesdeRuta = async () => {
@@ -1861,8 +1879,17 @@ export default function RepartidorRapido() {
           observaciones={observaciones}
           setObservaciones={setObservaciones}
           onProcesar={procesarCobro}
-          onCerrar={() => cerrarModalOperacion(() => setMostrarModalCobro(false))}
+          onCerrar={() =>
+            cerrarModalOperacion(() => {
+              setMostrarModalCobro(false);
+              setDuenoHistoricoId(null);
+            })
+          }
           cargando={cargando}
+          cobroHistorico={
+            duenoHistoricoId != null &&
+            duenoHistoricoId !== repartidorRapidoService.getRepartidorId()
+          }
         />
       )}
 
@@ -2474,6 +2501,7 @@ function ModalCobro({
   onProcesar,
   onCerrar,
   cargando,
+  cobroHistorico = false,
 }: {
   cliente: Cliente;
   montoCobro: number;
@@ -2487,6 +2515,7 @@ function ModalCobro({
   onProcesar: () => void;
   onCerrar: () => void;
   cargando: boolean;
+  cobroHistorico?: boolean;
 }) {
   const { registrarScrollOperacion } = useRepartidorUi();
 
@@ -2503,6 +2532,11 @@ function ModalCobro({
           className="overflow-y-auto flex-1 p-4 space-y-4"
           onScroll={(event) => registrarScrollOperacion(event.currentTarget.scrollTop)}
         >
+          {cobroHistorico && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Cobro de históricos: queda a nombre del repartidor anterior y él recibirá un aviso.
+            </div>
+          )}
           <div>
             <label htmlFor="montoCobro" className="block mb-1 text-sm font-medium text-gray-700">Monto a cobrar</label>
             <input

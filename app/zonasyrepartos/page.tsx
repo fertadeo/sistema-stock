@@ -30,6 +30,7 @@ import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
 import { descargarHojaRutaExcel } from '@/lib/export/excelHojaRuta';
 import { repartidorRutaService } from '@/lib/services/repartidorRutaService';
+import DelegarZonaModal from '@/components/DelegarZonaModal';
 
 interface Cliente {
   id: number;
@@ -50,6 +51,7 @@ interface Repartidor {
   nombre: string;
   zona_reparto?: string;
   activo?: boolean;
+  color_pin?: string | null;
 }
 
 // Coordenadas de la empresa
@@ -145,6 +147,7 @@ const PageZonasyRepartos = () => {
   const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
   const [esDesktop, setEsDesktop] = useState(false);
   const [enviandoRuta, setEnviandoRuta] = useState(false);
+  const [mostrarDelegarZona, setMostrarDelegarZona] = useState(false);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -365,7 +368,13 @@ const PageZonasyRepartos = () => {
   }, [fetchZonasRadio, fetchBarriosCatalogo]);
 
   const repartidorPalette = useMemo(
-    () => buildRepartidorPalette(repartidores.map((r) => r.nombre)),
+    () =>
+      buildRepartidorPalette(
+        repartidores.map((r) => ({
+          nombre: r.nombre,
+          color_pin: r.color_pin,
+        }))
+      ),
     [repartidores]
   );
 
@@ -1432,6 +1441,15 @@ const PageZonasyRepartos = () => {
                 onIniciarCrear={iniciarCrearZona}
                 onSeleccionarZona={seleccionarZona}
               />
+              {zonaSeleccionada && !modoCrearZona && (
+                <button
+                  type="button"
+                  className="mt-2 w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                  onClick={() => setMostrarDelegarZona(true)}
+                >
+                  Delegar zona
+                </button>
+              )}
             </div>
 
             <div className="p-3 mt-4 bg-gray-50 rounded-lg">
@@ -1610,6 +1628,27 @@ const PageZonasyRepartos = () => {
         onConfirm={() => { setShowConfirmSalirRuta(false); limpiarRuta(); }}
         onCancel={() => setShowConfirmSalirRuta(false)}
       />
+      {zonaSeleccionada && (
+        <DelegarZonaModal
+          open={mostrarDelegarZona}
+          onClose={() => setMostrarDelegarZona(false)}
+          zona={zonaSeleccionada}
+          clientes={clientesParaMapa.map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            direccion: c.direccion,
+            telefono: c.telefono,
+            repartidor: c.repartidor,
+            latitud: c.latitud,
+            longitud: c.longitud,
+          }))}
+          repartidores={repartidores}
+          onDelegado={() => {
+            void fetchClientes();
+            void fetchZonasRadio();
+          }}
+        />
+      )}
     </>
   );
 };

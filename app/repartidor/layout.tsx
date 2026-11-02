@@ -18,6 +18,7 @@ import {
 import { useRutaAlertas } from '@/lib/hooks/useRutaAlertas';
 import { asegurarSuscripcionPushSilenciosa } from '@/lib/services/repartidorRutaService';
 import { asegurarServiceWorkerRegistrado } from '@/lib/pwa/serviceWorker';
+import AvisosCampana from '@/components/repartidor/AvisosCampana';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -184,6 +185,7 @@ const RepartidorLayoutContent: React.FC<{ children: React.ReactNode }> = ({ chil
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <AvisosCampana />
             <div className="text-right hidden sm:block">
               <p className="text-sm text-gray-700">{fechaActual}</p>
               <p className="text-xs text-gray-500">{horaActual}</p>

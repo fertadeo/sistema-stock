@@ -28,19 +28,51 @@ export type RepartidorPaletteItem = {
   legendClass: string;
 };
 
-export function buildRepartidorPalette(nombres: Array<string | null | undefined>): RepartidorPaletteItem[] {
-  return nombres
-    .map((nombre) => (typeof nombre === 'string' ? nombre.trim() : ''))
-    .filter((nombre): nombre is string => nombre.length > 0)
-    .map((nombre, index) => {
-    const color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
-    return {
-      nombre,
-      color,
-      icon: createPinIcon(color, 'cliente'),
-      legendClass: LEGEND_COLOR_CLASSES[index % LEGEND_COLOR_CLASSES.length],
-    };
-  });
+export type RepartidorConColor = {
+  nombre?: string | null;
+  color_pin?: string | null;
+};
+
+export function buildRepartidorPalette(
+  nombresORepartidores: Array<string | null | undefined | RepartidorConColor>
+): RepartidorPaletteItem[] {
+  return nombresORepartidores
+    .map((item, index) => {
+      if (item == null) return null;
+      if (typeof item === 'string') {
+        const nombre = item.trim();
+        if (!nombre) return null;
+        const color = REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
+        return {
+          nombre,
+          color,
+          icon: createPinIcon(color, 'cliente'),
+          legendClass: LEGEND_COLOR_CLASSES[index % LEGEND_COLOR_CLASSES.length],
+        } satisfies RepartidorPaletteItem;
+      }
+      const nombre = typeof item.nombre === 'string' ? item.nombre.trim() : '';
+      if (!nombre) return null;
+      const colorPin =
+        typeof item.color_pin === 'string' && item.color_pin.trim()
+          ? item.color_pin.trim()
+          : REPARTIDOR_PIN_COLORS[index % REPARTIDOR_PIN_COLORS.length];
+      const colorIndex = Math.max(
+        0,
+        REPARTIDOR_PIN_COLORS.findIndex(
+          (c) => c.toUpperCase() === colorPin.toUpperCase()
+        )
+      );
+      return {
+        nombre,
+        color: colorPin,
+        icon: createPinIcon(colorPin, 'cliente'),
+        legendClass:
+          LEGEND_COLOR_CLASSES[
+            (colorIndex >= 0 ? colorIndex : index) % LEGEND_COLOR_CLASSES.length
+          ],
+      } satisfies RepartidorPaletteItem;
+    })
+    .filter((item): item is RepartidorPaletteItem => item != null);
 }
 
 function normalizeRepartidorName(name: string | null | undefined): string {

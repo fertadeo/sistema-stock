@@ -18,6 +18,7 @@ import {
   CuentaCorrienteResumen,
   MovimientoCuentaCorriente,
   ResumenFiadosDiario,
+  CarterasDeudores,
 } from '@/lib/services/repartidorRapidoService';
 
 const obtenerFechaLocal = (fecha: Date = new Date()): string => {
@@ -38,10 +39,12 @@ function FiadosPageContent() {
   const clienteParam = searchParams?.get('cliente') ?? null;
 
   const [deudores, setDeudores] = useState<ClienteDeudor[]>([]);
+  const [carteras, setCarteras] = useState<CarterasDeudores | null>(null);
   const [busqueda, setBusqueda] = useState(searchParams?.get('search') ?? '');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState<ClienteDeudor | null>(null);
+  const [duenoSeleccionadoId, setDuenoSeleccionadoId] = useState<number | null>(null);
   const [resumen, setResumen] = useState<CuentaCorrienteResumen | null>(null);
   const [movimientos, setMovimientos] = useState<MovimientoCuentaCorriente[]>([]);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
@@ -58,14 +61,34 @@ function FiadosPageContent() {
       setError('');
 
       try {
-        const response = await repartidorRapidoService.obtenerClientesDeudores({
-          search: busqueda.trim() || undefined,
-          page: 1,
-          limit: 100,
-        });
-
-        if (!mounted) return;
-        setDeudores(response.clientes);
+        try {
+          const carterasData = await repartidorRapidoService.obtenerCarterasDeudores();
+          if (!mounted) return;
+          setCarteras(carterasData);
+          const termino = busqueda.trim().toLowerCase();
+          const coincide = (c: ClienteDeudor) =>
+            !termino ||
+            c.nombre.toLowerCase().includes(termino) ||
+            (c.direccion || '').toLowerCase().includes(termino) ||
+            (c.telefono || '').includes(termino);
+          const propios = carterasData.propia.filter(coincide);
+          const ajenos = carterasData.por_otro.flatMap((g) =>
+            g.deudores.filter(coincide).map((d) => ({
+              ...d,
+              dueno_repartidor_id: g.repartidor_id,
+            }))
+          );
+          setDeudores([...propios, ...ajenos]);
+        } catch {
+          const response = await repartidorRapidoService.obtenerClientesDeudores({
+            search: busqueda.trim() || undefined,
+            page: 1,
+            limit: 100,
+          });
+          if (!mounted) return;
+          setCarteras(null);
+          setDeudores(response.clientes);
+        }
       } catch (err: any) {
         if (!mounted) return;
         setError(err?.message || 'No se pudo cargar la lista de deudores.');
@@ -113,8 +136,11 @@ function FiadosPageContent() {
   const esDesktop = () =>
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
 
-  const abrirDetalle = async (cliente: ClienteDeudor) => {
+  const abrirDetalle = async (cliente: ClienteDeudor, duenoId?: number | null) => {
     setClienteSeleccionado(cliente);
+    setDuenoSeleccionadoId(
+      duenoId != null ? duenoId : cliente.dueno_repartidor_id ?? null
+    );
     setCargandoDetalle(true);
     try {
       const data = await repartidorRapidoService.obtenerCuentaCorriente(cliente.cliente_id, {
@@ -131,14 +157,59 @@ function FiadosPageContent() {
     }
   };
 
-  const manejarClickDeudor = (cliente: ClienteDeudor) => {
+  const manejarClickDeudor = (cliente: ClienteDeudor, duenoId?: number | null) => {
     // En mobile abre la ficha directo; el panel lateral queda solo en desktop.
     if (esDesktop()) {
-      void abrirDetalle(cliente);
+      void abrirDetalle(cliente, duenoId);
       return;
     }
-    abrirFichaCliente(cliente);
+    const dueno = duenoId ?? cliente.dueno_repartidor_id;
+    const qs = dueno
+      ? `&dueno=${dueno}&accion=cobro`
+      : '';
+    router.push(`/repartidor/rapido?cliente=${cliente.cliente_id}&from=fiados${qs}`);
   };
+
+  const filtrarLista = (lista: ClienteDeudor[]) => {
+    const termino = busqueda.trim().toLowerCase();
+    if (!termino) return lista;
+    return lista.filter(
+      (c) =>
+        c.nombre.toLowerCase().includes(termino) ||
+        (c.direccion || '').toLowerCase().includes(termino) ||
+        (c.telefono || '').includes(termino)
+    );
+  };
+
+  const renderListaDeudores = (lista: ClienteDeudor[], duenoId?: number | null) => (
+    <div className="divide-y divide-gray-200">
+      {lista.map((cliente) => (
+        <button
+          key={`${duenoId ?? 'propio'}-${cliente.cliente_id}`}
+          onClick={() => manejarClickDeudor(cliente, duenoId)}
+          className={`w-full p-6 text-left transition-colors hover:bg-gray-50 ${
+            clienteSeleccionado?.cliente_id === cliente.cliente_id ? 'bg-gray-50' : ''
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900">{cliente.nombre}</p>
+              <p className="mt-1 text-sm text-gray-500">
+                {cliente.direccion || 'Sin dirección cargada'}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">{cliente.telefono || 'Sin teléfono'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Saldo actual</p>
+              <p className="font-bold text-red-600">
+                ${cliente.saldo_actual.toLocaleString('es-AR')}
+              </p>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     if (!clienteParam || deudores.length === 0) return;
@@ -389,36 +460,44 @@ function FiadosPageContent() {
           </div>
           {cargando ? (
             <div className="p-6 text-sm text-gray-500">Cargando deudores...</div>
+          ) : carteras ? (
+            <div className="space-y-4 p-4">
+              <div className="overflow-hidden rounded-xl border border-teal-200">
+                <div className="bg-teal-50 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-teal-900">Mi cartera</h3>
+                  <p className="text-xs text-teal-700">Fiados que originaste vos</p>
+                </div>
+                {filtrarLista(carteras.propia).length === 0 ? (
+                  <p className="p-4 text-sm text-gray-500">Tu cartera está limpia.</p>
+                ) : (
+                  renderListaDeudores(filtrarLista(carteras.propia), null)
+                )}
+              </div>
+              {carteras.por_otro.map((grupo) => {
+                const lista = filtrarLista(grupo.deudores);
+                if (lista.length === 0) return null;
+                return (
+                  <div
+                    key={grupo.repartidor_id}
+                    className="overflow-hidden rounded-xl border border-amber-200"
+                  >
+                    <div className="bg-amber-50 px-4 py-3">
+                      <h3 className="text-sm font-semibold text-amber-900">
+                        Cobrar por {grupo.repartidor_nombre}
+                      </h3>
+                      <p className="text-xs text-amber-700">
+                        Históricos: el cobro queda a nombre de {grupo.repartidor_nombre}
+                      </p>
+                    </div>
+                    {renderListaDeudores(lista, grupo.repartidor_id)}
+                  </div>
+                );
+              })}
+            </div>
           ) : deudores.length === 0 ? (
             <div className="p-6 text-sm text-gray-500">No hay clientes con deuda.</div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {deudores.map((cliente) => (
-                <button
-                  key={cliente.cliente_id}
-                  onClick={() => manejarClickDeudor(cliente)}
-                  className={`w-full p-6 text-left transition-colors hover:bg-gray-50 ${
-                    clienteSeleccionado?.cliente_id === cliente.cliente_id ? 'bg-gray-50' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900">{cliente.nombre}</p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {cliente.direccion || 'Sin dirección cargada'}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">{cliente.telefono || 'Sin teléfono'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Saldo actual</p>
-                      <p className="font-bold text-red-600">
-                        ${cliente.saldo_actual.toLocaleString('es-AR')}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            renderListaDeudores(deudores)
           )}
         </section>
 
@@ -470,7 +549,9 @@ function FiadosPageContent() {
                 <button
                   onClick={() =>
                     router.push(
-                      `/repartidor/rapido?cliente=${clienteSeleccionado.cliente_id}&accion=cobro&from=fiados`
+                      `/repartidor/rapido?cliente=${clienteSeleccionado.cliente_id}&accion=cobro&from=fiados${
+                        duenoSeleccionadoId ? `&dueno=${duenoSeleccionadoId}` : ''
+                      }`
                     )
                   }
                   className="w-full rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700"
