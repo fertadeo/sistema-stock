@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
-import { buildRepartidorPalette, MARKER_ICONS } from '@/lib/map/repartidorMarkers';
+import { buildRepartidorPalette, MARKER_ICONS, nombresCoinciden } from '@/lib/map/repartidorMarkers';
+import { REPARTIDOR_PIN_COLORS } from '@/lib/map/markerPinIcon';
+import RepartidorColorPicker from '@/components/RepartidorColorPicker';
 import { parseCoordenada } from '@/lib/map/clienteCoords';
 import { repartidorRapidoService } from '@/lib/services/repartidorRapidoService';
 import {
@@ -148,6 +150,9 @@ const PageZonasyRepartos = () => {
   const [esDesktop, setEsDesktop] = useState(false);
   const [enviandoRuta, setEnviandoRuta] = useState(false);
   const [mostrarDelegarZona, setMostrarDelegarZona] = useState(false);
+  const [editandoColorRepartidor, setEditandoColorRepartidor] = useState<string | null>(null);
+  const [colorPinBorrador, setColorPinBorrador] = useState(REPARTIDOR_PIN_COLORS[0]);
+  const [guardandoColorPin, setGuardandoColorPin] = useState(false);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -216,6 +221,38 @@ const PageZonasyRepartos = () => {
       setRepartidores(lista.filter((item: Repartidor) => item.nombre?.trim()));
     } catch (error) {
       console.error('Error al cargar repartidores:', error);
+    }
+  };
+
+  const guardarColorRepartidor = async (nombre: string, color: string) => {
+    const repartidor = repartidores.find((r) => nombresCoinciden(r.nombre, nombre));
+    if (!repartidor) {
+      alert('No se encontró el repartidor para actualizar el color.');
+      return;
+    }
+    setGuardandoColorPin(true);
+    try {
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/repartidores/${repartidor.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ color_pin: color }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'No se pudo guardar el color');
+      }
+      setRepartidores((prev) =>
+        prev.map((r) =>
+          r.id === repartidor.id ? { ...r, color_pin: color.toUpperCase() } : r
+        )
+      );
+      setEditandoColorRepartidor(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Error al guardar el color');
+    } finally {
+      setGuardandoColorPin(false);
     }
   };
 
@@ -1457,19 +1494,76 @@ const PageZonasyRepartos = () => {
 
             <div className="p-3 mt-4 bg-gray-50 rounded-lg">
               <h3 className="mb-2 text-sm font-semibold">Leyenda de repartidores:</h3>
+              <p className="mb-2 text-xs text-gray-500">Tocá el pin para cambiar el color.</p>
               <ul className="space-y-2 text-sm">
-                {repartidorPalette.map((item) => (
-                  <li key={item.nombre} className="flex gap-2 items-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.icon.url}
-                      alt=""
-                      className="w-4 h-auto drop-shadow-sm"
-                      aria-hidden
-                    />
-                    <span>{item.nombre}</span>
-                  </li>
-                ))}
+                {repartidorPalette.map((item) => {
+                  const editando = editandoColorRepartidor === item.nombre;
+                  return (
+                    <li key={item.nombre} className="space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <button
+                          type="button"
+                          title={`Cambiar color de ${item.nombre}`}
+                          aria-label={`Cambiar color de ${item.nombre}`}
+                          disabled={guardandoColorPin}
+                          onClick={() => {
+                            setEditandoColorRepartidor((prev) => {
+                              if (prev === item.nombre) return null;
+                              setColorPinBorrador(item.color || REPARTIDOR_PIN_COLORS[0]);
+                              return item.nombre;
+                            });
+                          }}
+                          className="rounded p-0.5 hover:bg-gray-200 disabled:opacity-50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.icon.url}
+                            alt=""
+                            className="w-4 h-auto drop-shadow-sm"
+                            aria-hidden
+                          />
+                        </button>
+                        <span className="flex-1">{item.nombre}</span>
+                        <span
+                          className="h-3 w-3 rounded-full border border-gray-300"
+                          style={{ backgroundColor: item.color }}
+                          aria-hidden
+                        />
+                      </div>
+                      {editando && (
+                        <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-2">
+                          <RepartidorColorPicker
+                            id={`color-pin-${item.nombre}`}
+                            label=""
+                            value={colorPinBorrador}
+                            disabled={guardandoColorPin}
+                            onChange={setColorPinBorrador}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={guardandoColorPin}
+                              onClick={() => setEditandoColorRepartidor(null)}
+                              className="flex-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={guardandoColorPin}
+                              onClick={() => {
+                                void guardarColorRepartidor(item.nombre, colorPinBorrador);
+                              }}
+                              className="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {guardandoColorPin ? 'Guardando…' : 'Guardar color'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
                 {repartidorPalette.length === 0 && (
                   <li className="text-gray-500">No hay repartidores registrados.</li>
                 )}

@@ -10,6 +10,8 @@ import {
   roleLabel,
 } from '@/lib/auth/roles';
 import { useAuth } from '@/contexts/AuthContext';
+import { REPARTIDOR_PIN_COLORS } from '@/lib/map/markerPinIcon';
+import RepartidorColorPicker from '@/components/RepartidorColorPicker';
 
 const createApiUrl = (path: string) => {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') || 'http://localhost:8080';
@@ -79,6 +81,7 @@ export default function CentroCuentasPage() {
   const [nuevoRepNombre, setNuevoRepNombre] = useState('');
   const [nuevoRepTelefono, setNuevoRepTelefono] = useState('');
   const [nuevoRepZona, setNuevoRepZona] = useState('');
+  const [nuevoRepColor, setNuevoRepColor] = useState<string>(REPARTIDOR_PIN_COLORS[0]);
   const [createSoloClientesPropios, setCreateSoloClientesPropios] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -209,6 +212,7 @@ export default function CentroCuentasPage() {
             nombre: nuevoRepNombre.trim(),
             telefono: nuevoRepTelefono.trim() || '-',
             zona_reparto: nuevoRepZona.trim() || '-',
+            color_pin: nuevoRepColor,
           };
           body.nombre = nuevoRepNombre.trim();
         } else {
@@ -235,6 +239,7 @@ export default function CentroCuentasPage() {
       setNuevoRepNombre('');
       setNuevoRepTelefono('');
       setNuevoRepZona('');
+      setNuevoRepColor(REPARTIDOR_PIN_COLORS[0]);
       setCreateSoloClientesPropios(false);
       setRole(USER_ROLES.ADMIN);
       setSuccess(
@@ -531,6 +536,12 @@ export default function CentroCuentasPage() {
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
+                  <RepartidorColorPicker
+                    id="nuevo-rep-color"
+                    value={nuevoRepColor}
+                    onChange={setNuevoRepColor}
+                    disabled={saving}
+                  />
                 </div>
               )}
 
