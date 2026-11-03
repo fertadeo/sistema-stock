@@ -52,9 +52,8 @@ export default function RepartidorColorPicker({
             />
           );
         })}
-        <label
-          htmlFor={id}
-          className="relative ml-1 flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-gray-300 bg-white shadow-sm"
+        <div
+          className="relative ml-1 h-7 w-7 overflow-hidden rounded-full border border-gray-300 bg-white shadow-sm"
           title="Color personalizado"
         >
           <span
@@ -71,9 +70,10 @@ export default function RepartidorColorPicker({
             value={actual}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
+            aria-label="Color personalizado"
+            className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
           />
-        </label>
+        </div>
         <span className="text-xs font-mono text-gray-500">{actual.toUpperCase()}</span>
       </div>
     </div>
