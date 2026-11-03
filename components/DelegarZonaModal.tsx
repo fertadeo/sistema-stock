@@ -51,6 +51,7 @@ export default function DelegarZonaModal({
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
   const [destino, setDestino] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
 
@@ -130,22 +131,62 @@ export default function DelegarZonaModal({
     });
   };
 
-  const descargarExcel = () => {
+  const descargarExcel = async () => {
     if (seleccionadosLista.length === 0) {
       setError('Seleccioná al menos un cliente para exportar');
       return;
     }
+    setError('');
+    setDescargandoExcel(true);
     try {
+      const response = await authFetch(createApiUrl('/api/clientes/deudas-delegacion'), {
+        method: 'POST',
+        body: JSON.stringify({
+          cliente_ids: seleccionadosLista.map((c) => c.id),
+        }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.success === false) {
+        throw new Error(json.message || 'No se pudieron obtener las deudas');
+      }
+
+      const deudas = Array.isArray(json.data) ? json.data : [];
+      const deudaPorId = new Map<
+        number,
+        { repartidor_anterior: string | null; deuda_anterior: number }
+      >();
+      for (const row of deudas) {
+        const id = Number(row.cliente_id);
+        if (!id) continue;
+        deudaPorId.set(id, {
+          repartidor_anterior:
+            typeof row.repartidor_anterior === 'string' ? row.repartidor_anterior : null,
+          deuda_anterior: Number(row.deuda_anterior) || 0,
+        });
+      }
+
+      const clientesExcel = seleccionadosLista.map((c) => {
+        const deuda = deudaPorId.get(c.id);
+        return {
+          ...c,
+          repartidor_anterior: deuda?.repartidor_anterior ?? c.repartidor,
+          deuda_anterior: deuda?.deuda_anterior ?? 0,
+        };
+      });
+
       const ahora = new Date();
-      descargarHojaRutaExcel(seleccionadosLista, {
+      descargarHojaRutaExcel(clientesExcel, {
         anio: ahora.getFullYear(),
         mes: ahora.getMonth() + 1,
         repartidor: destino || 'seleccion',
         diaReparto: 'delegacion',
         nombreArchivo: `hoja_ruta_${(destino || 'seleccion').replace(/\s+/g, '_')}_zona_${zona.id}`,
+        incluirDeudaDelegacion: true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el Excel');
+    } finally {
+      setDescargandoExcel(false);
     }
   };
 
@@ -319,12 +360,17 @@ export default function DelegarZonaModal({
 
               <button
                 type="button"
-                onClick={descargarExcel}
-                disabled={seleccionadosLista.length === 0}
+                onClick={() => void descargarExcel()}
+                disabled={seleccionadosLista.length === 0 || descargandoExcel}
                 className="w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
-                Descargar Excel ({seleccionadosLista.length})
+                {descargandoExcel
+                  ? 'Preparando Excel…'
+                  : `Descargar Excel (${seleccionadosLista.length})`}
               </button>
+              <p className="text-xs text-gray-500">
+                Incluye la deuda con el repartidor anterior para que el nuevo la cobre.
+              </p>
             </>
           )}
 

@@ -28,6 +28,9 @@ function escapeXml(value: string): string {
 }
 
 function cell(value: string | number | null | undefined): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `<Cell><Data ss:Type="Number">${value}</Data></Cell>`;
+  }
   const text = value === null || value === undefined ? '' : String(value);
   return `<Cell><Data ss:Type="String">${escapeXml(text)}</Data></Cell>`;
 }
@@ -38,6 +41,10 @@ export type ClienteHojaRuta = {
   telefono?: string | null;
   piso?: string | null;
   departamento?: string | null;
+  /** Repartidor de origen al migrar zona. */
+  repartidor_anterior?: string | null;
+  /** Deuda pendiente con ese repartidor (a cobrar por el nuevo). */
+  deuda_anterior?: number | null;
 };
 
 function formatearDireccion(cliente: ClienteHojaRuta): string {
@@ -53,9 +60,11 @@ type OpcionesHojaRuta = {
   repartidor?: string;
   diaReparto?: string;
   nombreArchivo?: string;
+  /** Agrega columnas de repartidor anterior y deuda a cobrar. */
+  incluirDeudaDelegacion?: boolean;
 };
 
-/** Excel imprimible: Nombre | Dirección | Teléfono | una columna por lunes del mes. */
+/** Excel imprimible: Nombre | Dirección | Teléfono | lunes… | (opcional) deuda delegación. */
 export function descargarHojaRutaExcel(
   clientes: ClienteHojaRuta[],
   opciones: OpcionesHojaRuta = {}
@@ -69,12 +78,14 @@ export function descargarHojaRutaExcel(
   const anio = opciones.anio ?? ahora.getFullYear();
   const mes = opciones.mes ?? ahora.getMonth() + 1;
   const lunes = lunesDelMes(anio, mes);
+  const conDeuda = Boolean(opciones.incluirDeudaDelegacion);
 
   const headers = [
     'Nombre',
     'Dirección',
     'Teléfono',
     ...lunes.map((fecha) => formatearFechaCorta(fecha)),
+    ...(conDeuda ? ['Repartidor anterior', 'Deuda a cobrar'] : []),
   ];
 
   const filas = clientes.map((cliente) => [
@@ -82,6 +93,12 @@ export function descargarHojaRutaExcel(
     formatearDireccion(cliente),
     cliente.telefono || '',
     ...lunes.map(() => ''),
+    ...(conDeuda
+      ? [
+          cliente.repartidor_anterior || 'Sin repartidor',
+          Number(cliente.deuda_anterior || 0),
+        ]
+      : []),
   ]);
 
   const headerRow = `<Row>${headers.map((h) => cell(h)).join('')}</Row>`;
