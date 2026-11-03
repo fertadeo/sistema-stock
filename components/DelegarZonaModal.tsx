@@ -264,23 +264,30 @@ export default function DelegarZonaModal({
                   const checked = seleccionados.has(c.id);
                   return (
                     <li key={c.id} className="border-b border-gray-100 last:border-0">
-                      <label
-                        htmlFor={`delegar-cliente-${c.id}`}
-                        className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-gray-50"
-                      >
+                      <div className="flex items-start gap-3 px-3 py-2.5 hover:bg-gray-50">
                         <input
                           id={`delegar-cliente-${c.id}`}
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleCliente(c.id)}
                           className="mt-1"
+                          aria-label={c.nombre || `Cliente ${c.id}`}
                         />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium text-gray-900">{c.nombre}</span>
-                          <span className="block text-xs text-gray-500">{c.direccion}</span>
-                          <span className="block text-xs text-gray-400">{c.telefono}</span>
-                        </span>
-                      </label>
+                        <label
+                          htmlFor={`delegar-cliente-${c.id}`}
+                          className="min-w-0 flex-1 cursor-pointer"
+                        >
+                          <span className="block font-medium text-gray-900">
+                            {c.nombre || `Cliente ${c.id}`}
+                          </span>
+                          {c.direccion ? (
+                            <span className="block text-xs text-gray-500">{c.direccion}</span>
+                          ) : null}
+                          {c.telefono ? (
+                            <span className="block text-xs text-gray-400">{c.telefono}</span>
+                          ) : null}
+                        </label>
+                      </div>
                     </li>
                   );
                 })}
