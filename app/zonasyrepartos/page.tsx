@@ -151,7 +151,7 @@ const PageZonasyRepartos = () => {
   const [enviandoRuta, setEnviandoRuta] = useState(false);
   const [mostrarDelegarZona, setMostrarDelegarZona] = useState(false);
   const [editandoColorRepartidor, setEditandoColorRepartidor] = useState<string | null>(null);
-  const [colorPinBorrador, setColorPinBorrador] = useState(REPARTIDOR_PIN_COLORS[0]);
+  const [colorPinBorrador, setColorPinBorrador] = useState<string>(REPARTIDOR_PIN_COLORS[0]);
   const [guardandoColorPin, setGuardandoColorPin] = useState(false);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
