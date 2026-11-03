@@ -32,6 +32,13 @@ type Props = {
   onDelegado: () => void;
 };
 
+const SIN_REPARTIDOR = 'Sin repartidor';
+
+function nombreGrupo(repartidor: string | null | undefined): string {
+  const nom = (repartidor || '').trim();
+  return nom || SIN_REPARTIDOR;
+}
+
 export default function DelegarZonaModal({
   open,
   onClose,
@@ -40,56 +47,102 @@ export default function DelegarZonaModal({
   repartidores,
   onDelegado,
 }: Props) {
-  const [origen, setOrigen] = useState('');
+  const [tabActiva, setTabActiva] = useState('');
+  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
   const [destino, setDestino] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-    setOrigen('');
-    setDestino('');
-    setError('');
-    setExito('');
-  }, [open, zona.id]);
 
   const clientesEnZona = useMemo(
     () => clientesDentroDeZona(clientes, zona),
     [clientes, zona]
   );
 
-  const origenesDisponibles = useMemo(() => {
-    const set = new Set<string>();
+  const tabs = useMemo(() => {
+    const contadores = new Map<string, number>();
     for (const c of clientesEnZona) {
-      const nom = (c.repartidor || '').trim();
-      if (nom) set.add(nom);
+      const g = nombreGrupo(c.repartidor);
+      contadores.set(g, (contadores.get(g) || 0) + 1);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(contadores.entries())
+      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+      .sort((a, b) => {
+        if (a.nombre === SIN_REPARTIDOR) return 1;
+        if (b.nombre === SIN_REPARTIDOR) return -1;
+        return a.nombre.localeCompare(b.nombre);
+      });
   }, [clientesEnZona]);
 
-  const preview = useMemo(() => {
-    if (!origen) return [];
-    return clientesEnZona.filter(
-      (c) => (c.repartidor || '').trim().toLowerCase() === origen.trim().toLowerCase()
+  useEffect(() => {
+    if (!open) return;
+    setError('');
+    setExito('');
+    setDestino('');
+    setSeleccionados(new Set(clientesEnZona.map((c) => c.id)));
+    const primera = tabs[0]?.nombre || '';
+    setTabActiva((prev) =>
+      prev && tabs.some((t) => t.nombre === prev) ? prev : primera
     );
-  }, [clientesEnZona, origen]);
+    // Solo al abrir o cambiar zona/área de clientes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, zona.id, clientesEnZona.length]);
+
+  const clientesTab = useMemo(
+    () => clientesEnZona.filter((c) => nombreGrupo(c.repartidor) === tabActiva),
+    [clientesEnZona, tabActiva]
+  );
+
+  const seleccionadosLista = useMemo(
+    () => clientesEnZona.filter((c) => seleccionados.has(c.id)),
+    [clientesEnZona, seleccionados]
+  );
+
+  const seleccionadosEnTab = useMemo(
+    () => clientesTab.filter((c) => seleccionados.has(c.id)).length,
+    [clientesTab, seleccionados]
+  );
 
   if (!open) return null;
 
+  const toggleCliente = (id: number) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const seleccionarTodosTab = () => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      for (const c of clientesTab) next.add(c.id);
+      return next;
+    });
+  };
+
+  const deseleccionarTodosTab = () => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      for (const c of clientesTab) next.delete(c.id);
+      return next;
+    });
+  };
+
   const descargarExcel = () => {
-    if (preview.length === 0) {
-      setError('No hay clientes para exportar');
+    if (seleccionadosLista.length === 0) {
+      setError('Seleccioná al menos un cliente para exportar');
       return;
     }
     try {
       const ahora = new Date();
-      descargarHojaRutaExcel(preview, {
+      descargarHojaRutaExcel(seleccionadosLista, {
         anio: ahora.getFullYear(),
         mes: ahora.getMonth() + 1,
-        repartidor: destino || origen,
+        repartidor: destino || 'seleccion',
         diaReparto: 'delegacion',
-        nombreArchivo: `hoja_ruta_${(destino || origen).replace(/\s+/g, '_')}_zona_${zona.id}`,
+        nombreArchivo: `hoja_ruta_${(destino || 'seleccion').replace(/\s+/g, '_')}_zona_${zona.id}`,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el Excel');
@@ -99,22 +152,27 @@ export default function DelegarZonaModal({
   const confirmar = async () => {
     setError('');
     setExito('');
-    if (!origen || !destino) {
-      setError('Elegí repartidor origen y destino');
+    if (!destino) {
+      setError('Elegí el repartidor destino');
       return;
     }
-    if (origen.trim().toLowerCase() === destino.trim().toLowerCase()) {
-      setError('Origen y destino deben ser distintos');
+    if (seleccionadosLista.length === 0) {
+      setError('Seleccioná al menos un cliente');
       return;
     }
-    if (preview.length === 0) {
-      setError('No hay clientes del origen en esta zona');
+
+    const yaDelDestino = seleccionadosLista.filter(
+      (c) => nombreGrupo(c.repartidor).toLowerCase() === destino.trim().toLowerCase()
+    ).length;
+    const aMigrar = seleccionadosLista.length - yaDelDestino;
+    if (aMigrar <= 0) {
+      setError('Los clientes seleccionados ya son del repartidor destino');
       return;
     }
 
     const ok = window.confirm(
-      `¿Ceder ${preview.length} cliente(s) de ${origen} a ${destino}?\n` +
-        `Los fiados históricos de ${origen} siguen siendo de su propiedad.`
+      `¿Migrar ${aMigrar} cliente(s) a ${destino}?\n` +
+        `Los fiados históricos siguen siendo del repartidor que los originó.`
     );
     if (!ok) return;
 
@@ -124,114 +182,144 @@ export default function DelegarZonaModal({
         method: 'POST',
         body: JSON.stringify({
           zona_id: zona.id,
-          repartidor_origen: origen,
           repartidor_destino: destino,
-          cliente_ids: preview.map((c) => c.id),
+          cliente_ids: seleccionadosLista.map((c) => c.id),
         }),
       });
       const json = await response.json();
       if (!response.ok || !json.success) {
-        throw new Error(json.message || 'No se pudo delegar la zona');
+        throw new Error(json.message || 'No se pudo migrar los clientes');
       }
       setExito(`Listo: ${json.data.cantidad} clientes pasaron a ${destino}.`);
       onDelegado();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al delegar');
+      setError(err instanceof Error ? err.message : 'Error al migrar');
     } finally {
       setEnviando(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/40 p-3 sm:p-4">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="border-b border-gray-100 px-4 py-3">
           <h2 className="text-lg font-semibold text-gray-900">Delegar zona</h2>
           <p className="text-sm text-gray-500">
-            {zona.nombre} · solo clientes del repartidor origen
+            {zona.nombre} · {clientesEnZona.length} clientes en el área ·{' '}
+            {seleccionadosLista.length} seleccionados
           </p>
         </div>
 
-        <div className="space-y-4 overflow-y-auto px-4 py-4">
-          <div>
-            <label htmlFor="delegar-origen" className="mb-1 block text-sm font-medium text-gray-700">
-              Repartidor origen (cede clientes)
-            </label>
-            <select
-              id="delegar-origen"
-              value={origen}
-              onChange={(e) => setOrigen(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Seleccionar…</option>
-              {origenesDisponibles.map((nom) => (
-                <option key={nom} value={nom}>
-                  {nom} (
-                  {
-                    clientesEnZona.filter(
-                      (c) => (c.repartidor || '').trim().toLowerCase() === nom.toLowerCase()
-                    ).length
-                  }
-                  )
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="space-y-3 overflow-y-auto px-4 py-4">
+          {clientesEnZona.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+              No hay clientes con coordenadas dentro de esta zona.
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {tabs.map((tab) => {
+                  const activa = tab.nombre === tabActiva;
+                  return (
+                    <button
+                      key={tab.nombre}
+                      type="button"
+                      onClick={() => setTabActiva(tab.nombre)}
+                      className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        activa
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tab.nombre} ({tab.cantidad})
+                    </button>
+                  );
+                })}
+              </div>
 
-          <div>
-            <label htmlFor="delegar-destino" className="mb-1 block text-sm font-medium text-gray-700">
-              Repartidor destino (recibe)
-            </label>
-            <select
-              id="delegar-destino"
-              value={destino}
-              onChange={(e) => setDestino(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Seleccionar…</option>
-              {repartidores
-                .filter((r) => r.nombre.trim())
-                .map((r) => (
-                  <option key={r.id} value={r.nombre}>
-                    {r.nombre}
-                  </option>
-                ))}
-            </select>
-          </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-gray-700">
+                  {tabActiva}: {seleccionadosEnTab}/{clientesTab.length}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={seleccionarTodosTab}
+                    className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deseleccionarTodosTab}
+                    className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                  >
+                    Ninguno
+                  </button>
+                </div>
+              </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">
-                Clientes a ceder ({preview.length})
-              </h3>
+              <ul className="max-h-56 space-y-0 overflow-y-auto rounded-lg border border-gray-200 sm:max-h-64">
+                {clientesTab.map((c) => {
+                  const checked = seleccionados.has(c.id);
+                  return (
+                    <li key={c.id} className="border-b border-gray-100 last:border-0">
+                      <label
+                        htmlFor={`delegar-cliente-${c.id}`}
+                        className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-gray-50"
+                      >
+                        <input
+                          id={`delegar-cliente-${c.id}`}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCliente(c.id)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium text-gray-900">{c.nombre}</span>
+                          <span className="block text-xs text-gray-500">{c.direccion}</span>
+                          <span className="block text-xs text-gray-400">{c.telefono}</span>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div>
+                <label
+                  htmlFor="delegar-destino"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Migrar seleccionados a
+                </label>
+                <select
+                  id="delegar-destino"
+                  value={destino}
+                  onChange={(e) => setDestino(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Seleccionar repartidor…</option>
+                  {repartidores
+                    .filter((r) => r.nombre.trim())
+                    .map((r) => (
+                      <option key={r.id} value={r.nombre}>
+                        {r.nombre}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               <button
                 type="button"
                 onClick={descargarExcel}
-                disabled={preview.length === 0}
-                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                disabled={seleccionadosLista.length === 0}
+                className="w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
-                Descargar Excel
+                Descargar Excel ({seleccionadosLista.length})
               </button>
-            </div>
-            {preview.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500">
-                Elegí un origen para ver el listado.
-              </p>
-            ) : (
-              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-gray-200">
-                {preview.map((c) => (
-                  <li
-                    key={c.id}
-                    className="border-b border-gray-100 px-3 py-2 text-sm last:border-0"
-                  >
-                    <p className="font-medium text-gray-900">{c.nombre}</p>
-                    <p className="text-xs text-gray-500">{c.direccion}</p>
-                    <p className="text-xs text-gray-400">{c.telefono}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+            </>
+          )}
 
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -255,11 +343,18 @@ export default function DelegarZonaModal({
           </button>
           <button
             type="button"
-            disabled={enviando || preview.length === 0 || !destino}
+            disabled={
+              enviando ||
+              seleccionadosLista.length === 0 ||
+              !destino ||
+              clientesEnZona.length === 0
+            }
             onClick={() => void confirmar()}
             className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {enviando ? 'Cediendo…' : 'Confirmar cesión'}
+            {enviando
+              ? 'Migrando…'
+              : `Migrar ${seleccionadosLista.length || ''}`.trim()}
           </button>
         </div>
       </div>
