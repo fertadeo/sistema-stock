@@ -49,144 +49,7 @@ const BORDES = `
        <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#64748B"/>
       </Borders>`;
 
-export type ClienteHojaRuta = {
-  nombre?: string | null;
-  direccion?: string | null;
-  telefono?: string | null;
-  piso?: string | null;
-  departamento?: string | null;
-  /** Repartidor de origen al migrar zona. */
-  repartidor_anterior?: string | null;
-  /** Deuda pendiente con ese repartidor (a cobrar por el nuevo). */
-  deuda_anterior?: number | null;
-};
-
-function formatearDireccion(cliente: ClienteHojaRuta): string {
-  const partes = [cliente.direccion || ''];
-  if (cliente.piso) partes.push(`Piso ${cliente.piso}`);
-  if (cliente.departamento) partes.push(`Dto ${cliente.departamento}`);
-  return partes.filter(Boolean).join(' · ');
-}
-
-type OpcionesHojaRuta = {
-  anio?: number;
-  mes?: number;
-  repartidor?: string;
-  diaReparto?: string;
-  nombreArchivo?: string;
-  /** Agrega columnas de repartidor anterior y deuda a cobrar. */
-  incluirDeudaDelegacion?: boolean;
-};
-
-const NOMBRES_MES = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre',
-];
-
-/** Excel imprimible pensado para completar a mano en papel. */
-export function descargarHojaRutaExcel(
-  clientes: ClienteHojaRuta[],
-  opciones: OpcionesHojaRuta = {}
-): void {
-  if (typeof window === 'undefined') return;
-  if (clientes.length === 0) {
-    throw new Error('No hay clientes en la ruta para exportar');
-  }
-
-  const ahora = new Date();
-  const anio = opciones.anio ?? ahora.getFullYear();
-  const mes = opciones.mes ?? ahora.getMonth() + 1;
-  const lunes = lunesDelMes(anio, mes);
-  const conDeuda = Boolean(opciones.incluirDeudaDelegacion);
-  const repartidorTitulo = (opciones.repartidor || 'Ruta').trim() || 'Ruta';
-  const mesNombre = NOMBRES_MES[mes - 1] || String(mes);
-
-  // # | Nombre | Dirección | Teléfono | lunes… | [rep ant] [deuda] | Obs.
-  const colCount =
-    4 + lunes.length + (conDeuda ? 2 : 0) + 1;
-
-  const columnasXml = [
-    `<Column ss:Width="28"/>`, // #
-    `<Column ss:Width="118"/>`, // Nombre
-    `<Column ss:Width="168"/>`, // Dirección
-    `<Column ss:Width="78"/>`, // Teléfono
-    ...lunes.map(() => `<Column ss:Width="58"/>`), // fechas (espacio a mano)
-    ...(conDeuda
-      ? [`<Column ss:Width="92"/>`, `<Column ss:Width="72"/>`]
-      : []),
-    `<Column ss:Width="88"/>`, // Observaciones
-  ].join('\n   ');
-
-  const titulo = `Hoja de ruta · ${repartidorTitulo} · ${mesNombre} ${anio}`;
-  const subtitulo = conDeuda
-    ? 'Completá a mano las fechas. La deuda es lo que el cliente adeuda al repartidor anterior.'
-    : 'Completá a mano las columnas de fecha (venta / cobro / notas).';
-
-  const headerLabels = [
-    '#',
-    'Nombre',
-    'Dirección',
-    'Teléfono',
-    ...lunes.map((fecha) => formatearFechaCorta(fecha)),
-    ...(conDeuda ? ['Rep. anterior', 'Deuda $'] : []),
-    'Observaciones',
-  ];
-
-  const headerCells = headerLabels
-    .map((label, index) => {
-      const esFecha = index >= 4 && index < 4 + lunes.length;
-      const style = esFecha ? 'HeaderFecha' : 'Header';
-      return cellString(label, style);
-    })
-    .join('');
-
-  const dataRows = clientes
-    .map((cliente, index) => {
-      const celdas = [
-        cellNumber(index + 1, 'CeldaNum'),
-        cellString(cliente.nombre || '', 'CeldaTexto'),
-        cellString(formatearDireccion(cliente), 'CeldaTexto'),
-        cellString(cliente.telefono || '', 'CeldaCentro'),
-        ...lunes.map(() => cellEmpty('CeldaEscritura')),
-        ...(conDeuda
-          ? [
-              cellString(
-                cliente.repartidor_anterior || 'Sin repartidor',
-                'CeldaTexto'
-              ),
-              Number(cliente.deuda_anterior || 0) > 0
-                ? cellNumber(Number(cliente.deuda_anterior), 'CeldaDinero')
-                : cellEmpty('CeldaEscritura'),
-            ]
-          : []),
-        cellEmpty('CeldaEscritura'),
-      ];
-      return `<Row ss:Height="30">${celdas.join('')}</Row>`;
-    })
-    .join('\n   ');
-
-  const sheetName = escapeXml(repartidorTitulo.slice(0, 28) || 'Hoja ruta');
-
-  const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Title>${escapeXml(titulo)}</Title>
- </DocumentProperties>
+const STYLES_XML = `
  <Styles>
   <Style ss:ID="Default" ss:Name="Normal">
    <Alignment ss:Vertical="Center"/>
@@ -239,8 +102,143 @@ export function descargarHojaRutaExcel(
    <NumberFormat ss:Format="#,##0.00"/>
    ${BORDES}
   </Style>
- </Styles>
- <Worksheet ss:Name="${sheetName}">
+ </Styles>`;
+
+export type ClienteHojaRuta = {
+  nombre?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  piso?: string | null;
+  departamento?: string | null;
+  repartidor?: string | null;
+  /** Repartidor de origen al migrar zona. */
+  repartidor_anterior?: string | null;
+  /** Deuda pendiente con ese repartidor (a cobrar por el nuevo). */
+  deuda_anterior?: number | null;
+};
+
+export type HojaRutaGrupo = {
+  /** Nombre de la pestaña / repartidor de esta hoja. */
+  repartidor: string;
+  clientes: ClienteHojaRuta[];
+};
+
+function formatearDireccion(cliente: ClienteHojaRuta): string {
+  const partes = [cliente.direccion || ''];
+  if (cliente.piso) partes.push(`Piso ${cliente.piso}`);
+  if (cliente.departamento) partes.push(`Dto ${cliente.departamento}`);
+  return partes.filter(Boolean).join(' · ');
+}
+
+function nombreHojaSeguro(nombre: string, usados: Set<string>): string {
+  let base = (nombre || 'Ruta').trim().slice(0, 28) || 'Ruta';
+  // Excel no permite : \ / ? * [ ]
+  base = base.replace(/[:\\/?*\[\]]/g, ' ').replace(/\s+/g, ' ').trim() || 'Ruta';
+  let candidato = base;
+  let n = 2;
+  while (usados.has(candidato.toLowerCase())) {
+    const sufijo = ` (${n})`;
+    candidato = `${base.slice(0, Math.max(1, 28 - sufijo.length))}${sufijo}`;
+    n += 1;
+  }
+  usados.add(candidato.toLowerCase());
+  return candidato;
+}
+
+type OpcionesHojaRuta = {
+  anio?: number;
+  mes?: number;
+  repartidor?: string;
+  /** Nombre de la zona (aparece en el título). */
+  zona?: string;
+  diaReparto?: string;
+  nombreArchivo?: string;
+  /** Agrega columnas de repartidor anterior y deuda a cobrar. */
+  incluirDeudaDelegacion?: boolean;
+};
+
+const NOMBRES_MES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+function construirWorksheetXml(
+  clientes: ClienteHojaRuta[],
+  opts: {
+    sheetName: string;
+    titulo: string;
+    subtitulo: string;
+    lunes: Date[];
+    conDeuda: boolean;
+  }
+): string {
+  const { sheetName, titulo, subtitulo, lunes, conDeuda } = opts;
+  const colCount = 4 + lunes.length + (conDeuda ? 2 : 0) + 1;
+
+  const columnasXml = [
+    `<Column ss:Width="28"/>`,
+    `<Column ss:Width="118"/>`,
+    `<Column ss:Width="168"/>`,
+    `<Column ss:Width="78"/>`,
+    ...lunes.map(() => `<Column ss:Width="58"/>`),
+    ...(conDeuda ? [`<Column ss:Width="92"/>`, `<Column ss:Width="72"/>`] : []),
+    `<Column ss:Width="88"/>`,
+  ].join('\n   ');
+
+  const headerLabels = [
+    '#',
+    'Nombre',
+    'Dirección',
+    'Teléfono',
+    ...lunes.map((fecha) => formatearFechaCorta(fecha)),
+    ...(conDeuda ? ['Rep. anterior', 'Deuda $'] : []),
+    'Observaciones',
+  ];
+
+  const headerCells = headerLabels
+    .map((label, index) => {
+      const esFecha = index >= 4 && index < 4 + lunes.length;
+      return cellString(label, esFecha ? 'HeaderFecha' : 'Header');
+    })
+    .join('');
+
+  const dataRows = clientes
+    .map((cliente, index) => {
+      const celdas = [
+        cellNumber(index + 1, 'CeldaNum'),
+        cellString(cliente.nombre || '', 'CeldaTexto'),
+        cellString(formatearDireccion(cliente), 'CeldaTexto'),
+        cellString(cliente.telefono || '', 'CeldaCentro'),
+        ...lunes.map(() => cellEmpty('CeldaEscritura')),
+        ...(conDeuda
+          ? [
+              cellString(
+                cliente.repartidor_anterior || cliente.repartidor || 'Sin repartidor',
+                'CeldaTexto'
+              ),
+              Number(cliente.deuda_anterior || 0) > 0
+                ? cellNumber(Number(cliente.deuda_anterior), 'CeldaDinero')
+                : cellEmpty('CeldaEscritura'),
+            ]
+          : []),
+        cellEmpty('CeldaEscritura'),
+      ];
+      return `<Row ss:Height="30">${celdas.join('')}</Row>`;
+    })
+    .join('\n   ');
+
+  return `
+ <Worksheet ss:Name="${escapeXml(sheetName)}">
   <Table ss:DefaultRowHeight="18">
    ${columnasXml}
    <Row ss:Height="24">
@@ -274,29 +272,116 @@ export function descargarHojaRutaExcel(
    <TopRowBottomPane>3</TopRowBottomPane>
    <ActivePane>2</ActivePane>
   </WorksheetOptions>
- </Worksheet>
-</Workbook>`;
+ </Worksheet>`;
+}
 
+function dispararDescarga(xml: string, nombreArchivo: string): void {
   const blob = new Blob([xml], {
     type: 'application/vnd.ms-excel;charset=utf-8;',
   });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
-  const dia =
-    opciones.diaReparto && opciones.diaReparto !== 'todos'
-      ? opciones.diaReparto
-      : 'todos';
-  const repartidor =
-    opciones.repartidor && opciones.repartidor !== 'todos'
-      ? opciones.repartidor.replace(/\s+/g, '_')
-      : 'todos';
-  const base =
-    opciones.nombreArchivo ||
-    `hoja_ruta_${repartidor}_${dia}_${anio}-${String(mes).padStart(2, '0')}`;
   link.href = url;
-  link.download = `${base}.xls`;
+  link.download = `${nombreArchivo}.xls`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
+}
+
+/**
+ * Una o varias hojas de ruta en el mismo Excel (una pestaña por repartidor).
+ * Pensado para imprimir por zona × repartidor.
+ */
+export function descargarHojasRutaExcel(
+  grupos: HojaRutaGrupo[],
+  opciones: OpcionesHojaRuta = {}
+): void {
+  if (typeof window === 'undefined') return;
+  const hojas = grupos.filter((g) => g.clientes.length > 0);
+  if (hojas.length === 0) {
+    throw new Error('No hay clientes en la ruta para exportar');
+  }
+
+  const ahora = new Date();
+  const anio = opciones.anio ?? ahora.getFullYear();
+  const mes = opciones.mes ?? ahora.getMonth() + 1;
+  const lunes = lunesDelMes(anio, mes);
+  const conDeuda = Boolean(opciones.incluirDeudaDelegacion);
+  const mesNombre = NOMBRES_MES[mes - 1] || String(mes);
+  const zonaNombre = (opciones.zona || '').trim();
+  const usados = new Set<string>();
+
+  const worksheets = hojas
+    .map((grupo) => {
+      const rep = (grupo.repartidor || 'Sin repartidor').trim() || 'Sin repartidor';
+      const sheetName = nombreHojaSeguro(rep, usados);
+      const titulo = [
+        'Hoja de ruta',
+        zonaNombre ? `Zona ${zonaNombre}` : null,
+        rep,
+        `${mesNombre} ${anio}`,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const subtitulo = conDeuda
+        ? `Zona y repartidor. Completá a mano las fechas. Deuda = fiado del repartidor anterior.`
+        : `Zona y repartidor. Completá a mano las columnas de fecha (venta / cobro / notas).`;
+      return construirWorksheetXml(grupo.clientes, {
+        sheetName,
+        titulo,
+        subtitulo,
+        lunes,
+        conDeuda,
+      });
+    })
+    .join('\n');
+
+  const tituloDoc = zonaNombre
+    ? `Hojas de ruta · ${zonaNombre} · ${mesNombre} ${anio}`
+    : `Hojas de ruta · ${mesNombre} ${anio}`;
+
+  const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>${escapeXml(tituloDoc)}</Title>
+ </DocumentProperties>
+ ${STYLES_XML}
+ ${worksheets}
+</Workbook>`;
+
+  const dia =
+    opciones.diaReparto && opciones.diaReparto !== 'todos'
+      ? opciones.diaReparto
+      : 'todos';
+  const zonaSlug = zonaNombre
+    ? zonaNombre.replace(/\s+/g, '_')
+    : opciones.repartidor && opciones.repartidor !== 'todos'
+      ? opciones.repartidor.replace(/\s+/g, '_')
+      : 'todos';
+  const base =
+    opciones.nombreArchivo ||
+    `hoja_ruta_${zonaSlug}_${dia}_${anio}-${String(mes).padStart(2, '0')}`;
+  dispararDescarga(xml, base);
+}
+
+/** Compat: una sola hoja (un repartidor). */
+export function descargarHojaRutaExcel(
+  clientes: ClienteHojaRuta[],
+  opciones: OpcionesHojaRuta = {}
+): void {
+  descargarHojasRutaExcel(
+    [
+      {
+        repartidor: opciones.repartidor || 'Ruta',
+        clientes,
+      },
+    ],
+    opciones
+  );
 }

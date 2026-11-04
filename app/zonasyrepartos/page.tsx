@@ -31,7 +31,10 @@ import NuevoClienteModal from '@/components/nuevoClienteModal';
 import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
-import { descargarHojaRutaExcel } from '@/lib/export/excelHojaRuta';
+import {
+  descargarHojaRutaExcel,
+  descargarHojasRutaExcel,
+} from '@/lib/export/excelHojaRuta';
 import { optimizarRutaVecinoMasCercano } from '@/lib/map/optimizarRuta';
 import { repartidorRutaService } from '@/lib/services/repartidorRutaService';
 import DelegarZonaModal from '@/components/DelegarZonaModal';
@@ -1207,15 +1210,35 @@ const PageZonasyRepartos = () => {
 
     setGenerandoHojaRutaZona(true);
     try {
-      const ruta = optimizarRutaVecinoMasCercano(clientesZona, {
+      // Agrupar por repartidor: una hoja de ruta por cada uno dentro de la zona
+      const porRepartidor = new Map<string, ClienteConCoords[]>();
+      for (const c of clientesZona) {
+        const clave = (c.repartidor || '').trim() || 'Sin repartidor';
+        const lista = porRepartidor.get(clave) || [];
+        lista.push(c);
+        porRepartidor.set(clave, lista);
+      }
+
+      const origen = {
         latitud: EMPRESA_COORDENADAS[0],
         longitud: EMPRESA_COORDENADAS[1],
-      });
+      };
 
-      // Mostrar la ruta en el mapa (misma lógica que "Generar Ruta")
-      await generarRutaEnMapa(ruta);
+      const gruposOrdenados = Array.from(porRepartidor.entries())
+        .sort(([a], [b]) => {
+          if (a === 'Sin repartidor') return 1;
+          if (b === 'Sin repartidor') return -1;
+          return a.localeCompare(b);
+        })
+        .map(([repartidor, lista]) => ({
+          repartidor,
+          ruta: optimizarRutaVecinoMasCercano(lista, origen),
+        }));
 
-      // Fiado del repartidor anterior (módulo repartidor / cartera histórica)
+      // En el mapa: todos los clientes de la zona en orden de ruta concatenado
+      const rutaMapa = gruposOrdenados.flatMap((g) => g.ruta);
+      await generarRutaEnMapa(rutaMapa);
+
       const deudaPorId = new Map<
         number,
         { repartidor_anterior: string | null; deuda_anterior: number }
@@ -1223,7 +1246,7 @@ const PageZonasyRepartos = () => {
       try {
         const response = await authFetch(createApiUrl('/api/clientes/deudas-delegacion'), {
           method: 'POST',
-          body: JSON.stringify({ cliente_ids: ruta.map((c) => c.id) }),
+          body: JSON.stringify({ cliente_ids: rutaMapa.map((c) => c.id) }),
         });
         const json = await response.json().catch(() => ({}));
         if (response.ok && json.success !== false && Array.isArray(json.data)) {
@@ -1241,28 +1264,31 @@ const PageZonasyRepartos = () => {
         console.error('No se pudieron cargar fiados para la hoja de ruta:', err);
       }
 
-      const clientesExcel = ruta.map((c) => {
+      const conDeuda = (c: ClienteConCoords) => {
         const deuda = deudaPorId.get(c.id);
         return {
           ...c,
           repartidor_anterior: deuda?.repartidor_anterior ?? c.repartidor,
           deuda_anterior: deuda?.deuda_anterior ?? 0,
         };
-      });
+      };
 
       const ahora = new Date();
-      const nombreRep =
-        (zonaGeometriaActiva.repartidor || formZonaRepartidor || filtroRepartidor || 'zona')
-          .toString()
-          .trim() || 'zona';
-      descargarHojaRutaExcel(clientesExcel, {
-        anio: ahora.getFullYear(),
-        mes: ahora.getMonth() + 1,
-        repartidor: nombreRep,
-        diaReparto: filtroDia !== 'todos' ? filtroDia : 'zona',
-        nombreArchivo: `hoja_ruta_zona_${zonaGeometriaActiva.id}_${nombreRep.replace(/\s+/g, '_')}`,
-        incluirDeudaDelegacion: true,
-      });
+      const nombreZona = (zonaGeometriaActiva.nombre || formZonaNombre || 'zona').trim();
+      descargarHojasRutaExcel(
+        gruposOrdenados.map((g) => ({
+          repartidor: g.repartidor,
+          clientes: g.ruta.map(conDeuda),
+        })),
+        {
+          anio: ahora.getFullYear(),
+          mes: ahora.getMonth() + 1,
+          zona: nombreZona,
+          diaReparto: filtroDia !== 'todos' ? filtroDia : 'zona',
+          nombreArchivo: `hoja_ruta_zona_${zonaGeometriaActiva.id}_${nombreZona.replace(/\s+/g, '_')}`,
+          incluirDeudaDelegacion: true,
+        }
+      );
       setVistaMovil('mapa');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo generar la hoja de ruta');

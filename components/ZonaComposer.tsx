@@ -291,21 +291,26 @@ export default function ZonaComposer({
           </button>
         )}
         {!modoCrear && onGenerarHojaRutaZona && (
-          <button
-            type="button"
-            className="w-full rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
-            onClick={onGenerarHojaRutaZona}
-            disabled={
-              guardando ||
-              generandoHojaRutaZona ||
-              clientesEnZona == null ||
-              clientesEnZona <= 0
-            }
-          >
-            {generandoHojaRutaZona
-              ? 'Armando hoja de ruta…'
-              : `Generar hoja de ruta${clientesEnZona != null ? ` (${clientesEnZona})` : ''}`}
-          </button>
+          <div className="space-y-1">
+            <button
+              type="button"
+              className="w-full rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+              onClick={onGenerarHojaRutaZona}
+              disabled={
+                guardando ||
+                generandoHojaRutaZona ||
+                clientesEnZona == null ||
+                clientesEnZona <= 0
+              }
+            >
+              {generandoHojaRutaZona
+                ? 'Armando hojas de ruta…'
+                : `Generar hojas de ruta${clientesEnZona != null ? ` (${clientesEnZona})` : ''}`}
+            </button>
+            <p className="text-[11px] leading-snug text-gray-500">
+              Una pestaña por repartidor dentro de la zona, con el fiado del anterior.
+            </p>
+          </div>
         )}
         {!modoCrear && onDelegarZona && (
           <button
