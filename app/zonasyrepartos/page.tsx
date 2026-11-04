@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { authFetch } from '@/lib/api/fetchWithAuth';
+import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 import { buildRepartidorPalette, MARKER_ICONS, nombresCoinciden } from '@/lib/map/repartidorMarkers';
 import { REPARTIDOR_PIN_COLORS } from '@/lib/map/markerPinIcon';
 import RepartidorColorPicker from '@/components/RepartidorColorPicker';
@@ -1215,17 +1215,53 @@ const PageZonasyRepartos = () => {
       // Mostrar la ruta en el mapa (misma lógica que "Generar Ruta")
       await generarRutaEnMapa(ruta);
 
+      // Fiado del repartidor anterior (módulo repartidor / cartera histórica)
+      const deudaPorId = new Map<
+        number,
+        { repartidor_anterior: string | null; deuda_anterior: number }
+      >();
+      try {
+        const response = await authFetch(createApiUrl('/api/clientes/deudas-delegacion'), {
+          method: 'POST',
+          body: JSON.stringify({ cliente_ids: ruta.map((c) => c.id) }),
+        });
+        const json = await response.json().catch(() => ({}));
+        if (response.ok && json.success !== false && Array.isArray(json.data)) {
+          for (const row of json.data) {
+            const id = Number(row.cliente_id);
+            if (!id) continue;
+            deudaPorId.set(id, {
+              repartidor_anterior:
+                typeof row.repartidor_anterior === 'string' ? row.repartidor_anterior : null,
+              deuda_anterior: Number(row.deuda_anterior) || 0,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('No se pudieron cargar fiados para la hoja de ruta:', err);
+      }
+
+      const clientesExcel = ruta.map((c) => {
+        const deuda = deudaPorId.get(c.id);
+        return {
+          ...c,
+          repartidor_anterior: deuda?.repartidor_anterior ?? c.repartidor,
+          deuda_anterior: deuda?.deuda_anterior ?? 0,
+        };
+      });
+
       const ahora = new Date();
       const nombreRep =
         (zonaGeometriaActiva.repartidor || formZonaRepartidor || filtroRepartidor || 'zona')
           .toString()
           .trim() || 'zona';
-      descargarHojaRutaExcel(ruta, {
+      descargarHojaRutaExcel(clientesExcel, {
         anio: ahora.getFullYear(),
         mes: ahora.getMonth() + 1,
         repartidor: nombreRep,
         diaReparto: filtroDia !== 'todos' ? filtroDia : 'zona',
         nombreArchivo: `hoja_ruta_zona_${zonaGeometriaActiva.id}_${nombreRep.replace(/\s+/g, '_')}`,
+        incluirDeudaDelegacion: true,
       });
       setVistaMovil('mapa');
     } catch (err) {
