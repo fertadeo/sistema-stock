@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { authFetch } from '@/lib/api/fetchWithAuth';
 import { buildRepartidorPalette, MARKER_ICONS, nombresCoinciden } from '@/lib/map/repartidorMarkers';
@@ -153,6 +153,7 @@ const PageZonasyRepartos = () => {
   const [editandoColorRepartidor, setEditandoColorRepartidor] = useState<string | null>(null);
   const [colorPinBorrador, setColorPinBorrador] = useState<string>(REPARTIDOR_PIN_COLORS[0]);
   const [guardandoColorPin, setGuardandoColorPin] = useState(false);
+  const autoGuardarPoligonoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [repartidorUbicacion, setRepartidorUbicacion] = useState<{
     latitud: number;
     longitud: number;
@@ -404,6 +405,14 @@ const PageZonasyRepartos = () => {
     void fetchBarriosCatalogo();
   }, [fetchZonasRadio, fetchBarriosCatalogo]);
 
+  useEffect(() => {
+    return () => {
+      if (autoGuardarPoligonoTimer.current) {
+        clearTimeout(autoGuardarPoligonoTimer.current);
+      }
+    };
+  }, []);
+
   const repartidorPalette = useMemo(
     () =>
       buildRepartidorPalette(
@@ -497,30 +506,28 @@ const PageZonasyRepartos = () => {
 
   const poligonoActivo = borradorPoligono;
 
-  /** Zonas dibujadas; la seleccionada refleja el formulario en vivo. */
-  const zonasParaMapa = useMemo(() => {
-    if (!zonaSeleccionada || modoCrearZona) return zonasRadio;
-    return zonasRadio.map((z) => {
-      if (z.id !== zonaSeleccionada.id) return z;
-      if (z.tipo === 'radio') {
-        return {
-          ...z,
-          nombre: formZonaNombre || z.nombre,
-          radio_metros: formZonaRadio,
-          color: formZonaColor,
-          repartidor: formZonaRepartidor.trim() || null,
-        };
-      }
+  /** Geometría en vivo de la zona seleccionada (borrador + formulario, no solo lo último guardado). */
+  const zonaGeometriaActiva = useMemo(() => {
+    if (!zonaSeleccionada || modoCrearZona) return null;
+    if (zonaSeleccionada.tipo === 'radio') {
       return {
-        ...z,
-        nombre: formZonaNombre || z.nombre,
+        ...zonaSeleccionada,
+        nombre: formZonaNombre.trim() || zonaSeleccionada.nombre,
+        latitud: Number(zonaSeleccionada.latitud),
+        longitud: Number(zonaSeleccionada.longitud),
+        radio_metros: formZonaRadio,
         color: formZonaColor,
         repartidor: formZonaRepartidor.trim() || null,
-        poligono: poligonoActivo.length >= 3 ? poligonoActivo : z.poligono,
       };
-    });
+    }
+    return {
+      ...zonaSeleccionada,
+      nombre: formZonaNombre.trim() || zonaSeleccionada.nombre,
+      color: formZonaColor,
+      repartidor: formZonaRepartidor.trim() || null,
+      poligono: poligonoActivo.length >= 3 ? poligonoActivo : zonaSeleccionada.poligono,
+    };
   }, [
-    zonasRadio,
     zonaSeleccionada,
     modoCrearZona,
     formZonaNombre,
@@ -529,6 +536,14 @@ const PageZonasyRepartos = () => {
     formZonaRepartidor,
     poligonoActivo,
   ]);
+
+  /** Zonas dibujadas; la seleccionada refleja el formulario en vivo. */
+  const zonasParaMapa = useMemo(() => {
+    if (!zonaGeometriaActiva) return zonasRadio;
+    return zonasRadio.map((z) =>
+      z.id === zonaGeometriaActiva.id ? zonaGeometriaActiva : z
+    );
+  }, [zonasRadio, zonaGeometriaActiva]);
 
   const borradorZona = useMemo(() => {
     if (!modoCrearZona) return null;
@@ -581,19 +596,8 @@ const PageZonasyRepartos = () => {
       }
       return null;
     }
-    if (zonaSeleccionada) {
-      if (zonaSeleccionada.tipo === 'radio') {
-        return contarClientesEnZona(clientesParaMapa, {
-          tipo: 'radio',
-          latitud: Number(zonaSeleccionada.latitud),
-          longitud: Number(zonaSeleccionada.longitud),
-          radio_metros: formZonaRadio,
-        });
-      }
-      return contarClientesEnZona(clientesParaMapa, {
-        ...zonaSeleccionada,
-        poligono: poligonoActivo.length >= 3 ? poligonoActivo : zonaSeleccionada.poligono,
-      });
+    if (zonaGeometriaActiva) {
+      return contarClientesEnZona(clientesParaMapa, zonaGeometriaActiva);
     }
     return null;
   }, [
@@ -602,18 +606,21 @@ const PageZonasyRepartos = () => {
     borradorCentro,
     formZonaRadio,
     borradorPoligono,
-    zonaSeleccionada,
+    zonaGeometriaActiva,
     clientesParaMapa,
-    poligonoActivo,
   ]);
 
   const contadoresPorZona = useMemo(() => {
     const map = new Map<number, number>();
     zonasRadio.forEach((zona) => {
-      map.set(zona.id, contarClientesEnZona(clientesParaMapa, zona));
+      const geometria =
+        zonaGeometriaActiva && zonaGeometriaActiva.id === zona.id
+          ? zonaGeometriaActiva
+          : zona;
+      map.set(zona.id, contarClientesEnZona(clientesParaMapa, geometria));
     });
     return map;
-  }, [zonasRadio, clientesParaMapa]);
+  }, [zonasRadio, clientesParaMapa, zonaGeometriaActiva]);
 
   const puedeGuardarZona = useMemo(() => {
     if (!formZonaNombre.trim()) return false;
@@ -735,6 +742,24 @@ const PageZonasyRepartos = () => {
       setFormZonaNombre((prev) => prev.trim() || result.barrio);
       setMensajeLimites(result.mensaje);
       setVistaMovil('mapa');
+      // Si estamos editando una zona existente, sincronizar también el estado guardado en memoria
+      if (!modoCrearZona && zonaSeleccionadaId != null) {
+        setZonasRadio((prev) =>
+          prev.map((z) =>
+            z.id === zonaSeleccionadaId
+              ? {
+                  ...z,
+                  tipo: z.tipo === 'radio' ? 'barrio' : z.tipo,
+                  poligono: result.poligono,
+                  latitud: result.centro.lat,
+                  longitud: result.centro.lng,
+                  origen_limites: result.fuente,
+                  barrio_nombre: result.barrio,
+                }
+              : z
+          )
+        );
+      }
     } catch (error) {
       setBorradorPoligono([]);
       setMensajeLimites(
@@ -828,6 +853,13 @@ const PageZonasyRepartos = () => {
             .map((z) => (z.id === actualizada.id ? actualizada : z))
             .sort((a, b) => a.nombre.localeCompare(b.nombre))
         );
+        setBorradorPoligono(actualizada.poligono || []);
+        setFormZonaNombre(actualizada.nombre);
+        setFormZonaRadio(Number(actualizada.radio_metros) || formZonaRadio);
+        setFormZonaRepartidor(actualizada.repartidor ?? '');
+        setFormZonaColor(actualizada.color || COLORES_ZONA[0]);
+        setFormZonaBarrio(actualizada.barrio_nombre || '');
+        setOrigenLimites(actualizada.origen_limites);
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error al guardar la zona');
@@ -859,18 +891,56 @@ const PageZonasyRepartos = () => {
     }
   };
 
+  const persistirPoligonoZona = useCallback(
+    async (zonaId: number, puntos: PuntoMapa[], meta: { tipo: TipoZona; barrio_nombre: string | null; origen_limites: string | null; nombre: string; color: string; repartidor: string | null }) => {
+      if (puntos.length < 3) return;
+      try {
+        const actualizada = await zonaRadioService.actualizar(zonaId, {
+          nombre: meta.nombre,
+          tipo: meta.tipo === 'radio' ? 'poligono' : meta.tipo,
+          poligono: puntos,
+          barrio_nombre: meta.barrio_nombre,
+          origen_limites: meta.origen_limites || 'manual',
+          color: meta.color,
+          repartidor: meta.repartidor,
+        });
+        setZonasRadio((prev) =>
+          prev.map((z) => (z.id === actualizada.id ? actualizada : z))
+        );
+        setBorradorPoligono(actualizada.poligono || puntos);
+      } catch (error) {
+        console.error('Error al auto-guardar polígono de zona:', error);
+      }
+    },
+    []
+  );
+
   const actualizarPoligonoZona = (puntos: PuntoMapa[]) => {
     if (modoCrearZona) {
       setBorradorPoligono(puntos);
       return;
     }
     if (!zonaSeleccionada) return;
+    const zonaId = zonaSeleccionada.id;
     setZonasRadio((prev) =>
-      prev.map((z) =>
-        z.id === zonaSeleccionada.id ? { ...z, poligono: puntos } : z
-      )
+      prev.map((z) => (z.id === zonaId ? { ...z, poligono: puntos } : z))
     );
     setBorradorPoligono(puntos);
+
+    // Persistir con debounce para que el modal y recargas vean la geometría real
+    if (autoGuardarPoligonoTimer.current) {
+      clearTimeout(autoGuardarPoligonoTimer.current);
+    }
+    autoGuardarPoligonoTimer.current = setTimeout(() => {
+      void persistirPoligonoZona(zonaId, puntos, {
+        tipo: zonaSeleccionada.tipo,
+        barrio_nombre: zonaSeleccionada.barrio_nombre,
+        origen_limites: zonaSeleccionada.origen_limites,
+        nombre: formZonaNombre.trim() || zonaSeleccionada.nombre,
+        color: formZonaColor,
+        repartidor: formZonaRepartidor.trim() || null,
+      });
+    }, 900);
   };
 
   const eliminarZonaSeleccionada = async () => {
@@ -1725,11 +1795,11 @@ const PageZonasyRepartos = () => {
         onConfirm={() => { setShowConfirmSalirRuta(false); limpiarRuta(); }}
         onCancel={() => setShowConfirmSalirRuta(false)}
       />
-      {zonaSeleccionada && (
+      {zonaGeometriaActiva && (
         <DelegarZonaModal
           open={mostrarDelegarZona}
           onClose={() => setMostrarDelegarZona(false)}
-          zona={zonaSeleccionada}
+          zona={zonaGeometriaActiva}
           clientes={clientesParaMapa.map((c) => ({
             id: c.id,
             nombre: c.nombre,

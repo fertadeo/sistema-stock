@@ -55,9 +55,23 @@ export default function DelegarZonaModal({
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
 
+  /** Firma de geometría para recalcular al mover puntos/radio sin depender solo de la ref. */
+  const geometriaKey = useMemo(() => {
+    const poly = zona.poligono || [];
+    return [
+      zona.id,
+      zona.tipo || '',
+      Number(zona.latitud),
+      Number(zona.longitud),
+      Number(zona.radio_metros) || 0,
+      poly.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join(';'),
+    ].join('|');
+  }, [zona]);
+
   const clientesEnZona = useMemo(
     () => clientesDentroDeZona(clientes, zona),
-    [clientes, zona]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clientes, geometriaKey]
   );
 
   const tabs = useMemo(() => {
@@ -75,6 +89,15 @@ export default function DelegarZonaModal({
       });
   }, [clientesEnZona]);
 
+  const idsEnZonaKey = useMemo(
+    () =>
+      clientesEnZona
+        .map((c) => c.id)
+        .sort((a, b) => a - b)
+        .join(','),
+    [clientesEnZona]
+  );
+
   useEffect(() => {
     if (!open) return;
     setError('');
@@ -85,9 +108,9 @@ export default function DelegarZonaModal({
     setTabActiva((prev) =>
       prev && tabs.some((t) => t.nombre === prev) ? prev : primera
     );
-    // Solo al abrir o cambiar zona/área de clientes
+    // Recalcular selección al abrir o cuando cambia el área (puntos/radio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, zona.id, clientesEnZona.length]);
+  }, [open, zona.id, geometriaKey, idsEnZonaKey]);
 
   const clientesTab = useMemo(
     () => clientesEnZona.filter((c) => nombreGrupo(c.repartidor) === tabActiva),
