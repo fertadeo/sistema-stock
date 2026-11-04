@@ -45,8 +45,8 @@ interface Cliente {
   dia_reparto: string | null;
   latitud: number | null;
   longitud: number | null;
-  /** false = desactivado / inhabilitado */
-  estado: boolean;
+  /** false = desactivado / inhabilitado; undefined se trata como activo */
+  estado?: boolean;
 }
 
 function clienteEstaActivo(rawEstado: unknown): boolean {
@@ -1128,8 +1128,16 @@ const PageZonasyRepartos = () => {
   };
 
   // Nuevo método para solo generar la ruta en el mapa
-  const generarRutaEnMapa = async (clientesPersonalizados?: ClienteConCoords[]) => {
-    const seleccionados = clientesPersonalizados ?? clientesParaRuta();
+  const generarRutaEnMapa = async (
+    clientesPersonalizados?: Array<
+      Omit<Cliente, 'latitud' | 'longitud'> & { latitud: number; longitud: number }
+    >
+  ) => {
+    const base = clientesPersonalizados ?? clientesParaRuta();
+    const seleccionados: ClienteConCoords[] = base.map((c) => ({
+      ...c,
+      estado: c.estado !== false,
+    }));
 
     if (seleccionados.length === 0) {
       alert('No hay clientes que coincidan con los filtros seleccionados.');
