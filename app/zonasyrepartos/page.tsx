@@ -44,6 +44,12 @@ interface Cliente {
   dia_reparto: string | null;
   latitud: number | null;
   longitud: number | null;
+  /** false = desactivado / inhabilitado */
+  estado: boolean;
+}
+
+function clienteEstaActivo(rawEstado: unknown): boolean {
+  return rawEstado !== false && rawEstado !== 0 && rawEstado !== '0' && rawEstado !== 'false';
 }
 
 type ClienteConCoords = Cliente & { latitud: number; longitud: number };
@@ -328,6 +334,7 @@ const PageZonasyRepartos = () => {
           dia_reparto: typeof raw.dia_reparto === 'string' ? raw.dia_reparto : null,
           latitud: coordsValidas.latitud,
           longitud: coordsValidas.longitud,
+          estado: clienteEstaActivo(raw.estado),
         };
       });
 
@@ -355,11 +362,12 @@ const PageZonasyRepartos = () => {
     [clientes, filtrosMapa]
   );
 
-  /** Solo clientes con coords para mapa/ruta. */
+  /** Solo clientes activos con coords para mapa/ruta/delegación. */
   const clientesParaMapa = useMemo(
     () =>
       clientes.filter(
-        (c): c is ClienteConCoords => c.latitud != null && c.longitud != null
+        (c): c is ClienteConCoords =>
+          c.estado !== false && c.latitud != null && c.longitud != null
       ),
     [clientes]
   );
