@@ -32,6 +32,8 @@ interface Cliente {
   dia_reparto: string | null;
   latitud: number;
   longitud: number;
+  /** false = desactivado / inhabilitado */
+  estado?: boolean;
 }
 
 interface RepartidorOption {
