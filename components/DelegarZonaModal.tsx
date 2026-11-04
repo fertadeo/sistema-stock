@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { authFetch, createApiUrl } from '@/lib/api/fetchWithAuth';
 import { clientesDentroDeZona, ZonaGeometria } from '@/lib/map/zonaRadio';
 import { descargarHojaRutaExcel } from '@/lib/export/excelHojaRuta';
+import { optimizarRutaVecinoMasCercano } from '@/lib/map/optimizarRuta';
 
 type ClienteZona = {
   id: number;
@@ -54,8 +55,9 @@ export default function DelegarZonaModal({
   const [descargandoExcel, setDescargandoExcel] = useState(false);
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
+  /** Orden de parada (#) por cliente_id tras armar la hoja de ruta. */
+  const [ordenRutaIds, setOrdenRutaIds] = useState<number[] | null>(null);
 
-  /** Firma de geometría para recalcular al mover puntos/radio sin depender solo de la ref. */
   const geometriaKey = useMemo(() => {
     const poly = zona.poligono || [];
     return [
@@ -103,24 +105,52 @@ export default function DelegarZonaModal({
     setError('');
     setExito('');
     setDestino('');
+    setOrdenRutaIds(null);
     setSeleccionados(new Set(clientesEnZona.map((c) => c.id)));
     const primera = tabs[0]?.nombre || '';
     setTabActiva((prev) =>
       prev && tabs.some((t) => t.nombre === prev) ? prev : primera
     );
-    // Recalcular selección al abrir o cuando cambia el área (puntos/radio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, zona.id, geometriaKey, idsEnZonaKey]);
 
-  const clientesTab = useMemo(
-    () => clientesEnZona.filter((c) => nombreGrupo(c.repartidor) === tabActiva),
-    [clientesEnZona, tabActiva]
-  );
+  const ordenIndex = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!ordenRutaIds) return map;
+    ordenRutaIds.forEach((id, idx) => map.set(id, idx + 1));
+    return map;
+  }, [ordenRutaIds]);
 
-  const seleccionadosLista = useMemo(
-    () => clientesEnZona.filter((c) => seleccionados.has(c.id)),
-    [clientesEnZona, seleccionados]
-  );
+  const clientesTab = useMemo(() => {
+    const base = clientesEnZona.filter(
+      (c) => nombreGrupo(c.repartidor) === tabActiva
+    );
+    if (!ordenRutaIds) return base;
+    return [...base].sort((a, b) => {
+      const ia = ordenIndex.get(a.id);
+      const ib = ordenIndex.get(b.id);
+      if (ia != null && ib != null) return ia - ib;
+      if (ia != null) return -1;
+      if (ib != null) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
+  }, [clientesEnZona, tabActiva, ordenRutaIds, ordenIndex]);
+
+  const seleccionadosLista = useMemo(() => {
+    const base = clientesEnZona.filter((c) => seleccionados.has(c.id));
+    if (!ordenRutaIds) return base;
+    const porId = new Map(base.map((c) => [c.id, c]));
+    const ordenados: ClienteZona[] = [];
+    for (const id of ordenRutaIds) {
+      const c = porId.get(id);
+      if (c) ordenados.push(c);
+    }
+    // Seleccionados nuevos que no estaban en la ruta armada
+    for (const c of base) {
+      if (!ordenIndex.has(c.id)) ordenados.push(c);
+    }
+    return ordenados;
+  }, [clientesEnZona, seleccionados, ordenRutaIds, ordenIndex]);
 
   const seleccionadosEnTab = useMemo(
     () => clientesTab.filter((c) => seleccionados.has(c.id)).length,
@@ -129,6 +159,8 @@ export default function DelegarZonaModal({
 
   if (!open) return null;
 
+  const invalidarOrdenRuta = () => setOrdenRutaIds(null);
+
   const toggleCliente = (id: number) => {
     setSeleccionados((prev) => {
       const next = new Set(prev);
@@ -136,6 +168,7 @@ export default function DelegarZonaModal({
       else next.add(id);
       return next;
     });
+    invalidarOrdenRuta();
   };
 
   const seleccionarTodosTab = () => {
@@ -144,6 +177,7 @@ export default function DelegarZonaModal({
       for (const c of clientesTab) next.add(c.id);
       return next;
     });
+    invalidarOrdenRuta();
   };
 
   const deseleccionarTodosTab = () => {
@@ -152,6 +186,20 @@ export default function DelegarZonaModal({
       for (const c of clientesTab) next.delete(c.id);
       return next;
     });
+    invalidarOrdenRuta();
+  };
+
+  const armarHojaRuta = (): ClienteZona[] => {
+    const seleccion = clientesEnZona.filter((c) => seleccionados.has(c.id));
+    if (seleccion.length === 0) {
+      setError('Seleccioná al menos un cliente para armar la hoja de ruta');
+      return [];
+    }
+    const ruta = optimizarRutaVecinoMasCercano(seleccion);
+    setOrdenRutaIds(ruta.map((c) => c.id));
+    setError('');
+    setExito(`Hoja de ruta armada: ${ruta.length} paradas (vecino más cercano).`);
+    return ruta;
   };
 
   const descargarExcel = async () => {
@@ -162,10 +210,19 @@ export default function DelegarZonaModal({
     setError('');
     setDescargandoExcel(true);
     try {
+      const ruta =
+        ordenRutaIds &&
+        ordenRutaIds.length === seleccionadosLista.length &&
+        seleccionadosLista.every((c) => ordenIndex.has(c.id))
+          ? seleccionadosLista
+          : armarHojaRuta();
+
+      if (ruta.length === 0) return;
+
       const response = await authFetch(createApiUrl('/api/clientes/deudas-delegacion'), {
         method: 'POST',
         body: JSON.stringify({
-          cliente_ids: seleccionadosLista.map((c) => c.id),
+          cliente_ids: ruta.map((c) => c.id),
         }),
       });
       const json = await response.json().catch(() => ({}));
@@ -188,7 +245,7 @@ export default function DelegarZonaModal({
         });
       }
 
-      const clientesExcel = seleccionadosLista.map((c) => {
+      const clientesExcel = ruta.map((c) => {
         const deuda = deudaPorId.get(c.id);
         return {
           ...c,
@@ -206,6 +263,7 @@ export default function DelegarZonaModal({
         nombreArchivo: `hoja_ruta_${(destino || 'seleccion').replace(/\s+/g, '_')}_zona_${zona.id}`,
         incluirDeudaDelegacion: true,
       });
+      setExito(`Excel listo: ${ruta.length} clientes en orden de hoja de ruta.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el Excel');
     } finally {
@@ -271,6 +329,7 @@ export default function DelegarZonaModal({
           <p className="text-sm text-gray-500">
             {zona.nombre} · {clientesEnZona.length} clientes en el área ·{' '}
             {seleccionadosLista.length} seleccionados
+            {ordenRutaIds ? ` · ruta ${ordenRutaIds.length} paradas` : ''}
           </p>
         </div>
 
@@ -304,6 +363,7 @@ export default function DelegarZonaModal({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium text-gray-700">
                   {tabActiva}: {seleccionadosEnTab}/{clientesTab.length}
+                  {ordenRutaIds ? ' · orden de ruta' : ''}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -326,9 +386,18 @@ export default function DelegarZonaModal({
               <ul className="max-h-56 space-y-0 overflow-y-auto rounded-lg border border-gray-200 sm:max-h-64">
                 {clientesTab.map((c) => {
                   const checked = seleccionados.has(c.id);
+                  const parada = ordenIndex.get(c.id);
                   return (
                     <li key={c.id} className="border-b border-gray-100 last:border-0">
                       <div className="flex items-start gap-3 px-3 py-2.5 hover:bg-gray-50">
+                        {parada != null ? (
+                          <span
+                            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-bold text-indigo-700"
+                            title={`Parada ${parada}`}
+                          >
+                            {parada}
+                          </span>
+                        ) : null}
                         <input
                           id={`delegar-cliente-${c.id}`}
                           type="checkbox"
@@ -381,18 +450,31 @@ export default function DelegarZonaModal({
                 </select>
               </div>
 
-              <button
-                type="button"
-                onClick={() => void descargarExcel()}
-                disabled={seleccionadosLista.length === 0 || descargandoExcel}
-                className="w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                {descargandoExcel
-                  ? 'Preparando Excel…'
-                  : `Descargar Excel (${seleccionadosLista.length})`}
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    armarHojaRuta();
+                  }}
+                  disabled={seleccionadosLista.length === 0}
+                  className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+                >
+                  Armar hoja de ruta ({seleccionadosLista.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void descargarExcel()}
+                  disabled={seleccionadosLista.length === 0 || descargandoExcel}
+                  className="w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {descargandoExcel
+                    ? 'Preparando Excel…'
+                    : `Descargar Excel (${seleccionadosLista.length})`}
+                </button>
+              </div>
               <p className="text-xs text-gray-500">
-                Incluye la deuda con el repartidor anterior para que el nuevo la cobre.
+                La hoja de ruta ordena por vecino más cercano (desde la empresa). El Excel
+                usa ese orden e incluye la deuda con el repartidor anterior.
               </p>
             </>
           )}

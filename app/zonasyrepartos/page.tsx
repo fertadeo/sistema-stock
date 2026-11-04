@@ -31,6 +31,7 @@ import ZonasLista from '@/components/ZonasLista';
 import ZonaComposer, { ZonaMapHint } from '@/components/ZonaComposer';
 import zonasJson from '@/components/soderia-data/zonas.json';
 import { descargarHojaRutaExcel } from '@/lib/export/excelHojaRuta';
+import { optimizarRutaVecinoMasCercano } from '@/lib/map/optimizarRuta';
 import { repartidorRutaService } from '@/lib/services/repartidorRutaService';
 import DelegarZonaModal from '@/components/DelegarZonaModal';
 
@@ -980,43 +981,12 @@ const PageZonasyRepartos = () => {
     return R * c;
   };
 
-  // Función para optimizar la ruta usando el algoritmo del vecino más cercano
   const optimizarRuta = (lista: ClienteConCoords[]) => {
-    if (lista.length === 0) return [] as ClienteConCoords[];
-
-    const ruta: ClienteConCoords[] = [];
-    const noVisitados = [...lista].filter(cliente => !clientesOmitidos.includes(cliente.id));
-    let puntoActual = { latitud: EMPRESA_COORDENADAS[0], longitud: EMPRESA_COORDENADAS[1] };
-
-    while (noVisitados.length > 0) {
-      let clienteMasCercano = noVisitados[0];
-      let distanciaMinima = calcularDistancia(
-        puntoActual.latitud,
-        puntoActual.longitud,
-        clienteMasCercano.latitud,
-        clienteMasCercano.longitud
-      );
-
-      for (let i = 1; i < noVisitados.length; i++) {
-        const distancia = calcularDistancia(
-          puntoActual.latitud,
-          puntoActual.longitud,
-          noVisitados[i].latitud,
-          noVisitados[i].longitud
-        );
-
-        if (distancia < distanciaMinima) {
-          distanciaMinima = distancia;
-          clienteMasCercano = noVisitados[i];
-        }
-      }
-
-      ruta.push(clienteMasCercano);
-      puntoActual = clienteMasCercano;
-      noVisitados.splice(noVisitados.indexOf(clienteMasCercano), 1);
-    }
-
-    return ruta;
+    const noOmitidos = lista.filter((cliente) => !clientesOmitidos.includes(cliente.id));
+    return optimizarRutaVecinoMasCercano(noOmitidos, {
+      latitud: EMPRESA_COORDENADAS[0],
+      longitud: EMPRESA_COORDENADAS[1],
+    });
   };
 
   // Función auxiliar para encontrar la mejor posición para reinsertar un cliente
