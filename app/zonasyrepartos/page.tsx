@@ -24,6 +24,7 @@ import {
   RADIO_DEFAULT_METROS,
   TipoZona,
   PuntoMapa,
+  clientesDentroDeZona,
   contarClientesEnZona,
 } from '@/lib/map/zonaRadio';
 import NuevoClienteModal from '@/components/nuevoClienteModal';
@@ -156,6 +157,7 @@ const PageZonasyRepartos = () => {
   const [vistaMovil, setVistaMovil] = useState<'filtros' | 'mapa'>('mapa');
   const [esDesktop, setEsDesktop] = useState(false);
   const [enviandoRuta, setEnviandoRuta] = useState(false);
+  const [generandoHojaRutaZona, setGenerandoHojaRutaZona] = useState(false);
   const [mostrarDelegarZona, setMostrarDelegarZona] = useState(false);
   const [editandoColorRepartidor, setEditandoColorRepartidor] = useState<string | null>(null);
   const [colorPinBorrador, setColorPinBorrador] = useState<string>(REPARTIDOR_PIN_COLORS[0]);
@@ -1192,6 +1194,47 @@ const PageZonasyRepartos = () => {
     }
   };
 
+  const generarHojaRutaDeZona = async () => {
+    if (!zonaGeometriaActiva) {
+      alert('Seleccioná una zona para armar la hoja de ruta.');
+      return;
+    }
+    const clientesZona = clientesDentroDeZona(clientesParaMapa, zonaGeometriaActiva);
+    if (clientesZona.length === 0) {
+      alert('No hay clientes activos con coordenadas dentro de esta zona.');
+      return;
+    }
+
+    setGenerandoHojaRutaZona(true);
+    try {
+      const ruta = optimizarRutaVecinoMasCercano(clientesZona, {
+        latitud: EMPRESA_COORDENADAS[0],
+        longitud: EMPRESA_COORDENADAS[1],
+      });
+
+      // Mostrar la ruta en el mapa (misma lógica que "Generar Ruta")
+      await generarRutaEnMapa(ruta);
+
+      const ahora = new Date();
+      const nombreRep =
+        (zonaGeometriaActiva.repartidor || formZonaRepartidor || filtroRepartidor || 'zona')
+          .toString()
+          .trim() || 'zona';
+      descargarHojaRutaExcel(ruta, {
+        anio: ahora.getFullYear(),
+        mes: ahora.getMonth() + 1,
+        repartidor: nombreRep,
+        diaReparto: filtroDia !== 'todos' ? filtroDia : 'zona',
+        nombreArchivo: `hoja_ruta_zona_${zonaGeometriaActiva.id}_${nombreRep.replace(/\s+/g, '_')}`,
+      });
+      setVistaMovil('mapa');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo generar la hoja de ruta');
+    } finally {
+      setGenerandoHojaRutaZona(false);
+    }
+  };
+
   const enviarRutaAlRepartidor = async () => {
     if (!rutaLista || !rutaOptimizada.length) {
       alert('Primero debes generar la ruta en el mapa.');
@@ -1306,6 +1349,11 @@ const PageZonasyRepartos = () => {
     onDelegarZona: !modoCrearZona && zonaSeleccionadaId != null
       ? () => setMostrarDelegarZona(true)
       : undefined,
+    onGenerarHojaRutaZona:
+      !modoCrearZona && zonaSeleccionadaId != null
+        ? () => void generarHojaRutaDeZona()
+        : undefined,
+    generandoHojaRutaZona,
     onCancelar: cerrarEditorZona,
     onSeleccionarTipo: seleccionarTipoCreacion,
     onNombreChange: setFormZonaNombre,

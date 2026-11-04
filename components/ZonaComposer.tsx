@@ -48,6 +48,9 @@ type Props = {
   onIrAlMapa?: () => void;
   /** Solo al editar una zona existente: ceder clientes del origen al destino. */
   onDelegarZona?: () => void;
+  /** Armar ruta optimizada + Excel con los clientes dentro de la zona. */
+  onGenerarHojaRutaZona?: () => void;
+  generandoHojaRutaZona?: boolean;
 };
 
 function hintFor(tipo: TipoZona): string {
@@ -88,6 +91,8 @@ export default function ZonaComposer({
   onEliminar,
   onIrAlMapa,
   onDelegarZona,
+  onGenerarHojaRutaZona,
+  generandoHojaRutaZona = false,
 }: Props) {
   const [masOpciones, setMasOpciones] = useState(false);
   // Empieza colapsado para no tapar el mapa; se expande si el usuario lo pide.
@@ -285,12 +290,29 @@ export default function ZonaComposer({
             Ver mapa para dibujar →
           </button>
         )}
+        {!modoCrear && onGenerarHojaRutaZona && (
+          <button
+            type="button"
+            className="w-full rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
+            onClick={onGenerarHojaRutaZona}
+            disabled={
+              guardando ||
+              generandoHojaRutaZona ||
+              clientesEnZona == null ||
+              clientesEnZona <= 0
+            }
+          >
+            {generandoHojaRutaZona
+              ? 'Armando hoja de ruta…'
+              : `Generar hoja de ruta${clientesEnZona != null ? ` (${clientesEnZona})` : ''}`}
+          </button>
+        )}
         {!modoCrear && onDelegarZona && (
           <button
             type="button"
             className="w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
             onClick={onDelegarZona}
-            disabled={guardando}
+            disabled={guardando || generandoHojaRutaZona}
           >
             Delegar zona
           </button>
@@ -300,7 +322,7 @@ export default function ZonaComposer({
             type="button"
             className="flex-1 rounded-xl bg-teal-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50"
             onClick={onGuardar}
-            disabled={guardando || !puedeGuardar}
+            disabled={guardando || !puedeGuardar || generandoHojaRutaZona}
           >
             {guardando ? 'Guardando…' : modoCrear ? 'Guardar zona' : 'Guardar cambios'}
           </button>
@@ -309,7 +331,7 @@ export default function ZonaComposer({
               type="button"
               className="rounded-xl bg-red-500 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
               onClick={onEliminar}
-              disabled={guardando}
+              disabled={guardando || generandoHojaRutaZona}
             >
               Eliminar
             </button>
@@ -410,12 +432,27 @@ export default function ZonaComposer({
               Deshacer
             </button>
           )}
+          {!modoCrear && onGenerarHojaRutaZona && (
+            <button
+              type="button"
+              className="rounded-xl bg-green-600 px-2.5 py-2 text-xs font-bold text-white disabled:opacity-50"
+              onClick={onGenerarHojaRutaZona}
+              disabled={
+                guardando ||
+                generandoHojaRutaZona ||
+                clientesEnZona == null ||
+                clientesEnZona <= 0
+              }
+            >
+              {generandoHojaRutaZona ? '…' : 'Ruta'}
+            </button>
+          )}
           {!modoCrear && onDelegarZona && (
             <button
               type="button"
               className="rounded-xl bg-indigo-600 px-2.5 py-2 text-xs font-bold text-white disabled:opacity-50"
               onClick={onDelegarZona}
-              disabled={guardando}
+              disabled={guardando || generandoHojaRutaZona}
             >
               Delegar
             </button>
@@ -424,7 +461,7 @@ export default function ZonaComposer({
             type="button"
             className="rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
             onClick={onGuardar}
-            disabled={guardando || !puedeGuardar}
+            disabled={guardando || !puedeGuardar || generandoHojaRutaZona}
           >
             {guardando ? '…' : 'Guardar'}
           </button>
